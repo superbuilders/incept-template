@@ -1,0 +1,127 @@
+{
+	"$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+	"plugins": [
+		"./gritql/logger-structured-args.grit",
+		"./gritql/no-as-type-assertion.grit",
+		"./gritql/no-iife.grit",
+		"./gritql/no-new-error.grit",
+		"./gritql/no-relative-imports.grit",
+		"./gritql/no-try.grit",
+		"./gritql/require-logger-before-throw.grit"
+	],
+	"vcs": {
+		"enabled": false,
+		"clientKind": "git",
+		"defaultBranch": "main",
+		"useIgnoreFile": true
+	},
+	"files": {
+		"ignoreUnknown": false,
+		"includes": [
+			"**",
+			"!**/node_modules",
+			"!**/src/components/ui",
+			"!**/canvas-scrape",
+			"!!**/.next",
+			"!!**/.vercel"
+		],
+		"maxSize": 5000000
+	},
+	"formatter": {
+		"enabled": true,
+		"indentStyle": "tab",
+		"indentWidth": 2,
+		"lineWidth": 80
+	},
+	"assist": { "actions": { "source": { "organizeImports": "on" } } },
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"suspicious": {
+				"noConsole": {
+					"level": "error",
+					"fix": "unsafe"
+				},
+				"noArrayIndexKey": "off",
+				"noExplicitAny": "error"
+			},
+			"complexity": {
+				"noForEach": {
+					"level": "error"
+				},
+				"useOptionalChain": {
+					"level": "error",
+					"fix": "safe"
+				},
+				"useLiteralKeys": {
+					"level": "error",
+					"fix": "safe"
+				}
+			},
+			"recommended": true,
+			"correctness": {
+				"noUnusedImports": "error",
+				"noUnusedVariables": "error",
+				"noUnusedFunctionParameters": "error"
+			},
+			"nursery": {
+				"noFloatingPromises": {
+					"level": "error",
+					"fix": "safe"
+				}
+			},
+			"style": {
+				"noProcessEnv": "error",
+				"noNonNullAssertion": {
+					"level": "error",
+					"fix": "safe"
+				},
+				"useConst": "off",
+				"noUnusedTemplateLiteral": {
+					"level": "error",
+					"fix": "safe"
+				},
+				"useTemplate": {
+					"level": "error",
+					"fix": "safe"
+				},
+				"noUselessElse": {
+					"level": "error",
+					"fix": "safe"
+				},
+				"noParameterAssign": "error",
+				"useAsConstAssertion": "error",
+				"useDefaultParameterLast": "error",
+				"useEnumInitializers": "error",
+				"useSelfClosingElements": "error",
+				"useSingleVarDeclarator": "error",
+				"useNumberNamespace": "error",
+				"noInferrableTypes": "error",
+				"noNestedTernary": "error",
+				"useNodejsImportProtocol": {
+					"level": "error",
+					"fix": "safe"
+				}
+			},
+			"a11y": {
+				"useKeyWithClickEvents": "off"
+			},
+			"performance": {
+				"noBarrelFile": "error",
+				"noImgElement": "error"
+			}
+		}
+	},
+	"javascript": {
+		"formatter": {
+			"quoteStyle": "double",
+			"semicolons": "asNeeded",
+			"trailingCommas": "none"
+		}
+	},
+	"json": {
+		"formatter": {
+			"trailingCommas": "none"
+		}
+	}
+}
