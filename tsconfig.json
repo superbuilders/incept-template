@@ -1,6 +1,7 @@
 {
 	"compilerOptions": {
 		/* Base Options: */
+		"types": ["bun"],
 		"esModuleInterop": true,
 		"skipLibCheck": true,
 		"target": "esnext",
