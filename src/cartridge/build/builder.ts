@@ -3,10 +3,8 @@ import * as fscore from "node:fs"
 import * as fs from "node:fs/promises"
 import * as os from "node:os"
 import * as path from "node:path"
-// stream import no longer required after switching to direct piping
 import * as errors from "@superbuilders/errors"
 import * as logger from "@superbuilders/slog"
-import { spawn } from "bun"
 import tar from "tar-stream"
 import { z } from "zod"
 import {
@@ -109,6 +107,45 @@ function assert(condition: boolean, msg: string): void {
 	}
 }
 
+function ensureBuffer(chunk: unknown, context: string): Buffer {
+	if (Buffer.isBuffer(chunk)) {
+		return chunk
+	}
+	if (chunk instanceof Uint8Array) {
+		return Buffer.from(chunk)
+	}
+	if (typeof chunk === "string") {
+		return Buffer.from(chunk, "utf8")
+	}
+	if (chunk instanceof ArrayBuffer) {
+		return Buffer.from(chunk)
+	}
+	logger.error("unexpected stream chunk", { context, type: typeof chunk })
+	throw errors.new(`${context}: unexpected stream chunk type`)
+}
+
+async function collectStream(
+	readable: NodeJS.ReadableStream,
+	context: string
+): Promise<Uint8Array> {
+	const chunks: Buffer[] = []
+	for await (const chunk of readable as AsyncIterable<unknown>) {
+		const buffer = ensureBuffer(chunk, context)
+		chunks.push(buffer)
+	}
+	let totalLength = 0
+	for (const chunk of chunks) {
+		totalLength += chunk.length
+	}
+	const output = new Uint8Array(totalLength)
+	let offset = 0
+	for (const chunk of chunks) {
+		output.set(chunk, offset)
+		offset += chunk.length
+	}
+	return output
+}
+
 export async function buildCartridgeToBytes(
 	input: CartridgeBuildInput
 ): Promise<Uint8Array> {
@@ -156,7 +193,7 @@ export async function buildCartridgeToBytes(
 		throw errors.new("unexpected file inputs")
 	}
 
-	// We'll stream tar entries directly into a multi-threaded zstd compressor.
+	// We'll collect tar entries in-memory and gzip with Bun.
 	// As we add entries, compute integrity in-memory to write integrity.json last.
 	const integrityFiles: Record<string, { size: number; sha256: string }> = {}
 	function hashAndRecord(pathRel: string, bytes: Uint8Array | string): void {
@@ -170,6 +207,7 @@ export async function buildCartridgeToBytes(
 
 	// Pack tar stream
 	const pack = tar.pack()
+	const tarStreamPromise = collectStream(pack, "cartridge tar stream")
 	const addEntry = async (
 		name: string,
 		content: Uint8Array | string
@@ -290,46 +328,22 @@ export async function buildCartridgeToBytes(
 	}
 	await addEntry("integrity.json", stringifyJson(integV.data))
 
-	// Finalize tar then stream into multi-threaded zstd
+	// Finalize tar then compress with Bun gzip
 	pack.finalize()
 
-	const proc = spawn({
-		cmd: ["zstd", "--fast=3", "-T0", "-q", "-c"],
-		stdin: "pipe",
-		stdout: "pipe",
-		stderr: "pipe"
-	})
-	async function runZstdStream(): Promise<Uint8Array> {
-		await new Promise<void>((resolve, reject) => {
-			pack.on("data", (c) => {
-				void proc.stdin.write(c)
-			})
-			pack.on("end", () => {
-				proc.stdin.end()
-				resolve()
-			})
-			pack.on("error", (err) => reject(errors.wrap(err, "tar finalize")))
+	const tarStreamResult = await errors.try(tarStreamPromise)
+	if (tarStreamResult.error) {
+		logger.error("tar stream collection failed", {
+			error: tarStreamResult.error
 		})
-		const waited = await errors.try(proc.exited)
-		if (waited.error || proc.exitCode !== 0) {
-			const stderrText = await new Response(proc.stderr).text()
-			logger.error("zstd compression failed", {
-				exitCode: proc.exitCode,
-				stderr: stderrText
-			})
-			throw errors.new("zstd compression failure")
-		}
-		const zst = new Uint8Array(await new Response(proc.stdout).arrayBuffer())
-		return zst
+		throw tarStreamResult.error
 	}
-	const streamResult = await errors.try(runZstdStream())
-	if (streamResult.error) {
-		logger.error("zstd streaming encountered error", {
-			error: streamResult.error
-		})
-		throw streamResult.error
+	const gzipResult = errors.trySync(() => Bun.gzipSync(tarStreamResult.data))
+	if (gzipResult.error) {
+		logger.error("gzip compression failed", { error: gzipResult.error })
+		throw errors.wrap(gzipResult.error, "gzip compression")
 	}
-	return streamResult.data
+	return gzipResult.data
 }
 
 export async function buildCartridgeToFile(
@@ -357,6 +371,7 @@ export async function buildCartridgeToFile(
 	}
 
 	const pack = tar.pack()
+	const tarStreamPromise = collectStream(pack, "cartridge tar file stream")
 	const addEntry = async (
 		name: string,
 		content: Uint8Array | string
@@ -496,36 +511,26 @@ export async function buildCartridgeToFile(
 		throw bytesBuild.error
 	}
 
-	// Stream to zstd directly to file
-	const proc = spawn({
-		cmd: ["zstd", "--fast=3", "-T0", "-q", "-o", outFile],
-		stdin: "pipe",
-		stdout: "pipe",
-		stderr: "pipe"
-	})
-	async function pipeToZstdFile(): Promise<true> {
-		await new Promise<void>((resolve, reject) => {
-			pack.on("data", (c) => {
-				void proc.stdin.write(c)
-			})
-			pack.on("end", () => {
-				proc.stdin.end()
-				resolve()
-			})
-			pack.on("error", (err) => reject(errors.wrap(err, "tar finalize")))
+	const tarStreamResult = await errors.try(tarStreamPromise)
+	if (tarStreamResult.error) {
+		logger.error("tar stream collection failed", {
+			error: tarStreamResult.error
 		})
-		const waited = await errors.try(proc.exited)
-		if (waited.error || proc.exitCode !== 0) {
-			const stderrText = await new Response(proc.stderr).text()
-			logger.error("zstd compression failed", {
-				exitCode: proc.exitCode,
-				stderr: stderrText
-			})
-			throw errors.new("zstd compression failure")
-		}
-		return true as const
+		throw tarStreamResult.error
 	}
-	await pipeToZstdFile()
+	const gzipResult = errors.trySync(() => Bun.gzipSync(tarStreamResult.data))
+	if (gzipResult.error) {
+		logger.error("gzip compression failed", { error: gzipResult.error })
+		throw errors.wrap(gzipResult.error, "gzip compression")
+	}
+	const writeResult = await errors.try(fs.writeFile(outFile, gzipResult.data))
+	if (writeResult.error) {
+		logger.error("gzip file write failed", {
+			file: outFile,
+			error: writeResult.error
+		})
+		throw errors.wrap(writeResult.error, "gzip write")
+	}
 }
 
 async function copyWithHash(
@@ -703,50 +708,55 @@ export async function buildCartridgeFromFileMap(
 	}
 	await writeJson("integrity.json", integ.data)
 
-	// tar | zstd
-	const procTar = spawn({
-		cmd: ["tar", "-C", stageRoot, "-cf", "-", "."],
-		stdout: "pipe",
-		stderr: "pipe"
-	})
-	const procZstd = spawn({
-		cmd: ["zstd", "--fast=3", "-T0", "-q", "-o", outFile],
-		stdin: "pipe",
-		stdout: "pipe",
-		stderr: "pipe"
-	})
-
-	async function runCompression(): Promise<true> {
-		if (!procTar.stdout) {
-			logger.error("tar produced no stdout stream")
-			throw errors.new("tar stdout missing")
+	const pack = tar.pack()
+	const tarStreamPromise = collectStream(pack, "cartridge stage tar stream")
+	const stagedPaths = Object.keys(integrityFiles).sort((a, b) =>
+		a.localeCompare(b)
+	)
+	for (const rel of stagedPaths) {
+		const abs = path.join(stageRoot, rel)
+		const readResult = await errors.try(fs.readFile(abs))
+		if (readResult.error) {
+			logger.error("staged file read failed", {
+				file: abs,
+				error: readResult.error
+			})
+			throw errors.wrap(readResult.error, "staged file read")
 		}
-		const reader = procTar.stdout.getReader()
-		while (true) {
-			const rr = await reader.read()
-			if (rr.done) break
-			const w = errors.trySync(() => procZstd.stdin.write(rr.value))
-			if (w.error) {
-				logger.error("zstd stdin write failed", { error: w.error })
-				throw errors.wrap(w.error, "zstd stdin write")
-			}
-		}
-		procZstd.stdin.end()
-		const tExit = await procTar.exited
-		const zExit = await procZstd.exited
-		if (tExit !== 0) {
-			const stderrText = await new Response(procTar.stderr).text()
-			logger.error("tar failed", { exitCode: tExit, stderr: stderrText })
-			throw errors.new("tar failure")
-		}
-		if (zExit !== 0) {
-			const stderrText = await new Response(procZstd.stderr).text()
-			logger.error("zstd failed", { exitCode: zExit, stderr: stderrText })
-			throw errors.new("zstd failure")
-		}
-		return true as const
+		const buffer = readResult.data
+		await new Promise<void>((resolve, reject) => {
+			pack.entry(
+				{ name: rel, size: buffer.length, type: "file" },
+				buffer,
+				(err) => {
+					if (err) return reject(errors.wrap(err, "tar entry"))
+					resolve()
+				}
+			)
+		})
 	}
-	await runCompression()
+	pack.finalize()
+
+	const tarStreamResult = await errors.try(tarStreamPromise)
+	if (tarStreamResult.error) {
+		logger.error("tar stream collection failed", {
+			error: tarStreamResult.error
+		})
+		throw tarStreamResult.error
+	}
+	const gzipResult = errors.trySync(() => Bun.gzipSync(tarStreamResult.data))
+	if (gzipResult.error) {
+		logger.error("gzip compression failed", { error: gzipResult.error })
+		throw errors.wrap(gzipResult.error, "gzip compression")
+	}
+	const writeResult = await errors.try(fs.writeFile(outFile, gzipResult.data))
+	if (writeResult.error) {
+		logger.error("gzip file write failed", {
+			file: outFile,
+			error: writeResult.error
+		})
+		throw errors.wrap(writeResult.error, "gzip write")
+	}
 
 	const rm = await errors.try(
 		fs.rm(stageRoot, { recursive: true, force: true })

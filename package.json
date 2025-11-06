@@ -28,6 +28,7 @@
 		"openai": "^6.8.1",
 		"react": "^19.2.0",
 		"react-dom": "^19.2.0",
+		"tar-stream": "^3.1.7",
 		"zod": "^4.1.12"
 	},
 	"devDependencies": {
@@ -37,6 +38,7 @@
 		"@types/node": "^24.10.0",
 		"@types/react": "^19.2.2",
 		"@types/react-dom": "^19.2.2",
+		"@types/tar-stream": "^3.1.4",
 		"drizzle-kit": "^0.31.6",
 		"inngest-cli": "^1.13.4",
 		"tailwindcss": "^4.1.17",

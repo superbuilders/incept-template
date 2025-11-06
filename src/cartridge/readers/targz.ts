@@ -1,23 +1,33 @@
-// zstd reader uses Bun.spawn to decompress; no fs imports needed
+// gzip reader uses Bun built-ins; no fs imports needed
 
 import * as errors from "@superbuilders/errors"
 import * as logger from "@superbuilders/slog"
-import { spawn } from "bun"
 import tar from "tar-stream"
 import { validateIntegrity } from "@/cartridge/client"
 import type { CartridgeReader } from "@/cartridge/reader"
 
-export async function createTarZstReader(
+export async function createTarGzReader(
 	filePath: string
 ): Promise<CartridgeReader> {
 	const fileIndex = new Map<string, Buffer>()
 
+	const fileBlob = Bun.file(filePath)
+	const readResult = await errors.try(fileBlob.arrayBuffer())
+	if (readResult.error) {
+		logger.error("tar.gz read failed", { file: filePath, error: readResult.error })
+		throw errors.wrap(readResult.error, "tar.gz file read")
+	}
+	const compressedBytes = new Uint8Array(readResult.data)
+	const decompressResult = errors.trySync(() => Bun.gunzipSync(compressedBytes))
+	if (decompressResult.error) {
+		logger.error("tar.gz decompress failed", {
+			file: filePath,
+			error: decompressResult.error
+		})
+		throw errors.wrap(decompressResult.error, "tar.gz decompress")
+	}
+	const tarBytes = Buffer.from(decompressResult.data)
 	const extract = tar.extract()
-	const zstdProc = spawn({
-		cmd: ["zstd", "-d", "-c", filePath],
-		stdout: "pipe",
-		stderr: "pipe"
-	})
 
 	const p = new Promise<void>((resolve, reject) => {
 		extract.on("entry", (header, stream, next) => {
@@ -33,7 +43,7 @@ export async function createTarZstReader(
 		})
 
 		extract.on("finish", () => {
-			logger.debug("tar.zst extraction complete", {
+			logger.debug("tar.gz extraction complete", {
 				file: filePath,
 				entryCount: fileIndex.size
 			})
@@ -41,26 +51,17 @@ export async function createTarZstReader(
 		})
 
 		extract.on("error", (err) => reject(errors.wrap(err, "tar extract error")))
-
-		const reader = zstdProc.stdout.getReader()
-		async function pipe() {
-			while (true) {
-				const chunk = await reader.read()
-				if (chunk.done) break
-				extract.write(Buffer.from(chunk.value))
-			}
-			extract.end()
-		}
-		void pipe()
 	})
+
+	extract.end(tarBytes)
 
 	const pres = await errors.try(p)
 	if (pres.error) {
-		logger.error("failed to create tar.zst reader", {
+		logger.error("failed to create tar.gz reader", {
 			file: filePath,
 			error: pres.error
 		})
-		throw errors.wrap(pres.error, "tar.zst reader creation")
+		throw errors.wrap(pres.error, "tar.gz reader creation")
 	}
 
 	return {
@@ -90,10 +91,10 @@ export async function createTarZstReader(
 	}
 }
 
-export async function openCartridgeTarZst(
+export async function openCartridgeTarGz(
 	filePath: string
 ): Promise<CartridgeReader> {
-	const reader = await createTarZstReader(filePath)
+	const reader = await createTarGzReader(filePath)
 	const validation = await validateIntegrity(reader)
 	if (!validation.ok) {
 		logger.error("integrity validation failed", {

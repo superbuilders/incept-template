@@ -9,7 +9,7 @@ A strictly validated, integrity-checked packaging system for course content and 
 ## Data Model
 
 ```
-Cartridge (tar.zst archive)
+Cartridge (tar.gz archive)
 ├── index.json              # Top-level manifest (version 1)
 ├── integrity.json          # SHA-256 checksums for all files
 ├── units/
@@ -41,7 +41,7 @@ Cartridge (tar.zst archive)
 
 ## Building a Cartridge (In-Memory)
 
-Use the builder to validate and produce a tar.zst without temp files.
+Use the builder to validate and produce a tar.gz without temp files.
 
 ```ts
 import { buildCartridgeToFile, buildCartridgeToBytes, type CartridgeBuildInput } from "@superbuilders/qti-assessment-item-generator/cartridge/build/builder"
@@ -97,7 +97,7 @@ const input: CartridgeBuildInput = {
 }
 
 // Write to file atomically
-await buildCartridgeToFile(input, "./course-cartridge-v1.tar.zst")
+await buildCartridgeToFile(input, "./course-cartridge-v1.tar.gz")
 
 // OR get bytes directly
 const bytes = await buildCartridgeToBytes(input)
@@ -115,9 +115,9 @@ const bytes = await buildCartridgeToBytes(input)
 ### Opening
 
 ```ts
-import { openCartridgeTarZst } from "@superbuilders/qti-assessment-item-generator/cartridge/readers/tarzst"
+import { openCartridgeTarGz } from "@superbuilders/qti-assessment-item-generator/cartridge/readers/targz"
 
-const reader = await openCartridgeTarZst("./course-cartridge-v1.tar.zst")
+const reader = await openCartridgeTarGz("./course-cartridge-v1.tar.gz")
 ```
 
 Integrity is validated on open; subsequent reads trust shapes and only JSON.parse is used (no Zod at read-time).
@@ -200,7 +200,7 @@ const files = {
   "quizzes/quiz-1-1/question-02-structured.json": "/abs/quizzes/quiz-1-1/question-02-structured.json"
 }
 
-await buildCartridgeFromFileMap({ generator, course: { title: "English 09, Part 1", subject: "English" }, units, files }, "./course-cartridge-v1.tar.zst")
+await buildCartridgeFromFileMap({ generator, course: { title: "English 09, Part 1", subject: "English" }, units, files }, "./course-cartridge-v1.tar.gz")
 ```
 
 ### Validation and Path Rules
@@ -221,8 +221,8 @@ await buildCartridgeFromFileMap({ generator, course: { title: "English 09, Part 
 
 ### Reading (read-time)
 
-- `openCartridgeTarZst(path: string): Promise<CartridgeReader>`
-- `createTarZstReader(path: string): Promise<CartridgeReader>` (no integrity check)
+- `openCartridgeTarGz(path: string): Promise<CartridgeReader>`
+- `createTarGzReader(path: string): Promise<CartridgeReader>` (no integrity check)
 - `validateIntegrity(reader: CartridgeReader): Promise<{ ok: boolean; issues: { path: string; reason: string }[] }>`
 - Iteration helpers: `iterUnits(reader)`, `iterUnitLessons(reader, unit)`, `iterLessonResources(reader, lesson)`
 - Direct content: `readIndex`, `readUnit`, `readLesson`, `readArticleContent`, `readQuestionXml`, `readQuestionJson`
@@ -239,8 +239,8 @@ These subpath exports are available from the published package for the cartridge
 - `@superbuilders/qti-assessment-item-generator/cartridge/client`
   - Exports: `iterUnits`, `iterUnitLessons`, `iterLessonResources`, `readIndex`, `readUnit`, `readLesson`, `readArticleContent`, `readQuestionXml`, `readQuestionJson`, `validateIntegrity`
 
-- `@superbuilders/qti-assessment-item-generator/cartridge/readers/tarzst`
-  - Exports: `openCartridgeTarZst`, `createTarZstReader`
+- `@superbuilders/qti-assessment-item-generator/cartridge/readers/targz`
+  - Exports: `openCartridgeTarGz`, `createTarGzReader`
 
 - `@superbuilders/qti-assessment-item-generator/cartridge/types`
   - Types: `IndexV1`, `Unit`, `Lesson`, `Resource`, `UnitTest`, `IntegrityManifest`, `IntegrityEntry`
@@ -258,7 +258,7 @@ These subpath exports are available from the published package for the cartridge
 
 ## Design Principles
 
-1. Single format: tar.zst only
+1. Single format: tar.gz only
 2. No fallbacks: missing or invalid data fails immediately
 3. Strict validation on write; checksum validation on open
 4. Fast, simple reads post-open
