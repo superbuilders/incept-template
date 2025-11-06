@@ -127,23 +127,21 @@ function ensureBuffer(chunk: unknown, context: string): Buffer {
 async function collectStream(
 	readable: NodeJS.ReadableStream,
 	context: string
-): Promise<Uint8Array> {
+): Promise<Buffer> {
 	const chunks: Buffer[] = []
 	for await (const chunk of readable as AsyncIterable<unknown>) {
 		const buffer = ensureBuffer(chunk, context)
 		chunks.push(buffer)
 	}
-	let totalLength = 0
-	for (const chunk of chunks) {
-		totalLength += chunk.length
+	return Buffer.concat(chunks)
+}
+
+function toArrayBuffer(view: ArrayBufferView): ArrayBuffer {
+	if (view.byteOffset === 0 && view.byteLength === view.buffer.byteLength) {
+		return view.buffer as ArrayBuffer
 	}
-	const output = new Uint8Array(totalLength)
-	let offset = 0
-	for (const chunk of chunks) {
-		output.set(chunk, offset)
-		offset += chunk.length
-	}
-	return output
+	const buffer = view.buffer as ArrayBuffer
+	return buffer.slice(view.byteOffset, view.byteOffset + view.byteLength)
 }
 
 export async function buildCartridgeToBytes(
@@ -338,7 +336,9 @@ export async function buildCartridgeToBytes(
 		})
 		throw tarStreamResult.error
 	}
-	const gzipResult = errors.trySync(() => Bun.gzipSync(tarStreamResult.data))
+	const gzipResult = errors.trySync(() =>
+		Bun.gzipSync(toArrayBuffer(tarStreamResult.data))
+	)
 	if (gzipResult.error) {
 		logger.error("gzip compression failed", { error: gzipResult.error })
 		throw errors.wrap(gzipResult.error, "gzip compression")
@@ -518,7 +518,9 @@ export async function buildCartridgeToFile(
 		})
 		throw tarStreamResult.error
 	}
-	const gzipResult = errors.trySync(() => Bun.gzipSync(tarStreamResult.data))
+	const gzipResult = errors.trySync(() =>
+		Bun.gzipSync(toArrayBuffer(tarStreamResult.data))
+	)
 	if (gzipResult.error) {
 		logger.error("gzip compression failed", { error: gzipResult.error })
 		throw errors.wrap(gzipResult.error, "gzip compression")
@@ -744,7 +746,9 @@ export async function buildCartridgeFromFileMap(
 		})
 		throw tarStreamResult.error
 	}
-	const gzipResult = errors.trySync(() => Bun.gzipSync(tarStreamResult.data))
+	const gzipResult = errors.trySync(() =>
+		Bun.gzipSync(toArrayBuffer(tarStreamResult.data))
+	)
 	if (gzipResult.error) {
 		logger.error("gzip compression failed", { error: gzipResult.error })
 		throw errors.wrap(gzipResult.error, "gzip compression")

@@ -1,22 +1,17 @@
 {
 	"compilerOptions": {
-		/* Base Options: */
 		"types": ["bun"],
 		"module": "ESNext",
 		"moduleResolution": "Bundler",
 		"lib": ["dom", "dom.iterable", "ESNext"],
+		"target": "esnext",
 		"esModuleInterop": true,
 		"skipLibCheck": true,
-		"target": "esnext",
-		"allowJs": true,
-		"resolveJsonModule": true,
+		"allowJs": false,
 		"moduleDetection": "force",
 		"isolatedModules": true,
 		"verbatimModuleSyntax": true,
-		/* Strictness */
 		"strict": true,
-		"noUncheckedIndexedAccess": true,
-		"checkJs": true,
 		"noEmit": true,
 		"jsx": "react-jsx",
 		"plugins": [
@@ -25,11 +20,11 @@
 			}
 		],
 		"incremental": true,
-		/* Path Aliases */
 		"baseUrl": ".",
 		"paths": {
 			"@/*": ["./src/*"]
 		},
+		"resolveJsonModule": true,
 		"resolvePackageJsonImports": true,
 		"resolvePackageJsonExports": true,
 		"noUnusedLocals": true,
