@@ -1,3 +1,8 @@
+import type {
+	FeedbackCombinationKeyspace,
+	FeedbackPlan
+} from "@/core/feedback/plan/types"
+
 export type InlineContentItem<E extends readonly string[] = readonly string[]> =
 	| { type: "text"; content: string }
 	| { type: "math"; mathml: string }
@@ -34,11 +39,10 @@ export type BlockContentItem<E extends readonly string[] = readonly string[]> =
 export type BlockContent<E extends readonly string[] = readonly string[]> =
 	Array<BlockContentItem<E>>
 
-export type FeedbackPreamble<E extends readonly string[] = readonly string[]> =
-	{
-		correctness: "correct" | "incorrect"
-		summary: InlineContent<E>
-	}
+export type FeedbackPreamble = {
+	correctness: "correct" | "incorrect"
+	summary: InlineContent
+}
 
 export type StepBlock<E extends readonly string[] = readonly string[]> = {
 	type: "step"
@@ -58,22 +62,21 @@ export type FeedbackSharedPedagogy<
 	solution: SolutionBlock<E>
 }
 
-import type { FeedbackPlan } from "@/core/feedback/plan/types"
+export type FeedbackPreambleMap<P extends FeedbackPlan> = Record<
+	FeedbackCombinationKeyspace<P>,
+	FeedbackPreamble
+>
 
-export type FeedbackCombinationId<P extends FeedbackPlan> =
-	P["combinations"][number]["id"]
-
-export type FeedbackPreambleMap<
+export type FeedbackBundle<
+	P extends FeedbackPlan,
 	E extends readonly string[] = readonly string[]
-> = Record<string, FeedbackPreamble<E>>
-
-export type FeedbackBundle<E extends readonly string[] = readonly string[]> = {
+> = {
 	shared: FeedbackSharedPedagogy<E>
-	preambles: FeedbackPreambleMap<E>
+	preambles: FeedbackPreambleMap<P>
 }
 
 export type FeedbackContent<E extends readonly string[] = readonly string[]> = {
-	preamble: FeedbackPreamble<E>
+	preamble: FeedbackPreamble
 	steps: StepBlock<E>[]
 	solution: SolutionBlock<E>
 }

@@ -75,11 +75,11 @@ type StaticAuthoringFeedback<
 	E extends readonly string[]
 > = {
 	shared: FeedbackSharedPedagogy<E>
-	preambles: { [K in P["combinationIds"][number]]: FeedbackPreamble }
+	preambles: { [K in StaticCombinationIds<P>]: FeedbackPreamble }
 }
 
-type DynamicAuthoringFeedback = {
-	shared: FeedbackSharedPedagogy
+type DynamicAuthoringFeedback<E extends readonly string[]> = {
+	shared: FeedbackSharedPedagogy<E>
 	preambles: Record<string, FeedbackPreamble>
 }
 ```
