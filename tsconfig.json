@@ -29,7 +29,11 @@
 		"baseUrl": ".",
 		"paths": {
 			"@/*": ["./src/*"]
-		}
+		},
+		"resolvePackageJsonImports": true,
+		"resolvePackageJsonExports": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true
 	},
 	"include": [
 		"next-env.d.ts",
