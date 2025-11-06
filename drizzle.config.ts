@@ -1,12 +1,15 @@
 import type { Config } from "drizzle-kit"
-
 import { env } from "@/env"
 
 export default {
-	schema: "./src/server/db/schema.ts",
+	schema: "./src/db/schema/index.ts",
 	dialect: "postgresql",
+	driver: "aws-data-api",
 	dbCredentials: {
-		url: env.AWS_RDS_RESOURCE_ARN
+		database: "postgres",
+		resourceArn: env.AWS_RDS_RESOURCE_ARN,
+		secretArn: env.AWS_RDS_SECRET_ARN
 	},
-	tablesFilter: ["incept-template_*"]
+	schemaFilter: ["template"],
+	out: "./db/migrations"
 } satisfies Config

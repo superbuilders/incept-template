@@ -1,18 +1,13 @@
-import { drizzle } from "drizzle-orm/postgres-js"
-import postgres from "postgres"
-
+import { RDSDataClient } from "@aws-sdk/client-rds-data"
+import { drizzle } from "drizzle-orm/aws-data-api/pg"
 import { env } from "@/env"
-import * as schema from "./schema"
 
-/**
- * Cache the database connection in development. This avoids creating a new connection on every HMR
- * update.
- */
-const globalForDb = globalThis as unknown as {
-	conn: postgres.Sql | undefined
-}
+const rdsClient = new RDSDataClient({
+	region: env.AWS_REGION
+})
 
-const conn = globalForDb.conn ?? postgres(env.AWS_RDS_RESOURCE_ARN)
-if (env.NODE_ENV !== "production") globalForDb.conn = conn
-
-export const db = drizzle(conn, { schema })
+export const db = drizzle(rdsClient, {
+	database: "postgres",
+	resourceArn: env.AWS_RDS_RESOURCE_ARN,
+	secretArn: env.AWS_RDS_SECRET_ARN
+})

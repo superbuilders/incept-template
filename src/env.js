@@ -19,7 +19,11 @@ export const env = createEnv({
 	 * isn't built with invalid env vars.
 	 */
 	server: {
+		AWS_REGION: z.string(),
 		AWS_RDS_RESOURCE_ARN: z.string(),
+		AWS_RDS_SECRET_ARN: z.string(),
+		AWS_ACCESS_KEY_ID: z.string(),
+		AWS_SECRET_ACCESS_KEY: z.string(),
 		NODE_ENV: z
 			.enum(["development", "test", "production"])
 			.default("development")
@@ -39,9 +43,12 @@ export const env = createEnv({
 	 * middlewares) or client-side so we need to destruct manually.
 	 */
 	runtimeEnv: {
+		AWS_REGION: process.env.AWS_REGION,
 		AWS_RDS_RESOURCE_ARN: process.env.AWS_RDS_RESOURCE_ARN,
+		AWS_RDS_SECRET_ARN: process.env.AWS_RDS_SECRET_ARN,
+		AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
+		AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
 		NODE_ENV: process.env.NODE_ENV
-		// NEXT_PUBLIC_CLIENTVAR: process.env.NEXT_PUBLIC_CLIENTVAR,
 	},
 	/**
 	 * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially
