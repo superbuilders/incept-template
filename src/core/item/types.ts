@@ -84,9 +84,7 @@ export type AssessmentItem<
 	widgets: Record<string, Widget> | null
 	interactions: Record<string, AnyInteraction<E>> | null
 	feedbackPlan: P
-	feedback: {
-		FEEDBACK__OVERALL: AuthoringFeedbackOverall<P, E>
-	}
+	feedback: AuthoringFeedbackOverall<E>
 }
 
 export type AssessmentItemInput<

@@ -251,7 +251,7 @@ export function createBodyContentSchema<const E extends readonly string[]>(
 	return z.array(AllowedBodyBlocks)
 }
 
-export function createFeedbackContentSchema<const E extends readonly string[]>(
+function createFeedbackSchemaComponents<const E extends readonly string[]>(
 	widgetTypeKeys: E
 ) {
 	const InlineWidgetRefSchema = createInlineWidgetRefSchema(widgetTypeKeys)
@@ -264,6 +264,12 @@ export function createFeedbackContentSchema<const E extends readonly string[]>(
 		])
 		.describe(
 			"Inline items permitted in feedback (text, math, inline widget references). Interactions are banned."
+		)
+
+	const AllowedPreambleInlines = z
+		.discriminatedUnion("type", [TextInlineSchema, MathInlineSchema])
+		.describe(
+			"Inline items permitted in feedback preambles (text and math only). Widgets are banned."
 		)
 
 	const ParagraphBlockSchema = createParagraphBlockSchema(
@@ -359,16 +365,56 @@ export function createFeedbackContentSchema<const E extends readonly string[]>(
 					"Verdict for this feedback block. Must match the outcome path (correct vs incorrect)."
 				),
 			summary: z
-				.array(AllowedFeedbackInlines)
+				.array(AllowedPreambleInlines)
 				.min(1)
 				.describe(
-					"A short 1–2 sentence explanation of the reasoning ONLY. Do NOT include verdict phrases like 'Correct!' or 'Not quite' here; those are rendered separately."
+					"A short 1–2 sentence explanation of the reasoning ONLY. Keep it to text and math inline atoms—widgets belong in the shared steps, not the verdict summary."
 				)
 		})
 		.strict()
 		.describe(
 			"A mandatory preamble that communicates the verdict and a succinct rationale."
 		)
+
+	return {
+		PreambleSchema,
+		StepBlockSchema,
+		SolutionBlockSchema
+	}
+}
+
+export function createFeedbackPreambleSchema<const E extends readonly string[]>(
+	widgetTypeKeys: E
+) {
+	return createFeedbackSchemaComponents(widgetTypeKeys).PreambleSchema
+}
+
+export function createFeedbackSharedPedagogySchema<
+	const E extends readonly string[]
+>(widgetTypeKeys: E) {
+	const { StepBlockSchema, SolutionBlockSchema } =
+		createFeedbackSchemaComponents(widgetTypeKeys)
+	return z
+		.object({
+			steps: z
+				.array(StepBlockSchema)
+				.min(3)
+				.describe(
+					'Ordered list of pedagogical steps. Minimum three required so the learner is led through the full solution (diagnose the idea, execute the work, summarize or extend). Every step should pair narrative `text` with explicit math notation (use inline entries like `{ type: "math", mathml: "<mn>0.25</mn>" }`) so the walkthrough is crystal clear.'
+				),
+			solution: SolutionBlockSchema
+		})
+		.strict()
+		.describe(
+			"Shared pedagogy referenced by all feedback branches: sequenced steps plus the concluding solution block."
+		)
+}
+
+export function createFeedbackContentSchema<const E extends readonly string[]>(
+	widgetTypeKeys: E
+) {
+	const { PreambleSchema, StepBlockSchema, SolutionBlockSchema } =
+		createFeedbackSchemaComponents(widgetTypeKeys)
 
 	return z
 		.object({

@@ -34,28 +34,14 @@ export type FeedbackCombination<
 	path: Path
 }
 
-export type ComboPlan<
+export type FeedbackPlan<
 	Dimensions extends
 		readonly FeedbackDimension[] = readonly FeedbackDimension[],
 	Combinations extends
 		readonly FeedbackCombination[] = readonly FeedbackCombination[]
 > = {
-	mode: "combo"
 	dimensions: Dimensions
 	combinations: Combinations
 }
-
-export type FallbackPlan<
-	Dimensions extends
-		readonly FeedbackDimension[] = readonly FeedbackDimension[],
-	Combinations extends
-		readonly FeedbackCombination[] = readonly FeedbackCombination[]
-> = {
-	mode: "fallback"
-	dimensions: Dimensions
-	combinations: Combinations
-}
-
-export type FeedbackPlan = ComboPlan | FallbackPlan
 
 export type RuntimeFeedbackPlan = z.infer<typeof FeedbackPlanSchema>

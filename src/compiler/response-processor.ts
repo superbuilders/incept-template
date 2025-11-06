@@ -297,44 +297,6 @@ function generateComboModeProcessing<E extends readonly string[]>(
 	return buildConditionTree(dimensions, [])
 }
 
-function generateFallbackModeProcessing<E extends readonly string[]>(
-	item: AssessmentItemWithFeedbackBlocks<E>
-): string {
-	if (item.feedbackPlan.dimensions.length === 0) {
-		logger.error("no dimensions for fallback mode processing", {
-			itemIdentifier: item.identifier
-		})
-		throw errors.new("fallback mode requires at least one dimension")
-	}
-
-	const matchConditions = item.feedbackPlan.dimensions.map(
-		(dim: FeedbackDimension): string =>
-			buildCorrectComparison(item, dim.responseIdentifier)
-	)
-
-	const allCorrectCondition =
-		matchConditions.length === 1
-			? matchConditions[0]
-			: `<qti-and>
-                    ${matchConditions.join("\n                        ")}
-                </qti-and>`
-
-	return `
-    <qti-response-condition>
-        <qti-response-if>
-            ${allCorrectCondition}
-            <qti-set-outcome-value identifier="FEEDBACK__OVERALL">
-                <qti-base-value base-type="identifier">CORRECT</qti-base-value>
-            </qti-set-outcome-value>
-        </qti-response-if>
-        <qti-response-else>
-            <qti-set-outcome-value identifier="FEEDBACK__OVERALL">
-                <qti-base-value base-type="identifier">INCORRECT</qti-base-value>
-            </qti-set-outcome-value>
-        </qti-response-else>
-    </qti-response-condition>`
-}
-
 export function compileResponseProcessing<E extends readonly string[]>(
 	item: AssessmentItemWithFeedbackBlocks<E>
 ): string {
@@ -342,16 +304,11 @@ export function compileResponseProcessing<E extends readonly string[]>(
 	const { feedbackPlan } = item
 
 	logger.info("compiling response processing", {
-		mode: feedbackPlan.mode,
 		itemIdentifier: item.identifier,
 		dimensionCount: feedbackPlan.dimensions.length
 	})
 
-	if (feedbackPlan.mode === "combo") {
-		processingRules.push(generateComboModeProcessing(item))
-	} else {
-		processingRules.push(generateFallbackModeProcessing(item))
-	}
+	processingRules.push(generateComboModeProcessing(item))
 
 	const scoreConditions = item.responseDeclarations
 		.map((decl): string => {

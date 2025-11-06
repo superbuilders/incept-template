@@ -1,6 +1,7 @@
 import * as errors from "@superbuilders/errors"
 import * as logger from "@superbuilders/slog"
 import type {
+	EnumeratedFeedbackDimension,
 	FeedbackCombination,
 	FeedbackDimension,
 	FeedbackPlan
@@ -8,6 +9,8 @@ import type {
 import { deriveComboIdentifier, normalizeIdPart } from "@/core/feedback/utils"
 import type { AnyInteraction } from "@/core/interactions/types"
 import type { ResponseDeclaration } from "@/core/item/types"
+
+const SYNTHETIC_OVERALL_IDENTIFIER = "RESPONSE__OVERALL"
 
 /**
  * Derives an explicit FeedbackPlan from interactions and responseDeclarations.
@@ -54,54 +57,58 @@ export function buildFeedbackPlanFromInteractions<E extends readonly string[]>(
 		})
 	}
 
-	const combinationCount = dimensions.reduce<number>(
-		(acc, dim) => acc * (dim.kind === "enumerated" ? dim.keys.length : 2),
+	const enumeratedDimensions: EnumeratedFeedbackDimension[] = dimensions.map(
+		(dim) =>
+			dim.kind === "enumerated"
+				? dim
+				: {
+						responseIdentifier: dim.responseIdentifier,
+						kind: "enumerated" as const,
+						keys: ["CORRECT", "INCORRECT"]
+					}
+	)
+
+	if (enumeratedDimensions.length === 0) {
+		enumeratedDimensions.push({
+			responseIdentifier: SYNTHETIC_OVERALL_IDENTIFIER,
+			kind: "enumerated",
+			keys: ["CORRECT", "INCORRECT"]
+		})
+	}
+
+	const combinationCount = enumeratedDimensions.reduce<number>(
+		(acc, dim) => acc * dim.keys.length,
 		1
 	)
-	const mode = dimensions.length === 0 ? "fallback" : "combo"
-	const loggedCombinationCount = mode === "fallback" ? 2 : combinationCount
 
 	logger.info("built feedback plan", {
-		mode,
-		combinationCount: loggedCombinationCount,
-		dimensionCount: dimensions.length
+		combinationCount,
+		dimensionCount: enumeratedDimensions.length
 	})
 
 	const combinations: FeedbackCombination[] = []
 	const combinationIds = new Set<string>()
 
-	if (mode === "fallback") {
-		combinations.push(
-			{ id: "CORRECT", path: [] },
-			{ id: "INCORRECT", path: [] }
-		)
-		combinationIds.add("CORRECT")
-		combinationIds.add("INCORRECT")
-	} else {
-		let paths: Array<Array<{ responseIdentifier: string; key: string }>> = [[]]
-		for (const dim of dimensions) {
-			const newPaths: Array<
-				Array<{ responseIdentifier: string; key: string }>
-			> = []
-			const keys =
-				dim.kind === "enumerated" ? dim.keys : ["CORRECT", "INCORRECT"]
-			for (const path of paths) {
-				for (const key of keys) {
-					newPaths.push([
-						...path,
-						{ responseIdentifier: dim.responseIdentifier, key }
-					])
-				}
-			}
-			paths = newPaths
-		}
-		for (const path of paths) {
-			const derivedId = deriveComboIdentifier(
-				path.map(
-					(seg) =>
-						`${normalizeIdPart(seg.responseIdentifier)}_${normalizeIdPart(seg.key)}`
+	const useSyntheticOverall =
+		enumeratedDimensions.length === 1 &&
+		enumeratedDimensions[0]?.responseIdentifier === SYNTHETIC_OVERALL_IDENTIFIER
+
+	const buildCombinations = (
+		index: number,
+		path: Array<{ responseIdentifier: string; key: string }>
+	) => {
+		if (index >= enumeratedDimensions.length) {
+			let derivedId: string
+			if (useSyntheticOverall) {
+				derivedId = path[0]?.key ?? "CORRECT"
+			} else {
+				derivedId = deriveComboIdentifier(
+					path.map(
+						(seg) =>
+							`${normalizeIdPart(seg.responseIdentifier)}_${normalizeIdPart(seg.key)}`
+					)
 				)
-			)
+			}
 			if (combinationIds.has(derivedId)) {
 				logger.error("duplicate feedback combination id detected", {
 					derivedId,
@@ -112,19 +119,21 @@ export function buildFeedbackPlanFromInteractions<E extends readonly string[]>(
 				)
 			}
 			combinationIds.add(derivedId)
-			combinations.push({ id: derivedId, path })
+			combinations.push({ id: derivedId, path: [...path] })
+			return
+		}
+		const dimension = enumeratedDimensions[index]
+		for (const key of dimension.keys) {
+			path.push({ responseIdentifier: dimension.responseIdentifier, key })
+			buildCombinations(index + 1, path)
+			path.pop()
 		}
 	}
 
-	return mode === "fallback"
-		? {
-			mode: "fallback" as const,
-			dimensions,
-			combinations
-		}
-		: {
-			mode: "combo" as const,
-			dimensions,
-			combinations
-		}
+	buildCombinations(0, [])
+
+	return {
+		dimensions: enumeratedDimensions,
+		combinations
+	}
 }

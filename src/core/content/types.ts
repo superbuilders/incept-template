@@ -51,6 +51,27 @@ export type SolutionBlock<E extends readonly string[] = readonly string[]> = {
 	content: InlineContent<E>
 }
 
+export type FeedbackSharedPedagogy<
+	E extends readonly string[] = readonly string[]
+> = {
+	steps: StepBlock<E>[]
+	solution: SolutionBlock<E>
+}
+
+import type { FeedbackPlan } from "@/core/feedback/plan/types"
+
+export type FeedbackCombinationId<P extends FeedbackPlan> =
+	P["combinations"][number]["id"]
+
+export type FeedbackPreambleMap<
+	E extends readonly string[] = readonly string[]
+> = Record<string, FeedbackPreamble<E>>
+
+export type FeedbackBundle<E extends readonly string[] = readonly string[]> = {
+	shared: FeedbackSharedPedagogy<E>
+	preambles: FeedbackPreambleMap<E>
+}
+
 export type FeedbackContent<E extends readonly string[] = readonly string[]> = {
 	preamble: FeedbackPreamble<E>
 	steps: StepBlock<E>[]

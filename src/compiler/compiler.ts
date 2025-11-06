@@ -19,6 +19,7 @@ import {
 	stripXmlComments
 } from "@/compiler/utils/xml-fixes"
 import { escapeXmlAttribute } from "@/compiler/utils/xml-utils"
+import { expandFeedbackBundle } from "@/core/content/bundles"
 import type {
 	BlockContent,
 	BlockContentItem,
@@ -26,15 +27,9 @@ import type {
 	InlineContent
 } from "@/core/content/types"
 import {
-	convertFeedbackObjectToBlocks,
-	validateComboFeedbackObject,
-	validateFallbackFeedbackObject
+	convertAuthoringFeedbackToBundle,
+	validateFeedbackObject
 } from "@/core/feedback/authoring/schema"
-import type {
-	AuthoringFeedbackFallback,
-	AuthoringNestedNode
-} from "@/core/feedback/authoring/types"
-import { isComboPlan, isFallbackPlan } from "@/core/feedback/plan/guards"
 import type { FeedbackPlan } from "@/core/feedback/plan/types"
 import type { AnyInteraction } from "@/core/interactions/types"
 import { createDynamicAssessmentItemSchema } from "@/core/item/schema"
@@ -797,39 +792,19 @@ export async function compile<
 
 	// Step 0: Nested feedback validation and normalization (internal conversion to flat blocks)
 	logger.debug("validating nested feedback", {
-		mode: enforcedPlan.mode,
 		dimensionCount: enforcedPlan.dimensions.length,
 		combinationCount: enforcedPlan.combinations.length
 	})
-	let validatedFeedbackObject:
-		| { FEEDBACK__OVERALL: AuthoringFeedbackFallback<WidgetTypeTupleFrom<C>> }
-		| {
-				FEEDBACK__OVERALL: AuthoringNestedNode<
-					FeedbackPlan,
-					WidgetTypeTupleFrom<C>
-				>
-		  }
-
-	if (isFallbackPlan(enforcedPlan)) {
-		validatedFeedbackObject = validateFallbackFeedbackObject(
-			enforcedItem.feedback,
-			enforcedPlan,
-			widgetCollection.widgetTypeKeys
-		)
-	} else if (isComboPlan(enforcedPlan)) {
-		validatedFeedbackObject = validateComboFeedbackObject(
-			enforcedItem.feedback,
-			enforcedPlan,
-			widgetCollection.widgetTypeKeys
-		)
-	} else {
-		logger.error("unsupported feedback plan mode")
-		throw errors.new("unsupported feedback plan mode")
-	}
-	const feedbackBlocks = convertFeedbackObjectToBlocks(
-		validatedFeedbackObject,
+	const validatedFeedback = validateFeedbackObject(
+		enforcedItem.feedback,
+		enforcedPlan,
+		widgetCollection.widgetTypeKeys
+	)
+	const feedbackBundle = convertAuthoringFeedbackToBundle(
+		validatedFeedback,
 		enforcedPlan
 	)
+	const feedbackBlocks = expandFeedbackBundle(enforcedPlan, feedbackBundle)
 	logger.debug("converted nested feedback to flat blocks", {
 		blockCount: Object.keys(feedbackBlocks).length
 	})

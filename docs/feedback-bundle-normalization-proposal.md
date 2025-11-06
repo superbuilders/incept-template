@@ -101,7 +101,7 @@ export function createFeedbackBundle<
 
 - `AuthoringNestedLeaf` now carries `{ preamble: FeedbackPreamble }` instead of `content`.
 - `buildEmptyNestedFeedback` seeds each leaf with an empty preamble, not empty steps/solution.
-- `convertFeedbackObjectToBlocks` hydrates the bundle: it reads `shared` once (from the top-level authoring object) and then applies each leaf preamble, yielding canonical blocks for the compiler. Legacy code that expects `Record<string, FeedbackContent>` keeps working, but the source of truth remains the bundle.
+- `convertAuthoringFeedbackToBundle` hydrates the bundle: it reads `shared` once (from the top-level authoring object) and then applies each leaf preamble, yielding canonical blocks for the compiler. Legacy code that expects `Record<string, FeedbackContent>` keeps working, but the source of truth remains the bundle.
 - Manual templates replace per-choice `FeedbackContent` builders with a single `shared` block plus a literal `preambles` object, passed to `createFeedbackBundle`.
 
 ## Structured Pipeline Updates
@@ -149,7 +149,7 @@ Today we bifurcate plans into `"combo"` versus `"fallback"` modes. Fallback gets
 
 - **Type divergence**: In fallback mode everything contracts to a two-key object (`CORRECT`/`INCORRECT`). Everywhere else (`combo`) expects the full cartesian map. Every schema, helper, and template has to special-case both paths, doubling the surface area for bugs.
 - **LLM confusion**: The model has to learn two shapes. For items like [`fraction-addition.ts`](src/templates/prompts/examples/positive/templates/fraction-addition.ts) it already struggles to maintain the duplicated `steps` array for each choice (e.g. lines 343-1113), but fallback adds yet another "if/else" branch the AI could misapply.
-- **Complex runtime logic**: `convertFeedbackObjectToBlocks`, `buildEmptyNestedFeedback`, and the compiler each maintain fallback-specific validation. This leads to code like the "leaf node found at root" guard, making the authoring pipeline harder to reason about.
+- **Complex runtime logic**: `convertAuthoringFeedbackToBundle`, `buildEmptyNestedFeedback`, and the compiler each maintain fallback-specific validation. This leads to code like the "leaf node found at root" guard, making the authoring pipeline harder to reason about.
 - **Binary plans aren't special**: Most "fallback" situations are effectively binary correctness checks. Declaring them as `"enumerated"` with keys `["CORRECT", "INCORRECT"]` produces the same behavior without hidden branches. The plan still enumerates two combos; only the type story simplifies.
 
 By treating every dimension uniformly—either enumerated keys provided by the interaction or the canonical `["CORRECT", "INCORRECT"]`—we collapse the branch. The plan builder still captures the correct metadata, but all downstream code now works with a single shape. No more `isFallbackPlan` conditionals.

@@ -56,11 +56,9 @@ export const FeedbackCombinationSchema = z
 
 export const FeedbackPlanSchema = z
 	.object({
-		mode: z
-			.union([z.literal("combo"), z.literal("fallback")])
-			.describe("The evaluation mode for feedback."),
 		dimensions: z
 			.array(FeedbackDimensionSchema)
+			.min(1)
 			.describe("Ordered list of dimensions for feedback evaluation."),
 		combinations: z
 			.array(FeedbackCombinationSchema)
@@ -69,12 +67,28 @@ export const FeedbackPlanSchema = z
 	})
 	.strict()
 	.superRefine((plan, ctx) => {
-		if (plan.mode === "combo" && plan.dimensions.length === 0) {
-			ctx.addIssue({
-				code: z.ZodIssueCode.custom,
-				message: "Combo mode requires at least one dimension.",
-				path: ["dimensions"]
-			})
+		const dimensionCount = plan.dimensions.length
+		const dimensionIds = plan.dimensions.map((dim) => dim.responseIdentifier)
+		for (const combination of plan.combinations) {
+			if (combination.path.length !== dimensionCount) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					message:
+						"Each feedback combination path must include exactly one segment per feedback dimension.",
+					path: ["combinations"]
+				})
+				break
+			}
+			for (const segment of combination.path) {
+				if (!dimensionIds.includes(segment.responseIdentifier)) {
+					ctx.addIssue({
+						code: z.ZodIssueCode.custom,
+						message: `Combination references unknown response identifier '${segment.responseIdentifier}'.`,
+						path: ["combinations"]
+					})
+					break
+				}
+			}
 		}
 	})
 	.describe("The explicit contract for feedback evaluation.")

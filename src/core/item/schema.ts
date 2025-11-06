@@ -6,13 +6,9 @@ import {
 	RESPONSE_IDENTIFIER_REGEX
 } from "@/compiler/qti-constants"
 import { createBodyContentSchema } from "@/core/content/contextual-schemas"
-import {
-	createComboFeedbackObjectSchema,
-	createFallbackFeedbackObjectSchema
-} from "@/core/feedback/authoring/schema"
-import { isComboPlan, isFallbackPlan } from "@/core/feedback/plan/guards"
+import { createFeedbackObjectSchema } from "@/core/feedback/authoring/schema"
 import { FeedbackPlanSchema } from "@/core/feedback/plan/schema"
-import type { ComboPlan, FeedbackPlan } from "@/core/feedback/plan/types"
+import type { FeedbackPlan } from "@/core/feedback/plan/types"
 import { createAnyInteractionSchema } from "@/core/interactions/schema"
 import type {
 	AssessmentItem,
@@ -264,21 +260,10 @@ export function createDynamicAssessmentItemSchema<
 	const BodySchema = createBodyContentSchema(widgetTypeKeys)
 	const AnyInteractionSchema = createAnyInteractionSchema(widgetTypeKeys)
 
-	let FeedbackObjectSchema:
-		| ReturnType<typeof createFallbackFeedbackObjectSchema<E>>
-		| ReturnType<typeof createComboFeedbackObjectSchema<ComboPlan, E>>
-
-	if (isFallbackPlan(feedbackPlan)) {
-		FeedbackObjectSchema = createFallbackFeedbackObjectSchema(widgetTypeKeys)
-	} else if (isComboPlan(feedbackPlan)) {
-		FeedbackObjectSchema = createComboFeedbackObjectSchema(
-			feedbackPlan,
-			widgetTypeKeys
-		)
-	} else {
-		logger.error("unsupported feedback plan mode")
-		throw errors.new("unsupported feedback plan mode")
-	}
+	const FeedbackSchema = createFeedbackObjectSchema(
+		feedbackPlan,
+		widgetTypeKeys
+	)
 
 	// Compose the full AssessmentItem schema with direct object property composition
 	const AssessmentItemSchemaBase: z.ZodType<AssessmentItem<E, FeedbackPlan>> = z
@@ -308,7 +293,7 @@ export function createDynamicAssessmentItemSchema<
 					"A map of interaction identifiers to their full interaction object definitions."
 				),
 			feedbackPlan: FeedbackPlanSchema,
-			feedback: FeedbackObjectSchema.describe(
+			feedback: FeedbackSchema.describe(
 				"Nested feedback structure with dimensional paths for all response combinations."
 			)
 		})
