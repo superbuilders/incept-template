@@ -1,7 +1,7 @@
 import * as errors from "@superbuilders/errors"
 import { and, desc, eq, isNotNull } from "drizzle-orm"
 import type { Logger } from "inngest"
-import { db } from "@/db/client"
+import { db } from "@/db"
 import { templateCandidates } from "@/db/schema"
 import { inngest } from "@/inngest/client"
 
@@ -208,17 +208,20 @@ export const executeTemplate = inngest.createFunction(
 			}
 		}
 
-	let reason = "template candidate execution failed"
-	const executionFailureData = outcome.evt.data
-	if (executionFailureData && typeof executionFailureData.reason === "string") {
-		reason = executionFailureData.reason
-	} else {
-		logger.warn("template execution failure reason missing", {
-			templateId,
-			attempt: candidate.attempt,
-			seed
-		})
-	}
+		let reason = "template candidate execution failed"
+		const executionFailureData = outcome.evt.data
+		if (
+			executionFailureData &&
+			typeof executionFailureData.reason === "string"
+		) {
+			reason = executionFailureData.reason
+		} else {
+			logger.warn("template execution failure reason missing", {
+				templateId,
+				attempt: candidate.attempt,
+				seed
+			})
+		}
 		const failureEventResult = await errors.try(
 			step.sendEvent("template-execution-failed", {
 				name: "template/template.execution.failed",

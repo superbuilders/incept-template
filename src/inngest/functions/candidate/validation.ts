@@ -2,7 +2,7 @@ import * as errors from "@superbuilders/errors"
 import type { Logger as SlogLogger } from "@superbuilders/slog"
 import { and, eq } from "drizzle-orm"
 import type { Logger } from "inngest"
-import { db } from "@/db/client"
+import { db } from "@/db"
 import {
 	candidateDiagnostics,
 	templateCandidates,
@@ -117,28 +117,57 @@ export const validateTemplateCandidate = inngest.createFunction(
 		const { templateId, attempt } = event.data
 		logger.info("validating template candidate", { templateId, attempt })
 
-	const evaluationResult = await errors.try(
-		performCandidateEvaluation({
-			logger,
-			templateId,
-			attempt
-		})
-	)
-	if (evaluationResult.error) {
-		logger.error("template candidate validation encountered error", {
+		const evaluationResult = await errors.try(
+			performCandidateEvaluation({
+				logger,
+				templateId,
+				attempt
+			})
+		)
+		if (evaluationResult.error) {
+			logger.error("template candidate validation encountered error", {
+				templateId,
+				attempt,
+				error: evaluationResult.error
+			})
+			throw errors.wrap(evaluationResult.error, "candidate validation")
+		}
+
+		const { diagnostics } = evaluationResult.data
+
+		if (diagnostics.length === 0) {
+			await db
+				.update(templateCandidates)
+				.set({ validatedAt: new Date() })
+				.where(
+					and(
+						eq(templateCandidates.templateId, templateId),
+						eq(templateCandidates.attempt, attempt)
+					)
+				)
+
+			logger.info("candidate validation succeeded", {
+				templateId,
+				attempt
+			})
+
+			await step.sendEvent("candidate-validation-completed", {
+				name: "template/candidate.validation.completed",
+				data: { templateId, attempt, diagnosticsCount: 0 }
+			})
+
+			return { status: "validation-succeeded" as const }
+		}
+
+		logger.warn("candidate validation failed", {
 			templateId,
 			attempt,
-			error: evaluationResult.error
+			diagnosticsCount: diagnostics.length
 		})
-		throw errors.wrap(evaluationResult.error, "candidate validation")
-	}
 
-	const { diagnostics } = evaluationResult.data
-
-	if (diagnostics.length === 0) {
 		await db
 			.update(templateCandidates)
-			.set({ validatedAt: new Date() })
+			.set({ validatedAt: null })
 			.where(
 				and(
 					eq(templateCandidates.templateId, templateId),
@@ -146,61 +175,35 @@ export const validateTemplateCandidate = inngest.createFunction(
 				)
 			)
 
-		logger.info("candidate validation succeeded", {
-			templateId,
-			attempt
-		})
+		const insertDiagnosticsResult = await errors.try(
+			db.insert(candidateDiagnostics).values(
+				diagnostics.map((diagnostic) => ({
+					templateId,
+					attempt,
+					message: diagnostic.message,
+					line: diagnostic.line,
+					column: diagnostic.column,
+					tsCode: diagnostic.tsCode
+				}))
+			)
+		)
+		if (insertDiagnosticsResult.error) {
+			logger.error("failed to persist candidate diagnostics", {
+				templateId,
+				attempt,
+				error: insertDiagnosticsResult.error
+			})
+			throw errors.wrap(
+				insertDiagnosticsResult.error,
+				"persist candidate diagnostics"
+			)
+		}
 
 		await step.sendEvent("candidate-validation-completed", {
 			name: "template/candidate.validation.completed",
-			data: { templateId, attempt, diagnosticsCount: 0 }
+			data: { templateId, attempt, diagnosticsCount: diagnostics.length }
 		})
 
 		return { status: "validation-succeeded" as const }
-	}
-
-	logger.warn("candidate validation failed", {
-		templateId,
-		attempt,
-		diagnosticsCount: diagnostics.length
-	})
-
-	await db
-		.update(templateCandidates)
-		.set({ validatedAt: null })
-		.where(
-			and(
-				eq(templateCandidates.templateId, templateId),
-				eq(templateCandidates.attempt, attempt)
-			)
-		)
-
-	const insertDiagnosticsResult = await errors.try(
-		db.insert(candidateDiagnostics).values(
-			diagnostics.map((diagnostic) => ({
-				templateId,
-				attempt,
-				message: diagnostic.message,
-				line: diagnostic.line,
-				column: diagnostic.column,
-				tsCode: diagnostic.tsCode
-			}))
-		)
-	)
-	if (insertDiagnosticsResult.error) {
-		logger.error("failed to persist candidate diagnostics", {
-			templateId,
-			attempt,
-			error: insertDiagnosticsResult.error
-		})
-		throw errors.wrap(insertDiagnosticsResult.error, "persist candidate diagnostics")
-	}
-
-	await step.sendEvent("candidate-validation-completed", {
-		name: "template/candidate.validation.completed",
-		data: { templateId, attempt, diagnosticsCount: diagnostics.length }
-	})
-
-	return { status: "validation-succeeded" as const }
 	}
 )

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto"
 import * as errors from "@superbuilders/errors"
 import { eq } from "drizzle-orm"
 import { type Logger, NonRetriableError } from "inngest"
-import { db } from "@/db/client"
+import { db } from "@/db"
 import { templates } from "@/db/schema"
 import { inngest } from "@/inngest/client"
 import { parseStructuredInput } from "@/templates/input"
@@ -107,20 +107,20 @@ export const scaffoldTemplateFunction = inngest.createFunction(
 	},
 	{ event: "template/template.scaffold.requested" },
 	async ({ event, step, logger }) => {
-	const { templateId, exampleAssessmentItemBody, metadata } = event.data
-	logger.info("starting template scaffold", {
-		templateId,
-		payloadType: typeof exampleAssessmentItemBody
-	})
-
-	const scaffoldResult = await errors.try(
-		performTemplateScaffold({
-			logger,
+		const { templateId, exampleAssessmentItemBody, metadata } = event.data
+		logger.info("starting template scaffold", {
 			templateId,
-			exampleAssessmentItemBody,
-			metadata
+			payloadType: typeof exampleAssessmentItemBody
 		})
-	)
+
+		const scaffoldResult = await errors.try(
+			performTemplateScaffold({
+				logger,
+				templateId,
+				exampleAssessmentItemBody,
+				metadata
+			})
+		)
 		if (scaffoldResult.error) {
 			const reason = scaffoldResult.error.toString()
 			logger.error("template scaffold failed", {

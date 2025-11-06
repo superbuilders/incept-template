@@ -1,9 +1,10 @@
 import * as errors from "@superbuilders/errors"
 import { desc, eq } from "drizzle-orm"
-import { db } from "@/db/client"
+import { db } from "@/db"
 import { templateCandidates, templates } from "@/db/schema"
 
 const MAX_ATTEMPTS = 10
+
 import { inngest } from "@/inngest/client"
 
 export const startTemplateGeneration = inngest.createFunction(
@@ -121,26 +122,26 @@ export const startTemplateGeneration = inngest.createFunction(
 				)
 			}
 
-		const waitValidationCompleted = step
-			.waitForEvent(`wait-candidate-validation-completed-${currentAttempt}`, {
-				event: "template/candidate.validation.completed",
-				timeout: "30m",
-				if: `async.data.templateId == "${templateId}" && async.data.attempt == ${currentAttempt}`
-			})
-			.then((evt) => ({ kind: "validation-completed" as const, evt }))
+			const waitValidationCompleted = step
+				.waitForEvent(`wait-candidate-validation-completed-${currentAttempt}`, {
+					event: "template/candidate.validation.completed",
+					timeout: "30m",
+					if: `async.data.templateId == "${templateId}" && async.data.attempt == ${currentAttempt}`
+				})
+				.then((evt) => ({ kind: "validation-completed" as const, evt }))
 
-		const waitGenerationFailed = step
-			.waitForEvent(`wait-candidate-generation-failed-${currentAttempt}`, {
-				event: "template/candidate.generation.failed",
-				timeout: "30m",
-				if: `async.data.templateId == "${templateId}" && async.data.attempt == ${currentAttempt}`
-			})
-			.then((evt) => ({ kind: "generation-failed" as const, evt }))
+			const waitGenerationFailed = step
+				.waitForEvent(`wait-candidate-generation-failed-${currentAttempt}`, {
+					event: "template/candidate.generation.failed",
+					timeout: "30m",
+					if: `async.data.templateId == "${templateId}" && async.data.attempt == ${currentAttempt}`
+				})
+				.then((evt) => ({ kind: "generation-failed" as const, evt }))
 
-		const outcome = await Promise.race([
-			waitValidationCompleted,
-			waitGenerationFailed
-		])
+			const outcome = await Promise.race([
+				waitValidationCompleted,
+				waitGenerationFailed
+			])
 
 			if (!outcome.evt) {
 				const reason = `candidate attempt ${currentAttempt} timed out`
@@ -168,49 +169,97 @@ export const startTemplateGeneration = inngest.createFunction(
 				return { status: "failed" as const, reason }
 			}
 
-		if (outcome.kind === "validation-completed") {
-			const diagnosticsCount = outcome.evt.data.diagnosticsCount
-			if (diagnosticsCount === 0) {
-				logger.info("template generation completed", {
-					templateId,
-					attempt: currentAttempt
-				})
-				const completionEventResult = await errors.try(
-					step.sendEvent("template-generation-completed", {
-						name: "template/template.generation.completed",
-						data: { templateId, attempt: currentAttempt }
-					})
-				)
-				if (completionEventResult.error) {
-					logger.error("template generation completion event emission failed", {
+			if (outcome.kind === "validation-completed") {
+				const diagnosticsCount = outcome.evt.data.diagnosticsCount
+				if (diagnosticsCount === 0) {
+					logger.info("template generation completed", {
 						templateId,
-						attempt: currentAttempt,
-						error: completionEventResult.error
+						attempt: currentAttempt
 					})
-					throw errors.wrap(
-						completionEventResult.error,
-						`template generation completion event ${templateId}`
+					const completionEventResult = await errors.try(
+						step.sendEvent("template-generation-completed", {
+							name: "template/template.generation.completed",
+							data: { templateId, attempt: currentAttempt }
+						})
 					)
+					if (completionEventResult.error) {
+						logger.error(
+							"template generation completion event emission failed",
+							{
+								templateId,
+								attempt: currentAttempt,
+								error: completionEventResult.error
+							}
+						)
+						throw errors.wrap(
+							completionEventResult.error,
+							`template generation completion event ${templateId}`
+						)
+					}
+					return {
+						status: "completed" as const,
+						attempt: currentAttempt
+					}
 				}
-				return {
-					status: "completed" as const,
-					attempt: currentAttempt
+
+				logger.warn("candidate validation produced diagnostics", {
+					templateId,
+					attempt: currentAttempt,
+					diagnosticsCount
+				})
+
+				const nextAttempt = currentAttempt + 1
+				if (nextAttempt >= MAX_ATTEMPTS) {
+					const reason = `candidate validation failed after ${MAX_ATTEMPTS} attempts`
+					const failureEventResult = await errors.try(
+						step.sendEvent("template-generation-failed-validation", {
+							name: "template/template.generation.failed",
+							data: { templateId, attempt: currentAttempt, reason }
+						})
+					)
+					if (failureEventResult.error) {
+						logger.error("template generation failure event emission failed", {
+							templateId,
+							attempt: currentAttempt,
+							reason,
+							error: failureEventResult.error
+						})
+						throw errors.wrap(
+							failureEventResult.error,
+							`template generation failure event ${templateId}`
+						)
+					}
+					return { status: "failed" as const, reason }
 				}
+
+				logger.info("retrying template generation after diagnostics", {
+					templateId,
+					attempt: nextAttempt
+				})
+				currentAttempt = nextAttempt
+				continue
 			}
 
-			logger.warn("candidate validation produced diagnostics", {
-				templateId,
-				attempt: currentAttempt,
-				diagnosticsCount
-			})
-
-			const nextAttempt = currentAttempt + 1
-			if (nextAttempt >= MAX_ATTEMPTS) {
-				const reason = `candidate validation failed after ${MAX_ATTEMPTS} attempts`
+			if (outcome.kind === "generation-failed") {
+				let reason = "candidate generation failed"
+				const failureData = outcome.evt?.data
+				if (failureData && typeof failureData.reason === "string") {
+					reason = failureData.reason
+				} else {
+					logger.warn("candidate generation failure reason missing", {
+						templateId,
+						attempt: currentAttempt
+					})
+				}
+				logger.error("candidate generation reported failure", {
+					templateId,
+					attempt: currentAttempt,
+					reason
+				})
 				const failureEventResult = await errors.try(
-					step.sendEvent("template-generation-failed-validation", {
+					step.sendEvent("template-generation-failed-generation", {
 						name: "template/template.generation.failed",
-						data: { templateId, attempt: currentAttempt, reason }
+						data: { templateId, reason, attempt: currentAttempt }
 					})
 				)
 				if (failureEventResult.error) {
@@ -227,51 +276,6 @@ export const startTemplateGeneration = inngest.createFunction(
 				}
 				return { status: "failed" as const, reason }
 			}
-
-			logger.info("retrying template generation after diagnostics", {
-				templateId,
-				attempt: nextAttempt
-			})
-			currentAttempt = nextAttempt
-			continue
-		}
-
-		if (outcome.kind === "generation-failed") {
-			let reason = "candidate generation failed"
-			const failureData = outcome.evt?.data
-			if (failureData && typeof failureData.reason === "string") {
-				reason = failureData.reason
-			} else {
-				logger.warn("candidate generation failure reason missing", {
-					templateId,
-					attempt: currentAttempt
-				})
-			}
-			logger.error("candidate generation reported failure", {
-				templateId,
-				attempt: currentAttempt,
-				reason
-			})
-			const failureEventResult = await errors.try(
-				step.sendEvent("template-generation-failed-generation", {
-					name: "template/template.generation.failed",
-					data: { templateId, reason, attempt: currentAttempt }
-				})
-			)
-			if (failureEventResult.error) {
-				logger.error("template generation failure event emission failed", {
-					templateId,
-					attempt: currentAttempt,
-					reason,
-					error: failureEventResult.error
-				})
-				throw errors.wrap(
-					failureEventResult.error,
-					`template generation failure event ${templateId}`
-				)
-			}
-			return { status: "failed" as const, reason }
-		}
 		}
 	}
 )

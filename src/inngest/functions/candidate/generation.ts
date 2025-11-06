@@ -1,7 +1,7 @@
 import * as errors from "@superbuilders/errors"
 import { and, eq } from "drizzle-orm"
 import type { Logger } from "inngest"
-import { db } from "@/db/client"
+import { db } from "@/db"
 import {
 	candidateDiagnostics,
 	templateCandidates,
@@ -168,10 +168,7 @@ async function performCandidateGeneration({
 	}
 }
 
-async function collectPreviousDiagnostics(
-	templateId: string,
-	attempt: number
-) {
+async function collectPreviousDiagnostics(templateId: string, attempt: number) {
 	return db
 		.select({
 			message: candidateDiagnostics.message,
@@ -208,99 +205,99 @@ export const generateTemplateCandidate = inngest.createFunction(
 			performCandidateGeneration({ logger, templateId, attempt })
 		)
 
-	if (generationResult.error) {
-		const reason = generationResult.error.toString()
-		logger.error("template candidate generation failed", {
-			templateId,
-			reason,
-			error: generationResult.error
-		})
-
-		const failureEventResult = await errors.try(
-			step.sendEvent("template-candidate-generation-failed", {
-				name: "template/candidate.generation.failed",
-				data: { templateId, attempt, reason }
-			})
-		)
-		if (failureEventResult.error) {
-			logger.error("candidate generation failure event emission failed", {
+		if (generationResult.error) {
+			const reason = generationResult.error.toString()
+			logger.error("template candidate generation failed", {
 				templateId,
-				attempt,
 				reason,
-				error: failureEventResult.error
+				error: generationResult.error
 			})
-			throw errors.wrap(
-				failureEventResult.error,
-				`candidate generation failure event ${templateId}`
-			)
-		}
 
-		return { status: "failed" as const, reason }
-	}
-
-	if (generationResult.data.status === "already-exists") {
-		let validatedAtIso: string | null = null
-		if (generationResult.data.validatedAt) {
-			validatedAtIso = generationResult.data.validatedAt.toISOString()
-		}
-		logger.info("candidate already exists for attempt", {
-			templateId,
-			attempt,
-			validatedAt: validatedAtIso
-		})
-
-		if (!generationResult.data.validatedAt) {
-			await step.sendEvent("request-existing-candidate-validation", {
-				name: "template/candidate.validation.requested",
-				data: { templateId, attempt: generationResult.data.attempt }
-			})
-		} else {
-			const completionEventResult = await errors.try(
-				step.sendEvent("existing-candidate-validation-completed", {
-					name: "template/candidate.validation.completed",
-					data: {
-						templateId,
-						attempt: generationResult.data.attempt,
-						diagnosticsCount: 0
-					}
+			const failureEventResult = await errors.try(
+				step.sendEvent("template-candidate-generation-failed", {
+					name: "template/candidate.generation.failed",
+					data: { templateId, attempt, reason }
 				})
 			)
-			if (completionEventResult.error) {
-				logger.error(
-					"candidate validation completion event emission failed for existing candidate",
-					{
-						templateId,
-						attempt: generationResult.data.attempt,
-						error: completionEventResult.error
-					}
-				)
+			if (failureEventResult.error) {
+				logger.error("candidate generation failure event emission failed", {
+					templateId,
+					attempt,
+					reason,
+					error: failureEventResult.error
+				})
 				throw errors.wrap(
-					completionEventResult.error,
-					"candidate validation completion event"
+					failureEventResult.error,
+					`candidate generation failure event ${templateId}`
 				)
+			}
+
+			return { status: "failed" as const, reason }
+		}
+
+		if (generationResult.data.status === "already-exists") {
+			let validatedAtIso: string | null = null
+			if (generationResult.data.validatedAt) {
+				validatedAtIso = generationResult.data.validatedAt.toISOString()
+			}
+			logger.info("candidate already exists for attempt", {
+				templateId,
+				attempt,
+				validatedAt: validatedAtIso
+			})
+
+			if (!generationResult.data.validatedAt) {
+				await step.sendEvent("request-existing-candidate-validation", {
+					name: "template/candidate.validation.requested",
+					data: { templateId, attempt: generationResult.data.attempt }
+				})
+			} else {
+				const completionEventResult = await errors.try(
+					step.sendEvent("existing-candidate-validation-completed", {
+						name: "template/candidate.validation.completed",
+						data: {
+							templateId,
+							attempt: generationResult.data.attempt,
+							diagnosticsCount: 0
+						}
+					})
+				)
+				if (completionEventResult.error) {
+					logger.error(
+						"candidate validation completion event emission failed for existing candidate",
+						{
+							templateId,
+							attempt: generationResult.data.attempt,
+							error: completionEventResult.error
+						}
+					)
+					throw errors.wrap(
+						completionEventResult.error,
+						"candidate validation completion event"
+					)
+				}
+			}
+
+			return {
+				status: "already-exists" as const,
+				attempt: generationResult.data.attempt
 			}
 		}
 
+		logger.info("candidate generation completed", {
+			templateId,
+			attempt: generationResult.data.attempt,
+			diagnosticsUsed: generationResult.data.diagnosticsUsed
+		})
+
+		await step.sendEvent("request-candidate-validation", {
+			name: "template/candidate.validation.requested",
+			data: { templateId, attempt: generationResult.data.attempt }
+		})
+
 		return {
-			status: "already-exists" as const,
+			status: "generation-complete" as const,
 			attempt: generationResult.data.attempt
 		}
-	}
-
-	logger.info("candidate generation completed", {
-		templateId,
-		attempt: generationResult.data.attempt,
-		diagnosticsUsed: generationResult.data.diagnosticsUsed
-	})
-
-	await step.sendEvent("request-candidate-validation", {
-		name: "template/candidate.validation.requested",
-		data: { templateId, attempt: generationResult.data.attempt }
-	})
-
-	return {
-		status: "generation-complete" as const,
-		attempt: generationResult.data.attempt
-	}
 	}
 )
