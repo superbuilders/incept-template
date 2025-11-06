@@ -2,6 +2,9 @@
 	"compilerOptions": {
 		/* Base Options: */
 		"types": ["bun"],
+		"module": "ESNext",
+		"moduleResolution": "Bundler",
+		"lib": ["dom", "dom.iterable", "ESNext"],
 		"esModuleInterop": true,
 		"skipLibCheck": true,
 		"target": "esnext",
@@ -14,11 +17,7 @@
 		"strict": true,
 		"noUncheckedIndexedAccess": true,
 		"checkJs": true,
-		/* Bundled projects */
-		"lib": ["dom", "dom.iterable", "ESNext"],
 		"noEmit": true,
-		"module": "ESNext",
-		"moduleResolution": "Bundler",
 		"jsx": "react-jsx",
 		"plugins": [
 			{
