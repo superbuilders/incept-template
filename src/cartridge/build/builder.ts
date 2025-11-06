@@ -129,7 +129,7 @@ async function collectStream(
 	context: string
 ): Promise<Buffer> {
 	const chunks: Buffer[] = []
-	for await (const chunk of readable as AsyncIterable<unknown>) {
+	for await (const chunk of readable) {
 		const buffer = ensureBuffer(chunk, context)
 		chunks.push(buffer)
 	}
@@ -137,11 +137,19 @@ async function collectStream(
 }
 
 function toArrayBuffer(view: ArrayBufferView): ArrayBuffer {
-	if (view.byteOffset === 0 && view.byteLength === view.buffer.byteLength) {
-		return view.buffer as ArrayBuffer
+	const { byteOffset, byteLength, buffer } = view
+	if (!(buffer instanceof ArrayBuffer)) {
+		logger.error("expected ArrayBuffer backing store", {
+			byteOffset,
+			byteLength,
+			bufferType: buffer?.constructor?.name ?? typeof buffer
+		})
+		throw errors.new("expected ArrayBuffer backing store")
 	}
-	const buffer = view.buffer as ArrayBuffer
-	return buffer.slice(view.byteOffset, view.byteOffset + view.byteLength)
+	if (byteOffset === 0 && byteLength === buffer.byteLength) {
+		return buffer
+	}
+	return buffer.slice(byteOffset, byteOffset + byteLength)
 }
 
 export async function buildCartridgeToBytes(
