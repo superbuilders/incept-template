@@ -7,7 +7,9 @@
 		"./gritql/no-new-error.grit",
 		"./gritql/no-relative-imports.grit",
 		"./gritql/no-try.grit",
-		"./gritql/require-logger-before-throw.grit"
+		"./gritql/require-logger-before-throw.grit",
+		"./gritql/no-db-in-step-run.grit",
+		"./gritql/no-implicit-select-all.grit"
 	],
 	"vcs": {
 		"enabled": false,
@@ -21,7 +23,6 @@
 			"**",
 			"!**/node_modules",
 			"!**/src/components/ui",
-			"!**/canvas-scrape",
 			"!!**/.next",
 			"!!**/.vercel"
 		],

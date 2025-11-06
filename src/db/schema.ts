@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { sql } from "drizzle-orm"
 import {
 	check,
 	customType,
@@ -11,8 +11,8 @@ import {
 	text,
 	timestamp,
 	uniqueIndex,
-	uuid,
-} from "drizzle-orm/pg-core";
+	uuid
+} from "drizzle-orm/pg-core"
 
 /**
  * Drizzle schema for the template generation service.
@@ -21,7 +21,7 @@ import {
  * service. Tables live under the `generator` Postgres schema to keep the
  * application footprint isolated.
  */
-export const generatorSchema = pgSchema("template");
+export const generatorSchema = pgSchema("template")
 
 export const templates = generatorSchema.table(
 	"templates",
@@ -33,14 +33,14 @@ export const templates = generatorSchema.table(
 		metadata: jsonb("metadata").notNull().default(sql`'{}'::jsonb`),
 		createdAt: timestamp("created_at", { withTimezone: true })
 			.notNull()
-			.defaultNow(),
+			.defaultNow()
 	},
 	(table) => [
 		uniqueIndex("templates_example_assessment_item_hash_idx").on(
-			table.exampleAssessmentItemHash,
-		),
-	],
-);
+			table.exampleAssessmentItemHash
+		)
+	]
+)
 
 export const templateCandidates = generatorSchema.table(
 	"template_candidates",
@@ -51,40 +51,40 @@ export const templateCandidates = generatorSchema.table(
 		validatedAt: timestamp("validated_at", { withTimezone: true }),
 		createdAt: timestamp("created_at", { withTimezone: true })
 			.notNull()
-			.defaultNow(),
+			.defaultNow()
 	},
 	(table) => [
 		primaryKey({
 			name: "template_candidates_pk",
-			columns: [table.templateId, table.attempt],
+			columns: [table.templateId, table.attempt]
 		}),
 		index("template_candidates_template_created_idx").on(
 			table.templateId,
-			table.createdAt,
+			table.createdAt
 		),
 		check(
 			"template_candidates_attempt_nonnegative",
-			sql`${table.attempt} >= 0`,
+			sql`${table.attempt} >= 0`
 		),
 		foreignKey({
 			name: "template_candidates_template_fk",
 			columns: [table.templateId],
-			foreignColumns: [templates.id],
-		}),
-	],
-);
+			foreignColumns: [templates.id]
+		})
+	]
+)
 
 const bigintText = customType<{ data: bigint; driverData: string }>({
 	dataType() {
-		return "text";
+		return "text"
 	},
 	toDriver(value) {
-		return value.toString();
+		return value.toString()
 	},
 	fromDriver(value) {
-		return BigInt(value);
-	},
-});
+		return BigInt(value)
+	}
+})
 
 export const templateCandidateExecutions = generatorSchema.table(
 	"template_candidate_executions",
@@ -96,32 +96,32 @@ export const templateCandidateExecutions = generatorSchema.table(
 		body: jsonb("body").notNull(),
 		createdAt: timestamp("created_at", { withTimezone: true })
 			.notNull()
-			.defaultNow(),
+			.defaultNow()
 	},
 	(table) => [
 		index("template_candidate_executions_template_attempt_idx").on(
 			table.templateId,
-			table.attempt,
+			table.attempt
 		),
 		uniqueIndex("template_candidate_executions_seed_idx").on(
 			table.templateId,
 			table.attempt,
-			table.seed,
+			table.seed
 		),
 		foreignKey({
 			name: "template_candidate_executions_candidate_fk",
 			columns: [table.templateId, table.attempt],
 			foreignColumns: [
 				templateCandidates.templateId,
-				templateCandidates.attempt,
-			],
+				templateCandidates.attempt
+			]
 		}),
 		check(
 			"template_candidate_executions_seed_digits",
-			sql`${table.seed} ~ '^[0-9]+$'`,
-		),
-	],
-);
+			sql`${table.seed} ~ '^[0-9]+$'`
+		)
+	]
+)
 
 export const candidateDiagnostics = generatorSchema.table(
 	"template_candidate_diagnostics",
@@ -135,39 +135,38 @@ export const candidateDiagnostics = generatorSchema.table(
 		tsCode: integer("ts_code").notNull(),
 		createdAt: timestamp("created_at", { withTimezone: true })
 			.notNull()
-			.defaultNow(),
+			.defaultNow()
 	},
 	(table) => [
 		index("template_candidate_diagnostics_template_attempt_idx").on(
 			table.templateId,
-			table.attempt,
+			table.attempt
 		),
 		foreignKey({
 			name: "template_candidate_diagnostics_candidate_fk",
 			columns: [table.templateId, table.attempt],
 			foreignColumns: [
 				templateCandidates.templateId,
-				templateCandidates.attempt,
-			],
+				templateCandidates.attempt
+			]
 		}),
 		check(
 			"template_candidate_diagnostics_line_positive",
-			sql`${table.line} >= 1`,
+			sql`${table.line} >= 1`
 		),
 		check(
 			"template_candidate_diagnostics_column_positive",
-			sql`${table.column} >= 1`,
+			sql`${table.column} >= 1`
 		),
 		check(
 			"template_candidate_diagnostics_ts_code_nonnegative",
-			sql`${table.tsCode} >= 0`,
-		),
-	],
-);
+			sql`${table.tsCode} >= 0`
+		)
+	]
+)
 
 export type TemplateCandidateExecutionRecord =
-	typeof templateCandidateExecutions.$inferSelect;
-export type TemplateRecord = typeof templates.$inferSelect;
-export type TemplateCandidateRecord = typeof templateCandidates.$inferSelect;
-export type CandidateDiagnosticRecord =
-	typeof candidateDiagnostics.$inferSelect;
+	typeof templateCandidateExecutions.$inferSelect
+export type TemplateRecord = typeof templates.$inferSelect
+export type TemplateCandidateRecord = typeof templateCandidates.$inferSelect
+export type CandidateDiagnosticRecord = typeof candidateDiagnostics.$inferSelect
