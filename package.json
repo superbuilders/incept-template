@@ -5,6 +5,7 @@
 	"type": "module",
 	"scripts": {
 		"dev": "bun --bun next dev",
+		"dev:inngest": "inngest-cli dev --queue-workers 4000 --poll-interval 1",
 		"build": "bun --bun next build",
 		"start": "bun --bun next start",
 		"lint": "biome lint",
@@ -13,13 +14,16 @@
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "drizzle-kit migrate",
 		"db:push": "drizzle-kit push",
-		"db:studio": "drizzle-kit studio"
+		"db:studio": "drizzle-kit studio",
+		"db:drop": "bun run src/db/scripts/drop.ts"
 	},
 	"dependencies": {
 		"@aws-sdk/client-rds-data": "^3.925.0",
+		"@superbuilders/errors": "^3.0.2",
 		"@superbuilders/slog": "^4.0.0",
 		"@t3-oss/env-nextjs": "^0.13.8",
 		"drizzle-orm": "^0.44.7",
+		"inngest": "^3.44.5",
 		"next": "^16.0.1",
 		"postgres": "^3.4.7",
 		"react": "^19.2.0",
@@ -33,10 +37,14 @@
 		"@types/react": "^19.2.2",
 		"@types/react-dom": "^19.2.2",
 		"drizzle-kit": "^0.31.6",
+		"inngest-cli": "^1.13.4",
 		"tailwindcss": "^4.1.17",
 		"typescript": "^5.9.3"
 	},
 	"ct3aMetadata": {
 		"initVersion": "7.40.0"
-	}
+	},
+	"trustedDependencies": [
+		"inngest-cli"
+	]
 }
