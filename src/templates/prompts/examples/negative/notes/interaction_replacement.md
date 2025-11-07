@@ -439,11 +439,11 @@
     ],
     "combinations": [
       {
-        "id": "CORRECT",
+        "id": "FB__RESPONSE_DROPDOWN_35_CORRECT",
         "path": []
       },
       {
-        "id": "INCORRECT",
+        "id": "FB__RESPONSE_DROPDOWN_35_INCORRECT",
         "path": []
       }
     ]

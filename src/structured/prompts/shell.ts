@@ -370,7 +370,7 @@ Positive example — comprehensive, educationally valuable feedback:
 {
   "feedbackBlocks": [
     {
-      "identifier": "CORRECT",
+      "identifier": "FB__RESPONSE_TEXT_CORRECT",
       "outcomeIdentifier": "FEEDBACK__RESPONSE_TEXT",
       "content": [
         { "type": "paragraph", "content": [
@@ -382,7 +382,7 @@ Positive example — comprehensive, educationally valuable feedback:
       ]
     },
     {
-      "identifier": "INCORRECT",
+      "identifier": "FB__RESPONSE_TEXT_INCORRECT",
       "outcomeIdentifier": "FEEDBACK__RESPONSE_TEXT",
       "content": [
         { "type": "paragraph", "content": [
@@ -775,7 +775,7 @@ ${supportedInteractionTypes}
 	  },
   "feedbackBlocks": [
     {
-      "identifier": "CORRECT",
+      "identifier": "FB__RESPONSE_TEXT_CORRECT",
       "outcomeIdentifier": "FEEDBACK__RESPONSE_TEXT",
       "content": [
         {
@@ -793,7 +793,7 @@ ${supportedInteractionTypes}
       ]
     },
     {
-      "identifier": "INCORRECT",
+      "identifier": "FB__RESPONSE_TEXT_INCORRECT",
       "outcomeIdentifier": "FEEDBACK__RESPONSE_TEXT",
       "content": [
         {
@@ -858,7 +858,7 @@ ${supportedInteractionTypes}
 	  ],
   "feedbackBlocks": [
     {
-      "identifier": "CORRECT",
+      "identifier": "FB__RESPONSE_TEXT_CORRECT",
       "outcomeIdentifier": "FEEDBACK__RESPONSE_TEXT",
       "content": [
         {
@@ -876,7 +876,7 @@ ${supportedInteractionTypes}
       ]
     },
     {
-      "identifier": "INCORRECT",
+      "identifier": "FB__RESPONSE_TEXT_INCORRECT",
       "outcomeIdentifier": "FEEDBACK__RESPONSE_TEXT",
       "content": [
         {
@@ -1298,7 +1298,7 @@ You MUST provide a feedbackBlocks array that contains feedback for all possible 
 
 **For choice-based interactions** (e.g., choiceInteraction, inlineChoiceInteraction): Create one feedback block for each choice. The block's identifier MUST match the choice's identifier. The outcomeIdentifier MUST be FEEDBACK__<responseIdentifier>, where <responseIdentifier> is the ID from the interaction.
 
-**For other interactions** (e.g., textEntry, orderInteraction, gapMatch): Create two feedback blocks with identifier values of "CORRECT" and "INCORRECT". The outcomeIdentifier MUST be FEEDBACK__<responseIdentifier>, where <responseIdentifier> is the ID from the interaction.
+**For other interactions** (e.g., textEntry, orderInteraction, gapMatch): Create two feedback blocks with identifier values of `FB__<responseIdentifier>_CORRECT` and `FB__<responseIdentifier>_INCORRECT`. The outcomeIdentifier MUST be FEEDBACK__<responseIdentifier>, where <responseIdentifier> is the ID from the interaction.
 
 The content field of each feedback block must contain rich, structured content using the same block content model as body content.
 
@@ -1347,7 +1347,7 @@ The content field of each feedback block must contain rich, structured content u
 \`\`\`json
 "feedbackBlocks": [
   {
-    "identifier": "CORRECT",
+    "identifier": "FB__RESPONSE_TEXT_CORRECT",
     "outcomeIdentifier": "FEEDBACK__RESPONSE_TEXT",
     "content": [
       { "type": "paragraph", "content": [
@@ -1364,7 +1364,7 @@ The content field of each feedback block must contain rich, structured content u
     ]
   },
   {
-    "identifier": "INCORRECT",
+    "identifier": "FB__RESPONSE_TEXT_INCORRECT",
     "outcomeIdentifier": "FEEDBACK__RESPONSE_TEXT",
     "content": [
       { "type": "paragraph", "content": [
@@ -1486,7 +1486,7 @@ This is a mandatory step for all questions involving a \`textEntryInteraction\`.
   "title": "Square a negative mixed number",
   "feedbackBlocks": [
     {
-      "identifier": "CORRECT",
+      "identifier": "FB__RESPONSE_TEXT_CORRECT",
       "outcomeIdentifier": "FEEDBACK__RESPONSE_TEXT",
       "content": [
         {
@@ -1500,7 +1500,7 @@ This is a mandatory step for all questions involving a \`textEntryInteraction\`.
       ]
     },
     {
-      "identifier": "INCORRECT",
+      "identifier": "FB__RESPONSE_TEXT_INCORRECT",
       "outcomeIdentifier": "FEEDBACK__RESPONSE_TEXT",
       "content": [
         {
@@ -1544,7 +1544,7 @@ This is a mandatory step for all questions involving a \`textEntryInteraction\`.
   "title": "Square a negative mixed number",
   "feedbackBlocks": [
     {
-      "identifier": "CORRECT",
+      "identifier": "FB__RESPONSE_TEXT_CORRECT",
       "outcomeIdentifier": "FEEDBACK__RESPONSE_TEXT",
       "content": [
         {
@@ -1558,7 +1558,7 @@ This is a mandatory step for all questions involving a \`textEntryInteraction\`.
       ]
     },
     {
-      "identifier": "INCORRECT",
+      "identifier": "FB__RESPONSE_TEXT_INCORRECT",
       "outcomeIdentifier": "FEEDBACK__RESPONSE_TEXT",
       "content": [
         {
@@ -1674,12 +1674,12 @@ ${widgetSelectionSection}
     ],
     "feedbackBlocks": [
       {
-        "identifier": "CORRECT",
+        "identifier": "FB__RESPONSE_TEXT_CORRECT",
         "outcomeIdentifier": "FEEDBACK__RESPONSE_TEXT",
         "content": [{ "type": "paragraph", "content": [{ "type": "text", "content": "Correct! Well done." }] }]
       },
       {
-        "identifier": "INCORRECT",
+        "identifier": "FB__RESPONSE_TEXT_INCORRECT",
         "outcomeIdentifier": "FEEDBACK__RESPONSE_TEXT",
         "content": [{ "type": "paragraph", "content": [{ "type": "text", "content": "Not quite. Please review your answers." }] }]
       }
@@ -1705,12 +1705,12 @@ ${widgetSelectionSection}
     ],
     "feedbackBlocks": [
       {
-        "identifier": "CORRECT",
+        "identifier": "FB__RESPONSE_TEXT_CORRECT",
         "outcomeIdentifier": "FEEDBACK__RESPONSE_TEXT",
         "content": [{ "type": "paragraph", "content": [{ "type": "text", "content": "Correct! Well done." }] }]
       },
       {
-        "identifier": "INCORRECT",
+        "identifier": "FB__RESPONSE_TEXT_INCORRECT",
         "outcomeIdentifier": "FEEDBACK__RESPONSE_TEXT",
         "content": [{ "type": "paragraph", "content": [{ "type": "text", "content": "Not quite. Please review your answers." }] }]
       }
@@ -1739,12 +1739,12 @@ ${widgetSelectionSection}
     ],
     "feedbackBlocks": [
       {
-        "identifier": "CORRECT",
+        "identifier": "FB__RESPONSE_TEXT_CORRECT",
         "outcomeIdentifier": "FEEDBACK__RESPONSE_TEXT",
         "content": [{ "type": "paragraph", "content": [{ "type": "text", "content": "Correct! Well done." }] }]
       },
       {
-        "identifier": "INCORRECT",
+        "identifier": "FB__RESPONSE_TEXT_INCORRECT",
         "outcomeIdentifier": "FEEDBACK__RESPONSE_TEXT",
         "content": [{ "type": "paragraph", "content": [{ "type": "text", "content": "Not quite. Please review your answers." }] }]
       }
@@ -1773,12 +1773,12 @@ ${widgetSelectionSection}
     ],
     "feedbackBlocks": [
       {
-        "identifier": "CORRECT",
+        "identifier": "FB__RESPONSE_TEXT_CORRECT",
         "outcomeIdentifier": "FEEDBACK__RESPONSE_TEXT",
         "content": [{ "type": "paragraph", "content": [{ "type": "text", "content": "Correct! Well done." }] }]
       },
       {
-        "identifier": "INCORRECT",
+        "identifier": "FB__RESPONSE_TEXT_INCORRECT",
         "outcomeIdentifier": "FEEDBACK__RESPONSE_TEXT",
         "content": [{ "type": "paragraph", "content": [{ "type": "text", "content": "Not quite. Please review your answers." }] }]
       }
@@ -1822,12 +1822,12 @@ ${widgetSelectionSection}
     ],
     "feedbackBlocks": [
       {
-        "identifier": "CORRECT",
+        "identifier": "FB__RESPONSE_TEXT_CORRECT",
         "outcomeIdentifier": "FEEDBACK__RESPONSE_TEXT",
         "content": [{ "type": "paragraph", "content": [{ "type": "text", "content": "Correct! Well done." }] }]
       },
       {
-        "identifier": "INCORRECT",
+        "identifier": "FB__RESPONSE_TEXT_INCORRECT",
         "outcomeIdentifier": "FEEDBACK__RESPONSE_TEXT",
         "content": [{ "type": "paragraph", "content": [{ "type": "text", "content": "Not quite. Please review your answers." }] }]
       }
@@ -1856,12 +1856,12 @@ ${widgetSelectionSection}
     ],
     "feedbackBlocks": [
       {
-        "identifier": "CORRECT",
+        "identifier": "FB__RESPONSE_TEXT_CORRECT",
         "outcomeIdentifier": "FEEDBACK__RESPONSE_TEXT",
         "content": [{ "type": "paragraph", "content": [{ "type": "text", "content": "Correct! Well done." }] }]
       },
       {
-        "identifier": "INCORRECT",
+        "identifier": "FB__RESPONSE_TEXT_INCORRECT",
         "outcomeIdentifier": "FEEDBACK__RESPONSE_TEXT",
         "content": [{ "type": "paragraph", "content": [{ "type": "text", "content": "Not quite. Please review your answers." }] }]
       }
@@ -1891,12 +1891,12 @@ ${widgetSelectionSection}
     ],
     "feedbackBlocks": [
       {
-        "identifier": "CORRECT",
+        "identifier": "FB__RESPONSE_TEXT_CORRECT",
         "outcomeIdentifier": "FEEDBACK__RESPONSE_TEXT",
         "content": [{ "type": "paragraph", "content": [{ "type": "text", "content": "Correct! Well done." }] }]
       },
       {
-        "identifier": "INCORRECT",
+        "identifier": "FB__RESPONSE_TEXT_INCORRECT",
         "outcomeIdentifier": "FEEDBACK__RESPONSE_TEXT",
         "content": [{ "type": "paragraph", "content": [{ "type": "text", "content": "Not quite. Please review your answers." }] }]
       }
@@ -1926,12 +1926,12 @@ ${widgetSelectionSection}
     ],
     "feedbackBlocks": [
       {
-        "identifier": "CORRECT",
+        "identifier": "FB__RESPONSE_TEXT_CORRECT",
         "outcomeIdentifier": "FEEDBACK__RESPONSE_TEXT",
         "content": [{ "type": "paragraph", "content": [{ "type": "text", "content": "Correct! Well done." }] }]
       },
       {
-        "identifier": "INCORRECT",
+        "identifier": "FB__RESPONSE_TEXT_INCORRECT",
         "outcomeIdentifier": "FEEDBACK__RESPONSE_TEXT",
         "content": [{ "type": "paragraph", "content": [{ "type": "text", "content": "Not quite. Please review your answers." }] }]
       }

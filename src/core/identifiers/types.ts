@@ -77,10 +77,7 @@ export type ChoiceIdentifier = `${UpperAlpha}${ChoiceIdentifierRest}`
 
 export type ResponseIdentifier = `RESP${"" | `_${ChoiceIdentifier}`}`
 
-export type FeedbackCombinationIdentifier =
-	| "CORRECT"
-	| "INCORRECT"
-	| `FB__${ChoiceIdentifier}${FeedbackCombinationRest}`
+export type FeedbackCombinationIdentifier = `FB__${ChoiceIdentifier}${FeedbackCombinationRest}`
 
 export type SlotIdentifier = `${LowerAlpha}${SlotIdentifierRest}`
 

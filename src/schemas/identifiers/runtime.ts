@@ -9,7 +9,7 @@ import type {
 const choiceIdentifierRegex = regex("^[A-Z][A-Z0-9_]*$")
 const responseIdentifierRegex = regex("^RESP(?:_[A-Z][A-Z0-9_]*)?$")
 const feedbackCombinationRegex = regex(
-	"^(?:CORRECT|INCORRECT|FB__(?:[A-Z][A-Z0-9_]*(?:__[A-Z][A-Z0-9_]*)*)?)$"
+	"^FB__[A-Z][A-Z0-9_]*(?:__[A-Z][A-Z0-9_]*)*$"
 )
 const slotIdentifierRegex = regex("^[a-z][a-z0-9_]*$")
 

@@ -11,7 +11,7 @@ export type FeedbackTarget = {
  * This function determines the complete set of required feedback blocks based on
  * the unified per-response feedback rule:
  * - Enumerated responses (baseType: 'identifier') get per-choice feedback
- * - Non-enumerated responses get CORRECT/INCORRECT feedback
+ * - Non-enumerated responses get response-scoped CORRECT/INCORRECT feedback identifiers
  *
  * @param responseDeclarations - Response declarations from the assessment shell
  * @param interactions - Generated interactions that reference these responses
@@ -55,15 +55,17 @@ export function enumerateFeedbackTargets<E extends readonly string[]>(
 				}
 			}
 		} else {
-			// Non-enumerated response - generate CORRECT/INCORRECT feedback
+			// Non-enumerated response - generate response-scoped CORRECT/INCORRECT feedback
+			const buildBlockIdentifier = (suffix: "CORRECT" | "INCORRECT") =>
+				`FB__${responseId}_${suffix}`
 			targets.push(
 				{
 					outcomeIdentifier,
-					blockIdentifier: "CORRECT"
+					blockIdentifier: buildBlockIdentifier("CORRECT")
 				},
 				{
 					outcomeIdentifier,
-					blockIdentifier: "INCORRECT"
+					blockIdentifier: buildBlockIdentifier("INCORRECT")
 				}
 			)
 		}

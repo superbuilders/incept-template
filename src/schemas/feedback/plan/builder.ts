@@ -15,12 +15,8 @@ import type { Interaction } from "@/core/interactions/types"
 import type { ResponseDeclaration } from "@/core/item/types"
 import {
 	assertChoiceIdentifier,
-	assertFeedbackCombinationIdentifier,
-	assertResponseIdentifier
+	assertFeedbackCombinationIdentifier
 } from "@/schemas/identifiers/runtime"
-
-const SYNTHETIC_OVERALL_IDENTIFIER: ResponseIdentifier =
-	assertResponseIdentifier("RESP_OVERALL")
 
 const normalizeIdPart = (part: string): ChoiceIdentifier => {
 	const normalized = part.toUpperCase().replace(/[^A-Z0-9_]/g, "_")
@@ -90,11 +86,8 @@ export function buildFeedbackPlanFromInteractions<E extends readonly string[]>(
 	)
 
 	if (enumeratedDimensions.length === 0) {
-		enumeratedDimensions.push({
-			responseIdentifier: SYNTHETIC_OVERALL_IDENTIFIER,
-			kind: "enumerated",
-			keys: ["CORRECT", "INCORRECT"]
-		})
+		logger.error("feedback plan builder: no interactions available")
+		throw errors.new("feedback plan requires at least one interaction")
 	}
 
 	const combinationCount = enumeratedDimensions.reduce<number>(
@@ -115,30 +108,20 @@ export function buildFeedbackPlanFromInteractions<E extends readonly string[]>(
 	> = []
 	const combinationIds = new Set<FeedbackCombinationIdentifier>()
 
-	const useSyntheticOverall =
-		enumeratedDimensions.length === 1 &&
-		enumeratedDimensions[0]?.responseIdentifier === SYNTHETIC_OVERALL_IDENTIFIER
-
-	const buildCombinations = (
-		index: number,
-		path: Array<{ responseIdentifier: ResponseIdentifier; key: string }>
-	): void => {
+const buildCombinations = (
+	index: number,
+	path: Array<{ responseIdentifier: ResponseIdentifier; key: string }>
+): void => {
 		if (index >= enumeratedDimensions.length) {
-			let derivedId: FeedbackCombinationIdentifier
-			if (useSyntheticOverall) {
-				const outcome = path[0]?.key ?? "CORRECT"
-				derivedId = assertFeedbackCombinationIdentifier(outcome)
-			} else {
-				derivedId = deriveComboIdentifier(
-					path.map((seg) =>
-						assertChoiceIdentifier(
-							`${normalizeIdPart(seg.responseIdentifier)}_${normalizeIdPart(
-								seg.key
-							)}`
-						)
+			const derivedId = deriveComboIdentifier(
+				path.map((seg) =>
+					assertChoiceIdentifier(
+						`${normalizeIdPart(seg.responseIdentifier)}_${normalizeIdPart(
+							seg.key
+						)}`
 					)
 				)
-			}
+			)
 			if (combinationIds.has(derivedId)) {
 				logger.error("duplicate feedback combination id detected", {
 					derivedId,
