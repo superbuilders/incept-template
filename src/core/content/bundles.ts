@@ -3,30 +3,14 @@ import * as logger from "@superbuilders/slog"
 import type {
 	FeedbackBundle,
 	FeedbackContent,
+	FeedbackPreamble,
+	FeedbackPreambleMap,
 	FeedbackSharedPedagogy
 } from "@/core/content/types"
 import type {
 	FeedbackCombinationId,
 	FeedbackPlan
 } from "@/core/feedback/plan/types"
-
-function isCombinationId<P extends FeedbackPlan>(
-	plan: P,
-	id: string
-): id is FeedbackCombinationId<P> {
-	return plan.combinations.some((combo) => combo.id === id)
-}
-
-function requireCombinationId<P extends FeedbackPlan>(
-	plan: P,
-	id: string
-): FeedbackCombinationId<P> {
-	if (isCombinationId(plan, id)) {
-		return id
-	}
-	logger.error("invalid feedback combination id encountered", { id })
-	throw errors.new(`invalid feedback combination id '${id}'`)
-}
 
 export function createFeedbackBundle<
 	P extends FeedbackPlan,
@@ -36,28 +20,24 @@ export function createFeedbackBundle<
 	shared: FeedbackSharedPedagogy<E>,
 	preambles: FeedbackBundle<P, E>["preambles"]
 ): FeedbackBundle<P, E> {
-	const keyedPreambles: FeedbackBundle<P, E>["preambles"] = preambles
-	const expectedIds = new Set<string>(
-		plan.combinations.map((combo) => combo.id)
-	)
-	const providedIds = new Set<string>(Object.keys(keyedPreambles))
+	const expectedIds = plan.combinations.map((combo) => combo.id)
+	const expectedSet = new Set(expectedIds)
+	const providedKeys = Object.keys(preambles)
 
-	const missing = [...expectedIds].filter((id) => !providedIds.has(id))
-	const extra = [...providedIds].filter((id) => !expectedIds.has(id))
-
-	if (missing.length > 0 || extra.length > 0) {
+	const extra = providedKeys.filter((key) => !expectedSet.has(key))
+	if (extra.length > 0) {
 		logger.error("invalid feedback preamble map", {
-			expectedCount: expectedIds.size,
-			providedCount: providedIds.size,
-			missing: missing.slice(0, 5),
+			expectedCount: expectedSet.size,
+			providedCount: providedKeys.length,
 			extra: extra.slice(0, 5)
 		})
-		throw errors.new("invalid feedback preamble map")
+		throw errors.new("unexpected feedback preamble entries")
 	}
 
+	const normalized: PartialFeedbackPreambleMap<P> = {}
 	for (const combination of plan.combinations) {
-		const combinationId = requireCombinationId(plan, combination.id)
-		const preamble = keyedPreambles[combinationId]
+		const combinationId: FeedbackCombinationId<P> = combination.id
+		const preamble = preambles[combinationId]
 		if (!preamble) {
 			logger.error("missing preamble during bundle normalization", {
 				combinationId
@@ -66,11 +46,14 @@ export function createFeedbackBundle<
 				`missing preamble during bundle normalization for '${combinationId}'`
 			)
 		}
+		normalized[combinationId] = preamble
 	}
+
+	assertPreambleMapComplete(plan, normalized)
 
 	return {
 		shared,
-		preambles
+		preambles: normalized
 	}
 }
 
@@ -84,7 +67,7 @@ export function expandFeedbackBundle<
 	const contentMap: PartialFeedbackContentMap<P, E> = {}
 
 	for (const combination of plan.combinations) {
-		const combinationId = requireCombinationId(plan, combination.id)
+		const combinationId: FeedbackCombinationId<P> = combination.id
 		const preamble = bundle.preambles[combinationId]
 		if (!preamble) {
 			logger.error("missing preamble while expanding bundle", {
@@ -103,6 +86,28 @@ export function expandFeedbackBundle<
 	return contentMap
 }
 
+type PartialFeedbackPreambleMap<P extends FeedbackPlan> = {
+	[K in FeedbackCombinationId<P>]?: FeedbackPreamble
+}
+
+function assertPreambleMapComplete<P extends FeedbackPlan>(
+	plan: P,
+	map: PartialFeedbackPreambleMap<P>
+): asserts map is FeedbackPreambleMap<P> {
+	for (const combination of plan.combinations) {
+		const combinationId: FeedbackCombinationId<P> = combination.id
+		if (!Object.hasOwn(map, combinationId)) {
+			logger.error("missing feedback preamble entry", { combinationId })
+			throw errors.new(`missing feedback preamble for '${combinationId}'`)
+		}
+		const preamble = map[combinationId]
+		if (!preamble) {
+			logger.error("empty feedback preamble entry", { combinationId })
+			throw errors.new(`empty feedback preamble for '${combinationId}'`)
+		}
+	}
+}
+
 type PartialFeedbackContentMap<
 	P extends FeedbackPlan,
 	E extends readonly string[]
@@ -118,7 +123,7 @@ function assertContentMapComplete<
 	map: PartialFeedbackContentMap<P, E>
 ): asserts map is Record<FeedbackCombinationId<P>, FeedbackContent<E>> {
 	for (const combination of plan.combinations) {
-		const combinationId = requireCombinationId(plan, combination.id)
+		const combinationId: FeedbackCombinationId<P> = combination.id
 		if (!Object.hasOwn(map, combinationId)) {
 			logger.error("missing expanded feedback content", { combinationId })
 			throw errors.new(

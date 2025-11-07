@@ -24,24 +24,6 @@ import type {
 import type { AnyInteraction } from "@/core/interactions/types"
 import type { ResponseDeclaration } from "@/core/item/types"
 
-function isCombinationId<P extends FeedbackPlan>(
-	plan: P,
-	id: string
-): id is FeedbackCombinationId<P> {
-	return plan.combinations.some((combo) => combo.id === id)
-}
-
-function requireCombinationId<P extends FeedbackPlan>(
-	plan: P,
-	id: string
-): FeedbackCombinationId<P> {
-	if (isCombinationId(plan, id)) {
-		return id
-	}
-	logger.error("invalid feedback combination id encountered", { id })
-	throw errors.new(`invalid feedback combination id '${id}'`)
-}
-
 export function createFeedbackObjectSchema<
 	P extends FeedbackPlan,
 	const E extends readonly string[]
@@ -53,44 +35,28 @@ export function createFeedbackObjectSchema<
 	const PreambleSchema: z.ZodType<FeedbackPreamble> =
 		createFeedbackPreambleSchema(widgetTypeKeys)
 
-	const expectedIds = feedbackPlan.combinations.map((combo) => combo.id)
-	const expectedSet = new Set(expectedIds)
+	const combinationIds = feedbackPlan.combinations.map<
+		FeedbackCombinationId<P>
+	>((combo) => combo.id)
 
-	const PreamblesSchema: z.ZodType<FeedbackPreambleMap<P>> = z
-		.record(z.string(), PreambleSchema)
-		.superRefine((value, ctx) => {
-			for (const key of Object.keys(value)) {
-				if (!expectedSet.has(key)) {
-					ctx.addIssue({
-						code: "custom",
-						message: `unexpected feedback preamble key '${key}'`,
-						path: [key]
-					})
-				}
-			}
-			for (const expectedId of expectedIds) {
-				if (!(expectedId in value)) {
-					ctx.addIssue({
-						code: "custom",
-						message: `missing feedback preamble for '${expectedId}'`,
-						path: [expectedId]
-					})
-				}
-			}
-		})
-		.transform((value) => {
-			const ordered: PartialFeedbackPreambleMap<P> = {}
-			for (const expectedId of expectedIds) {
-				const combinationId = requireCombinationId(feedbackPlan, expectedId)
-				const preamble = value[combinationId]
-				if (!preamble) {
-					continue
-				}
-				ordered[combinationId] = preamble
-			}
-			assertPreambleMapComplete(feedbackPlan, ordered)
-			return ordered
-		})
+	const ensureNonEmptyTuple = <T>(items: T[]): [T, ...T[]] => {
+		if (items.length === 0) {
+			logger.error("feedback plan has no combinations", {
+				dimensionCount: feedbackPlan.dimensions.length
+			})
+			throw errors.new("feedback plan must declare at least one combination")
+		}
+		const [first, ...rest] = items
+		const tuple: [T, ...T[]] = [first, ...rest]
+		return tuple
+	}
+
+	const CombinationEnum = z.enum(ensureNonEmptyTuple(combinationIds))
+
+	const PreamblesSchema: z.ZodType<FeedbackPreambleMap<P>> = z.record(
+		CombinationEnum,
+		PreambleSchema
+	)
 
 	return z
 		.object({
@@ -145,7 +111,7 @@ export function buildEmptyNestedFeedback<
 
 	const preambles: PartialFeedbackPreambleMap<P> = {}
 	for (const combination of feedbackPlan.combinations) {
-		const combinationId = requireCombinationId(feedbackPlan, combination.id)
+		const combinationId: FeedbackCombinationId<P> = combination.id
 		preambles[combinationId] = { ...defaultPreamble }
 	}
 	assertPreambleMapComplete(feedbackPlan, preambles)
@@ -187,7 +153,7 @@ function assertPreambleMapComplete<P extends FeedbackPlan>(
 	map: PartialFeedbackPreambleMap<P>
 ): asserts map is FeedbackPreambleMap<P> {
 	for (const combination of plan.combinations) {
-		const combinationId = requireCombinationId(plan, combination.id)
+		const combinationId: FeedbackCombinationId<P> = combination.id
 		if (!Object.hasOwn(map, combinationId)) {
 			logger.error("missing feedback preamble entry", { combinationId })
 			throw errors.new(`missing feedback preamble for '${combinationId}'`)
