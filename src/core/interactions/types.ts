@@ -1,6 +1,6 @@
 import type { BlockContent, InlineContent } from "@/core/content/types"
 
-export type AnyInteraction<E extends readonly string[] = readonly string[]> =
+export type AnyInteraction<E extends readonly string[]> =
 	| {
 			type: "choiceInteraction"
 			responseIdentifier: string

@@ -7,9 +7,7 @@ import {
 import { escapeXmlAttribute } from "@/compiler/utils/xml-utils"
 import type { AnyInteraction } from "@/core/interactions/types"
 
-export function compileInteraction<
-	E extends readonly string[] = readonly string[]
->(
+export function compileInteraction<E extends readonly string[]>(
 	interaction: AnyInteraction<E>,
 	widgetSlots: Map<string, string>,
 	interactionSlots: Map<string, string>

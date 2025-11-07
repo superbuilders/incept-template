@@ -23,9 +23,7 @@ function escapeXmlText(text: string): string {
 		.replace(/>/g, "&gt;")
 }
 
-export function renderInlineContent<
-	E extends readonly string[] = readonly string[]
->(
+export function renderInlineContent<E extends readonly string[]>(
 	inlineItems: InlineContent<E> | null,
 	widgetSlots: Map<string, string>,
 	interactionSlots: Map<string, string>
@@ -71,9 +69,7 @@ export function renderInlineContent<
 		.join("")
 }
 
-export function renderBlockContent<
-	E extends readonly string[] = readonly string[]
->(
+export function renderBlockContent<E extends readonly string[]>(
 	blockItems: BlockContent<E> | null,
 	widgetSlots: Map<string, string>,
 	interactionSlots: Map<string, string>

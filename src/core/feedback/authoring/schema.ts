@@ -97,7 +97,7 @@ export function convertAuthoringFeedbackToBundle<
 
 export function buildEmptyNestedFeedback<
 	P extends FeedbackPlan,
-	const E extends readonly string[] = readonly string[]
+	const E extends readonly string[]
 >(feedbackPlan: P): NestedFeedbackAuthoring<P, E> {
 	const shared: FeedbackSharedPedagogy<E> = {
 		steps: [],
