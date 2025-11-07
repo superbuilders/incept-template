@@ -2,10 +2,6 @@ import * as errors from "@superbuilders/errors"
 import * as logger from "@superbuilders/slog"
 import { z } from "zod"
 import { createFeedbackBundle } from "@/core/content/bundles"
-import {
-	createFeedbackPreambleSchema,
-	createFeedbackSharedPedagogySchema
-} from "@/core/content/contextual-schemas"
 import type {
 	FeedbackBundle,
 	FeedbackPreamble,
@@ -16,13 +12,17 @@ import type {
 	AuthoringFeedbackOverall,
 	NestedFeedbackAuthoring
 } from "@/core/feedback/authoring/types"
-import { buildFeedbackPlanFromInteractions } from "@/core/feedback/plan/builder"
 import type {
 	FeedbackCombinationId,
 	FeedbackPlanAny
 } from "@/core/feedback/plan/types"
 import type { AnyInteraction } from "@/core/interactions/types"
 import type { ResponseDeclaration } from "@/core/item/types"
+import {
+	createFeedbackPreambleSchema,
+	createFeedbackSharedPedagogySchema
+} from "@/schemas/content/contextual-schemas"
+import { buildFeedbackPlanFromInteractions } from "@/schemas/feedback/plan/builder"
 
 const combinationIdOf = <Plan extends FeedbackPlanAny>(
 	combination: Plan["combinations"][number]

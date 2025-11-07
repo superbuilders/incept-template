@@ -1,7 +1,7 @@
 import * as errors from "@superbuilders/errors"
 import * as logger from "@superbuilders/slog"
 import { z } from "zod"
-import { toJSONSchemaPromptSafe } from "@/core/json-schema/to-json-schema"
+import { toJSONSchemaPromptSafe } from "@/schemas/json-schema/to-json-schema"
 import type {
 	WidgetCollection,
 	WidgetDefinition

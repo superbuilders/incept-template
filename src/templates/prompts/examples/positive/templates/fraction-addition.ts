@@ -13,11 +13,11 @@ import type {
 	FeedbackSharedPedagogy
 } from "@/core/content/types"
 import type {
-	ChoiceIdentifierTuple,
 	EnumeratedFeedbackDimension,
 	FeedbackCombination,
 	StaticFeedbackPlan
 } from "@/core/feedback/plan/types"
+import type { ChoiceIdentifierTuple } from "@/core/identifiers/types"
 import type { AssessmentItemInput } from "@/core/item/types"
 import { createSeededRandom } from "@/templates/seeds"
 import type { TemplateModule } from "@/templates/types"

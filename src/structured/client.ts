@@ -7,18 +7,18 @@ import type {
 	FeedbackSharedPedagogy,
 	InlineContent
 } from "@/core/content/types"
-import { createFeedbackObjectSchema } from "@/core/feedback/authoring/schema"
-import { buildFeedbackPlanFromInteractions } from "@/core/feedback/plan/builder"
 import type { FeedbackPlan } from "@/core/feedback/plan/types"
-import { createAnyInteractionSchema } from "@/core/interactions/schema"
 import type { AnyInteraction } from "@/core/interactions/types"
-import { createAssessmentItemShellSchema } from "@/core/item/schema"
 import type {
 	AssessmentItemInput,
 	AssessmentItemShell,
 	ResponseDeclaration
 } from "@/core/item/types"
-import { toJSONSchemaPromptSafe } from "@/core/json-schema/to-json-schema"
+import { createFeedbackObjectSchema } from "@/schemas/feedback/authoring/schema"
+import { buildFeedbackPlanFromInteractions } from "@/schemas/feedback/plan/builder"
+import { createAnyInteractionSchema } from "@/schemas/interactions/schema"
+import { createAssessmentItemShellSchema } from "@/schemas/item/schema"
+import { toJSONSchemaPromptSafe } from "@/schemas/json-schema/to-json-schema"
 import type {
 	WidgetCollection,
 	WidgetDefinition,

@@ -1,11 +1,11 @@
 import * as errors from "@superbuilders/errors"
 import * as logger from "@superbuilders/slog"
 import { z } from "zod"
-import { createFeedbackContentSchema } from "@/core/content/contextual-schemas"
 import type { FeedbackContent } from "@/core/content/types"
 import type { FeedbackPlanAny } from "@/core/feedback/plan/types"
 import type { AnyInteraction } from "@/core/interactions/types"
 import type { AssessmentItemShell } from "@/core/item/types"
+import { createFeedbackContentSchema } from "@/schemas/content/contextual-schemas"
 import { createMathmlComplianceSection } from "@/structured/prompts/shared/mathml"
 import type {
 	WidgetCollection,

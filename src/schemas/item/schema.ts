@@ -5,16 +5,16 @@ import {
 	CHOICE_IDENTIFIER_REGEX,
 	RESPONSE_IDENTIFIER_REGEX
 } from "@/compiler/qti-constants"
-import { createBodyContentSchema } from "@/core/content/contextual-schemas"
-import { createFeedbackObjectSchema } from "@/core/feedback/authoring/schema"
-import { FeedbackPlanSchema } from "@/core/feedback/plan/schema"
 import type { FeedbackPlanAny } from "@/core/feedback/plan/types"
-import { createAnyInteractionSchema } from "@/core/interactions/schema"
 import type {
 	AssessmentItem,
 	AssessmentItemShell,
 	ResponseDeclaration
 } from "@/core/item/types"
+import { createBodyContentSchema } from "@/schemas/content/contextual-schemas"
+import { createFeedbackObjectSchema } from "@/schemas/feedback/authoring/schema"
+import { FeedbackPlanSchema } from "@/schemas/feedback/plan/schema"
+import { createAnyInteractionSchema } from "@/schemas/interactions/schema"
 import { WidgetSchema } from "@/widgets/registry"
 
 // Response Declaration Schema (shared across all dynamic schemas)

@@ -26,14 +26,14 @@ import type {
 	FeedbackContent,
 	InlineContent
 } from "@/core/content/types"
+import type { FeedbackPlan } from "@/core/feedback/plan/types"
+import type { AnyInteraction } from "@/core/interactions/types"
+import type { AssessmentItem, AssessmentItemInput } from "@/core/item/types"
 import {
 	convertAuthoringFeedbackToBundle,
 	validateFeedbackObject
-} from "@/core/feedback/authoring/schema"
-import type { FeedbackPlan } from "@/core/feedback/plan/types"
-import type { AnyInteraction } from "@/core/interactions/types"
-import { createDynamicAssessmentItemSchema } from "@/core/item/schema"
-import type { AssessmentItem, AssessmentItemInput } from "@/core/item/types"
+} from "@/schemas/feedback/authoring/schema"
+import { createDynamicAssessmentItemSchema } from "@/schemas/item/schema"
 import { ErrUnsupportedInteraction } from "@/structured/client"
 import type {
 	WidgetCollection,
