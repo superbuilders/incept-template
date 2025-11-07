@@ -37,15 +37,16 @@ export const isSlotIdentifier = (value: string): value is SlotIdentifier =>
 
 export function assertChoiceIdentifier(value: string): ChoiceIdentifier {
 	if (!isChoiceIdentifier(value)) {
-		logger.error(`Invalid choice identifier: ${value}`)
-		throw errors.new(`Invalid choice identifier: ${value}`)
+		logger.error("invalid choice identifier", { value })
+		throw errors.new("invalid choice identifier")
 	}
 	return value
 }
 
 export function assertResponseIdentifier(value: string): ResponseIdentifier {
 	if (!isResponseIdentifier(value)) {
-		throw new TypeError(`Invalid response identifier: ${value}`)
+		logger.error("invalid response identifier", { value })
+		throw errors.new("invalid response identifier")
 	}
 	return value
 }
@@ -54,14 +55,16 @@ export function assertFeedbackCombinationIdentifier(
 	value: string
 ): FeedbackCombinationIdentifier {
 	if (!isFeedbackCombinationIdentifier(value)) {
-		throw new TypeError(`Invalid feedback combination identifier: ${value}`)
+		logger.error("invalid feedback combination identifier", { value })
+		throw errors.new("invalid feedback combination identifier")
 	}
 	return value
 }
 
 export function assertSlotIdentifier(value: string): SlotIdentifier {
 	if (!isSlotIdentifier(value)) {
-		throw new TypeError(`Invalid slot identifier: ${value}`)
+		logger.error("invalid slot identifier", { value })
+		throw errors.new("invalid slot identifier")
 	}
 	return value
 }
