@@ -40,7 +40,7 @@ const feedbackPlan = {
 		id: `FB__RESPONSE_${choiceId}`,
 		path: [{ responseIdentifier: "RESPONSE", key: choiceId }]
 	}))
-} satisfies FeedbackPlan
+} as const satisfies FeedbackPlan
 
 // -----------------------------------------------------------------------------
 // 2. FUNDAMENTAL DATA TYPE & TEMPLATE PROPS SCHEMA
