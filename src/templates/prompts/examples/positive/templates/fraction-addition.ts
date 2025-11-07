@@ -9,6 +9,7 @@ import * as logger from "@superbuilders/slog"
 import type {
 	FeedbackBundle,
 	FeedbackPreamble,
+	FeedbackPreambleMap,
 	FeedbackSharedPedagogy
 } from "@/core/content/types"
 import type { FeedbackPlan } from "@/core/feedback/plan/types"
@@ -20,23 +21,26 @@ import type { TemplateModule } from "@/templates/types"
 // The template includes a 'partitionedShape' widget in the widgets map below
 export type TemplateWidgets = readonly ["partitionedShape"]
 
-type FractionAdditionFeedbackPlan = ReturnType<typeof buildFeedbackPlan>
+const PLAN_CHOICE_IDS: readonly [
+	"CHOICE_0",
+	"CHOICE_1",
+	"CHOICE_2",
+	"CHOICE_3"
+] = ["CHOICE_0", "CHOICE_1", "CHOICE_2", "CHOICE_3"]
 
-function buildFeedbackPlan(choiceIdentifiers: readonly string[]) {
-	return {
-		dimensions: [
-			{
-				responseIdentifier: "RESPONSE",
-				kind: "enumerated",
-				keys: choiceIdentifiers
-			}
-		],
-		combinations: choiceIdentifiers.map((choiceId) => ({
-			id: `FB__RESPONSE_${choiceId}`,
-			path: [{ responseIdentifier: "RESPONSE", key: choiceId }]
-		}))
-	} satisfies FeedbackPlan
-}
+const feedbackPlan = {
+	dimensions: [
+		{
+			responseIdentifier: "RESPONSE",
+			kind: "enumerated",
+			keys: PLAN_CHOICE_IDS
+		}
+	],
+	combinations: PLAN_CHOICE_IDS.map((choiceId) => ({
+		id: `FB__RESPONSE_${choiceId}`,
+		path: [{ responseIdentifier: "RESPONSE", key: choiceId }]
+	}))
+} satisfies FeedbackPlan
 
 // -----------------------------------------------------------------------------
 // 2. FUNDAMENTAL DATA TYPE & TEMPLATE PROPS SCHEMA
@@ -64,7 +68,7 @@ export type Fraction = { numerator: number; denominator: number }
  */
 export const generateFractionAdditionQuestion: TemplateModule<
 	TemplateWidgets,
-	FractionAdditionFeedbackPlan
+	typeof feedbackPlan
 > = (seed) => {
 	// --- 3a. Self-Contained Mathematical Helpers ---
 	// To ensure the template is a pure, dependency-free module, all core
@@ -193,12 +197,24 @@ export const generateFractionAdditionQuestion: TemplateModule<
 	]
 
 	// --- 3c. Assemble and Deterministically Sort Choices ---
-	const allChoices = [
-		{ fraction: correctAnswer, isCorrect: true, type: "CORRECT" as const },
-		...distractors.map((d) => ({ ...d, isCorrect: false }))
-	]
+	type ChoiceType = (typeof distractors)[number]["type"] | "CORRECT"
 
-	type ChoiceOption = (typeof allChoices)[number]
+	type ChoiceOption = {
+		fraction: Fraction
+		isCorrect: boolean
+		type: ChoiceType
+	}
+
+	const allChoices: ChoiceOption[] = [
+		{ fraction: correctAnswer, isCorrect: true, type: "CORRECT" },
+		...distractors.map(
+			(d): ChoiceOption => ({
+				fraction: d.fraction,
+				isCorrect: false,
+				type: d.type
+			})
+		)
+	]
 
 	// Filter out any distractors that happen to equal the correct answer.
 	const uniqueChoices: ChoiceOption[] = allChoices.filter(
@@ -232,14 +248,64 @@ export const generateFractionAdditionQuestion: TemplateModule<
 				b.fraction.numerator / b.fraction.denominator
 		)
 
-	const correctChoiceIndex = finalChoices.findIndex((c) => c.isCorrect)
-	const choiceIdentifiers = finalChoices.map((_, i) => `CHOICE_${i}`)
-	const correctChoiceIdentifier =
-		correctChoiceIndex >= 0
-			? choiceIdentifiers[correctChoiceIndex]
-			: choiceIdentifiers[0]
+	if (finalChoices.length !== PLAN_CHOICE_IDS.length) {
+		logger.error("fraction addition template: unexpected choice count", {
+			finalChoiceCount: finalChoices.length,
+			expected: PLAN_CHOICE_IDS.length
+		})
+		throw errors.new("fraction addition template: unable to enumerate choices")
+	}
 
-	const feedbackPlan = buildFeedbackPlan(choiceIdentifiers)
+	if (feedbackPlan.combinations.length !== PLAN_CHOICE_IDS.length) {
+		logger.error(
+			"fraction addition template: feedback plan missing combinations",
+			{
+				combinationCount: feedbackPlan.combinations.length,
+				expected: PLAN_CHOICE_IDS.length
+			}
+		)
+		throw errors.new("fraction addition template: invalid feedback plan")
+	}
+
+	const combinationEntries = feedbackPlan.combinations.map(
+		(combination, index) => {
+			const choice = finalChoices[index]
+			if (choice === undefined) {
+				logger.error(
+					"fraction addition template: missing choice after slicing",
+					{
+						index,
+						finalChoiceCount: finalChoices.length
+					}
+				)
+				throw errors.new("fraction addition template: missing choice entry")
+			}
+			return { combination, choice }
+		}
+	)
+
+	for (const entry of combinationEntries) {
+		if (entry.combination.path.length !== 1) {
+			logger.error("fraction addition template: unexpected path length", {
+				combinationId: entry.combination.id,
+				pathLength: entry.combination.path.length
+			})
+			throw errors.new("fraction addition template: invalid combination path")
+		}
+	}
+
+	const correctEntry =
+		combinationEntries.find((entry) => entry.choice.isCorrect) ??
+		combinationEntries[0]
+	const firstPathSegment = correctEntry.combination.path[0]
+	if (firstPathSegment === undefined) {
+		logger.error(
+			"fraction addition template: missing path segment for correct combination",
+			{ combinationId: correctEntry.combination.id }
+		)
+		throw errors.new("fraction addition template: invalid correct combination")
+	}
+	const correctChoiceIdentifier = firstPathSegment.key
 
 	const commonDenom = f1.denominator * f2.denominator
 	const num1Expanded = Math.abs(f1.numerator) * f2.denominator
@@ -443,26 +509,21 @@ export const generateFractionAdditionQuestion: TemplateModule<
 	}
 
 	const preambles = Object.fromEntries(
-		finalChoices.map((choice, index) => {
-			const choiceId = choiceIdentifiers[index]
+		finalChoices.map<[string, FeedbackPreamble]>((choice, index) => {
+			const choiceId = PLAN_CHOICE_IDS[index]
 			if (choiceId === undefined) {
 				logger.error("missing choice identifier during feedback construction", {
 					index,
-					identifierCount: choiceIdentifiers.length
+					identifierCount: PLAN_CHOICE_IDS.length
 				})
 				throw errors.new("missing choice identifier for feedback")
 			}
-			return [
-				`FB__RESPONSE_${choiceId}`,
-				buildPreambleForChoice(choice)
-			] as const
+			const combinationId = `FB__RESPONSE_${choiceId}`
+			return [combinationId, buildPreambleForChoice(choice)]
 		})
-	)
+	) satisfies FeedbackPreambleMap<typeof feedbackPlan>
 
-	const feedbackBundle: FeedbackBundle<
-		FractionAdditionFeedbackPlan,
-		TemplateWidgets
-	> = {
+	const feedbackBundle: FeedbackBundle<typeof feedbackPlan, TemplateWidgets> = {
 		shared: sharedPedagogy,
 		preambles
 	}
@@ -533,11 +594,11 @@ export const generateFractionAdditionQuestion: TemplateModule<
 				maxChoices: 1,
 				prompt: [{ type: "text", content: "Select the correct sum." }],
 				choices: finalChoices.map((choice, index) => {
-					const choiceId = choiceIdentifiers[index]
+					const choiceId = PLAN_CHOICE_IDS[index]
 					if (choiceId === undefined) {
 						logger.error("missing choice identifier during template assembly", {
 							index,
-							identifierCount: choiceIdentifiers.length
+							identifierCount: PLAN_CHOICE_IDS.length
 						})
 						throw errors.new("missing choice identifier")
 					}
