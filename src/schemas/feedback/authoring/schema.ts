@@ -4,19 +4,19 @@ import { z } from "zod"
 import type {
 	AuthoringFeedbackOverall,
 	NestedFeedbackAuthoring
-} from "@/core/feedback/authoring/types"
+} from "@/core/feedback/authoring"
 import type {
 	FeedbackBundle,
 	FeedbackPreamble,
 	FeedbackPreambleMap,
 	FeedbackSharedPedagogy
-} from "@/core/feedback/content/types"
+} from "@/core/feedback/content"
 import type {
 	FeedbackCombinationId,
 	FeedbackPlanAny
-} from "@/core/feedback/plan/types"
-import type { Interaction } from "@/core/interactions/types"
-import type { ResponseDeclaration } from "@/core/item/types"
+} from "@/core/feedback/plan"
+import type { Interaction } from "@/core/interactions"
+import type { ResponseDeclaration } from "@/core/item"
 import {
 	createFeedbackPreambleSchema,
 	createFeedbackSharedPedagogySchema

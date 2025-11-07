@@ -1,12 +1,12 @@
 import * as errors from "@superbuilders/errors"
 import * as logger from "@superbuilders/slog"
 import { escapeXmlAttribute } from "@/compiler/utils/xml-utils"
-import type { FeedbackContent } from "@/core/feedback/content/types"
+import type { FeedbackContent } from "@/core/feedback/content"
 import type {
 	FeedbackDimension,
 	FeedbackPlanAny
-} from "@/core/feedback/plan/types"
-import type { AssessmentItem } from "@/core/item/types"
+} from "@/core/feedback/plan"
+import type { AssessmentItem } from "@/core/item"
 
 // Internal type for compilation after nested feedback has been flattened
 type AssessmentItemWithFeedbackBlocks<E extends readonly string[]> = Omit<

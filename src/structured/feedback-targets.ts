@@ -1,5 +1,5 @@
-import type { Interaction } from "@/core/interactions/types"
-import type { AssessmentItemShell } from "@/core/item/types"
+import type { Interaction } from "@/core/interactions"
+import type { AssessmentItemShell } from "@/core/item"
 
 export type FeedbackTarget = {
 	outcomeIdentifier: string

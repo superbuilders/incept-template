@@ -1,8 +1,8 @@
-import type { BlockContent, InlineContent } from "@/core/content/types"
+import type { BlockContent, InlineContent } from "@/core/content"
 import type {
 	ChoiceIdentifier,
 	ResponseIdentifier
-} from "@/core/identifiers/types"
+} from "@/core/identifiers"
 
 export type Interaction<E extends readonly string[]> =
 	| {

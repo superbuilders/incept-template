@@ -5,7 +5,7 @@ import {
 	renderInlineContent
 } from "@/compiler/content-renderer"
 import { escapeXmlAttribute } from "@/compiler/utils/xml-utils"
-import type { Interaction } from "@/core/interactions/types"
+import type { Interaction } from "@/core/interactions"
 
 export function compileInteraction<E extends readonly string[]>(
 	interaction: Interaction<E>,

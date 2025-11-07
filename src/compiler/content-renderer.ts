@@ -5,8 +5,8 @@ import type {
 	BlockContent,
 	InlineContent,
 	InlineContentItem
-} from "@/core/content/types"
-import type { FeedbackContent, StepBlock } from "@/core/feedback/content/types"
+} from "@/core/content"
+import type { FeedbackContent, StepBlock } from "@/core/feedback/content"
 
 const GAP_PLACEHOLDER_STYLE =
 	"display: inline-block; min-width: 320px; min-height: 120px; border: 2px dashed #ccc; padding: 12px; vertical-align: middle;"

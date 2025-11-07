@@ -1,18 +1,16 @@
 import { existsSync, readFileSync } from "node:fs"
 import { resolveLibPath } from "@/internal/paths"
 
-const ITEM_TYPES_PATH = resolveLibPath("core/item/types.ts")
-const CONTENT_TYPES_PATH = resolveLibPath("core/content/types.ts")
-const INTERACTION_TYPES_PATH = resolveLibPath("core/interactions/types.ts")
-const FEEDBACK_PLAN_TYPES_PATH = resolveLibPath("core/feedback/plan/types.ts")
-const FEEDBACK_CONTENT_TYPES_PATH = resolveLibPath(
-	"core/feedback/content/types.ts"
-)
+const ITEM_TYPES_PATH = resolveLibPath("core/item.ts")
+const CONTENT_TYPES_PATH = resolveLibPath("core/content.ts")
+const INTERACTION_TYPES_PATH = resolveLibPath("core/interactions.ts")
+const FEEDBACK_PLAN_TYPES_PATH = resolveLibPath("core/feedback/plan.ts")
+const FEEDBACK_CONTENT_TYPES_PATH = resolveLibPath("core/feedback/content.ts")
 const FEEDBACK_PLAN_SCHEMA_PATH = resolveLibPath(
 	"schemas/feedback/plan/schema.ts"
 )
 const FEEDBACK_AUTHORING_TYPES_PATH = resolveLibPath(
-	"core/feedback/authoring/types.ts"
+	"core/feedback/authoring.ts"
 )
 
 let cachedItemTypes: string | null = null

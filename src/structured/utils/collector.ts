@@ -1,12 +1,12 @@
 import * as errors from "@superbuilders/errors"
 import * as logger from "@superbuilders/slog"
-import type { BlockContent, InlineContent } from "@/core/content/types"
+import type { BlockContent, InlineContent } from "@/core/content"
 import type {
 	FeedbackBundle,
 	FeedbackSharedPedagogy
-} from "@/core/feedback/content/types"
-import type { FeedbackPlanAny } from "@/core/feedback/plan/types"
-import type { Interaction } from "@/core/interactions/types"
+} from "@/core/feedback/content"
+import type { FeedbackPlanAny } from "@/core/feedback/plan"
+import type { Interaction } from "@/core/interactions"
 
 function walkInline<E extends readonly string[]>(
 	inline: InlineContent<E> | null,

@@ -1,12 +1,12 @@
 import * as errors from "@superbuilders/errors"
 import * as logger from "@superbuilders/slog"
 import { z } from "zod"
-import type { FeedbackPlanAny } from "@/core/feedback/plan/types"
+import type { FeedbackPlanAny } from "@/core/feedback/plan"
 import type {
 	AssessmentItem,
 	AssessmentItemShell,
 	ResponseDeclaration
-} from "@/core/item/types"
+} from "@/core/item"
 import { createBodyContentSchema } from "@/schemas/content/contextual-schemas"
 import { createFeedbackObjectSchema } from "@/schemas/feedback/authoring/schema"
 import { FeedbackPlanSchema } from "@/schemas/feedback/plan/schema"

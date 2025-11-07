@@ -25,13 +25,13 @@ import type {
 	EnumeratedFeedbackDimension,
 	FeedbackCombination,
 	FeedbackPlan
-} from "@/core/feedback/plan/types"
+} from "@/core/feedback/plan"
 import type {
 	ChoiceIdentifierTuple,
 	FeedbackCombinationIdentifier,
 	ResponseIdentifier
-} from "@/core/identifiers/types"
-import type { AssessmentItemInput } from "@/core/item/types"
+} from "@/core/identifiers"
+import type { AssessmentItemInput } from "@/core/item"
 import { createSeededRandom } from "@/templates/seeds"
 
 ${widgetComment}

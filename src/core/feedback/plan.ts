@@ -1,7 +1,7 @@
 import type {
 	FeedbackCombinationIdentifier,
 	ResponseIdentifier
-} from "@/core/identifiers/types"
+} from "@/core/identifiers"
 
 type CorrectnessKey = "CORRECT" | "INCORRECT"
 

@@ -1,5 +1,5 @@
-import type { FeedbackPlanAny } from "@/core/feedback/plan/types"
-import type { AssessmentItemInput } from "@/core/item/types"
+import type { FeedbackPlanAny } from "@/core/feedback/plan"
+import type { AssessmentItemInput } from "@/core/item"
 import type { WidgetTypeTuple } from "@/widgets/collections/types"
 
 export type TypeScriptDiagnostic = {

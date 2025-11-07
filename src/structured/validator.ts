@@ -1,9 +1,9 @@
 import * as errors from "@superbuilders/errors"
 import type * as logger from "@superbuilders/slog"
-import type { BlockContent, InlineContent } from "@/core/content/types"
-import type { FeedbackBundle } from "@/core/feedback/content/types"
-import type { FeedbackPlan } from "@/core/feedback/plan/types"
-import type { AssessmentItemInput } from "@/core/item/types"
+import type { BlockContent, InlineContent } from "@/core/content"
+import type { FeedbackBundle } from "@/core/feedback/content"
+import type { FeedbackPlan } from "@/core/feedback/plan"
+import type { AssessmentItemInput } from "@/core/item"
 import {
 	checkNoLatex,
 	checkNoMfencedElements,

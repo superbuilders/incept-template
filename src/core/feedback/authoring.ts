@@ -1,5 +1,5 @@
-import type { FeedbackBundle } from "@/core/feedback/content/types"
-import type { FeedbackPlanAny } from "@/core/feedback/plan/types"
+import type { FeedbackBundle } from "@/core/feedback/content"
+import type { FeedbackPlanAny } from "@/core/feedback/plan"
 
 export type AuthoringFeedbackOverall<
 	P extends FeedbackPlanAny,

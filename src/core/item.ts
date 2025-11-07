@@ -1,13 +1,13 @@
 import type { z } from "zod"
-import type { BlockContent } from "@/core/content/types"
-import type { FeedbackBundle } from "@/core/feedback/content/types"
-import type { FeedbackPlanAny } from "@/core/feedback/plan/types"
+import type { BlockContent } from "@/core/content"
+import type { FeedbackBundle } from "@/core/feedback/content"
+import type { FeedbackPlanAny } from "@/core/feedback/plan"
 import type {
 	ChoiceIdentifier,
 	FeedbackCombinationIdentifier,
 	ResponseIdentifier
-} from "@/core/identifiers/types"
-import type { Interaction } from "@/core/interactions/types"
+} from "@/core/identifiers"
+import type { Interaction } from "@/core/interactions"
 import type { typedSchemas } from "@/widgets/registry"
 
 export type Widget = z.infer<(typeof typedSchemas)[keyof typeof typedSchemas]>

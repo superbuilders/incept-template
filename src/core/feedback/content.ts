@@ -1,8 +1,8 @@
-import type { BlockContent, InlineContent } from "@/core/content/types"
+import type { BlockContent, InlineContent } from "@/core/content"
 import type {
 	FeedbackCombinationKeyspace,
 	FeedbackPlanAny
-} from "@/core/feedback/plan/types"
+} from "@/core/feedback/plan"
 
 type PreambleInlineContent = InlineContent<readonly []>
 

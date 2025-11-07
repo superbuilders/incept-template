@@ -6,11 +6,11 @@ import type {
 	FeedbackPreamble,
 	FeedbackPreambleMap,
 	FeedbackSharedPedagogy
-} from "@/core/feedback/content/types"
+} from "@/core/feedback/content"
 import type {
 	FeedbackCombinationId,
 	FeedbackPlanAny
-} from "@/core/feedback/plan/types"
+} from "@/core/feedback/plan"
 
 const combinationIdOf = <Plan extends FeedbackPlanAny>(
 	combination: Plan["combinations"][number]

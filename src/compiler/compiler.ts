@@ -23,11 +23,11 @@ import type {
 	BlockContent,
 	BlockContentItem,
 	InlineContent
-} from "@/core/content/types"
-import type { FeedbackContent } from "@/core/feedback/content/types"
-import type { FeedbackPlanAny } from "@/core/feedback/plan/types"
-import type { Interaction } from "@/core/interactions/types"
-import type { AssessmentItem, AssessmentItemInput } from "@/core/item/types"
+} from "@/core/content"
+import type { FeedbackContent } from "@/core/feedback/content"
+import type { FeedbackPlanAny } from "@/core/feedback/plan"
+import type { Interaction } from "@/core/interactions"
+import type { AssessmentItem, AssessmentItemInput } from "@/core/item"
 import {
 	convertAuthoringFeedbackToBundle,
 	validateFeedbackObject

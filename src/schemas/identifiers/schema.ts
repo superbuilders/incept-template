@@ -4,7 +4,7 @@ import type {
 	FeedbackCombinationIdentifier,
 	ResponseIdentifier,
 	SlotIdentifier
-} from "@/core/identifiers/types"
+} from "@/core/identifiers"
 import {
 	CHOICE_IDENTIFIER_PATTERN,
 	FEEDBACK_COMBINATION_PATTERN,

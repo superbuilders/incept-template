@@ -6,7 +6,7 @@ import type {
 	FeedbackCombinationIdentifier,
 	ResponseIdentifier,
 	SlotIdentifier
-} from "@/core/identifiers/types"
+} from "@/core/identifiers"
 
 export const CHOICE_IDENTIFIER_PATTERN = "^[A-Z][A-Z0-9_]*$" as const
 export const RESPONSE_IDENTIFIER_PATTERN =

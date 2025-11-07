@@ -1,5 +1,5 @@
 import { z } from "zod"
-import type { Interaction } from "@/core/interactions/types"
+import type { Interaction } from "@/core/interactions"
 import {
 	createChoiceInteractionChoiceContentSchema,
 	createChoiceInteractionPromptSchema,

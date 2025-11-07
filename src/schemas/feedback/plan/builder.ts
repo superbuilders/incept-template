@@ -5,14 +5,14 @@ import type {
 	FeedbackCombination,
 	FeedbackDimension,
 	FeedbackPlanAny
-} from "@/core/feedback/plan/types"
+} from "@/core/feedback/plan"
 import type {
 	ChoiceIdentifier,
 	FeedbackCombinationIdentifier,
 	ResponseIdentifier
-} from "@/core/identifiers/types"
-import type { Interaction } from "@/core/interactions/types"
-import type { ResponseDeclaration } from "@/core/item/types"
+} from "@/core/identifiers"
+import type { Interaction } from "@/core/interactions"
+import type { ResponseDeclaration } from "@/core/item"
 import {
 	assertChoiceIdentifier,
 	assertFeedbackCombinationIdentifier

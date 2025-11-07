@@ -1,18 +1,18 @@
 import * as errors from "@superbuilders/errors"
 import * as logger from "@superbuilders/slog"
 import { z } from "zod"
-import type { BlockContent, InlineContent } from "@/core/content/types"
+import type { BlockContent, InlineContent } from "@/core/content"
 import type {
 	FeedbackContent,
 	FeedbackSharedPedagogy
-} from "@/core/feedback/content/types"
-import type { FeedbackPlanAny } from "@/core/feedback/plan/types"
-import type { Interaction } from "@/core/interactions/types"
+} from "@/core/feedback/content"
+import type { FeedbackPlanAny } from "@/core/feedback/plan"
+import type { Interaction } from "@/core/interactions"
 import type {
 	AssessmentItemInput,
 	AssessmentItemShell,
 	ResponseDeclaration
-} from "@/core/item/types"
+} from "@/core/item"
 import { createFeedbackObjectSchema } from "@/schemas/feedback/authoring/schema"
 import { buildFeedbackPlanFromInteractions } from "@/schemas/feedback/plan/builder"
 import { createAnyInteractionSchema } from "@/schemas/interactions/schema"

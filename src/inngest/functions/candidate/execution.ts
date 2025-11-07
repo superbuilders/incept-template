@@ -38,12 +38,12 @@ const SLASH_ALIAS_TARGETS = RAW_ALIAS_TARGETS.filter(
 )
 
 const REQUIRED_ALIAS_TYPE_SPECIFIERS = [
-	"core/content/types",
-	"core/feedback/content/types",
-	"core/feedback/plan/types",
-	"core/feedback/authoring/types",
-	"core/interactions/types",
-	"core/item/types"
+	"core/content",
+	"core/feedback/content",
+	"core/feedback/plan",
+	"core/feedback/authoring",
+	"core/interactions",
+	"core/item"
 ] as const
 
 function hasDefaultExport(value: unknown): value is ModuleWithDefault {
