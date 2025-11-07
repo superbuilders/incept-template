@@ -37,12 +37,12 @@ const PLAN_CHOICE_IDS = [
 ] as const satisfies ChoiceIdentifierTuple<readonly ["A", "B", "C", "D"]>
 
 type PlanDimensions = readonly [
-	EnumeratedFeedbackDimension<"RESPONSE", typeof PLAN_CHOICE_IDS>
+	EnumeratedFeedbackDimension<"RESP", typeof PLAN_CHOICE_IDS>
 ]
 
 const FEEDBACK_DIMENSIONS: PlanDimensions = [
 	{
-		responseIdentifier: "RESPONSE",
+		responseIdentifier: "RESP",
 		kind: "enumerated",
 		keys: PLAN_CHOICE_IDS
 	}
@@ -51,19 +51,19 @@ const FEEDBACK_DIMENSIONS: PlanDimensions = [
 const FEEDBACK_COMBINATIONS = [
 	{
 		id: "FB__A",
-		path: [{ responseIdentifier: "RESPONSE", key: "A" }]
+		path: [{ responseIdentifier: "RESP", key: "A" }]
 	},
 	{
 		id: "FB__B",
-		path: [{ responseIdentifier: "RESPONSE", key: "B" }]
+		path: [{ responseIdentifier: "RESP", key: "B" }]
 	},
 	{
 		id: "FB__C",
-		path: [{ responseIdentifier: "RESPONSE", key: "C" }]
+		path: [{ responseIdentifier: "RESP", key: "C" }]
 	},
 	{
 		id: "FB__D",
-		path: [{ responseIdentifier: "RESPONSE", key: "D" }]
+		path: [{ responseIdentifier: "RESP", key: "D" }]
 	}
 ] as const satisfies readonly FeedbackCombination<
 	FeedbackCombinationIdentifier,
@@ -637,7 +637,7 @@ export const generateFractionAdditionQuestion: TemplateModule<
 		interactions: {
 			choice_interaction: {
 				type: "choiceInteraction",
-				responseIdentifier: "RESPONSE",
+				responseIdentifier: "RESP",
 				shuffle: true, // Always shuffle choices to ensure fairness.
 				minChoices: 1,
 				maxChoices: 1,
@@ -671,7 +671,7 @@ export const generateFractionAdditionQuestion: TemplateModule<
 
 		responseDeclarations: [
 			{
-				identifier: "RESPONSE",
+				identifier: "RESP",
 				cardinality: "single",
 				baseType: "identifier",
 				correct: correctChoiceIdentifier

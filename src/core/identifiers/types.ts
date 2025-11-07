@@ -75,7 +75,7 @@ type FeedbackCombinationRest<S extends string = ""> =
 
 export type ChoiceIdentifier = `${UpperAlpha}${ChoiceIdentifierRest}`
 
-export type ResponseIdentifier = `RESPONSE${"" | `_${ChoiceIdentifier}`}`
+export type ResponseIdentifier = `RESP${"" | `_${ChoiceIdentifier}`}`
 
 export type FeedbackCombinationIdentifier =
 	| "CORRECT"
