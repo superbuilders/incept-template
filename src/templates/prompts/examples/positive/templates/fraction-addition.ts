@@ -51,14 +51,7 @@ const FEEDBACK_DIMENSIONS: PlanDimensions = [
 
 type PlanCombinationId = `FB__RESPONSE_${ChoiceId}`
 
-type PlanCombinations = readonly [
-	FeedbackCombination<"FB__RESPONSE_CHOICE_0", PlanDimensions>,
-	FeedbackCombination<"FB__RESPONSE_CHOICE_1", PlanDimensions>,
-	FeedbackCombination<"FB__RESPONSE_CHOICE_2", PlanDimensions>,
-	FeedbackCombination<"FB__RESPONSE_CHOICE_3", PlanDimensions>
-]
-
-const FEEDBACK_COMBINATIONS: PlanCombinations = [
+const FEEDBACK_COMBINATIONS = [
 	{
 		id: "FB__RESPONSE_CHOICE_0",
 		path: [{ responseIdentifier: "RESPONSE", key: "CHOICE_0" }]
@@ -75,7 +68,9 @@ const FEEDBACK_COMBINATIONS: PlanCombinations = [
 		id: "FB__RESPONSE_CHOICE_3",
 		path: [{ responseIdentifier: "RESPONSE", key: "CHOICE_3" }]
 	}
-]
+] as const satisfies readonly FeedbackCombination<string, PlanDimensions>[]
+
+type PlanCombinations = typeof FEEDBACK_COMBINATIONS
 
 const feedbackPlan: StaticFeedbackPlan<PlanDimensions, PlanCombinations> = {
 	dimensions: FEEDBACK_DIMENSIONS,

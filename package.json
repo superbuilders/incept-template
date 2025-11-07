@@ -18,13 +18,14 @@
 		"db:drop": "bun run src/db/scripts/drop.ts"
 	},
 	"dependencies": {
-		"@aws-sdk/client-rds-data": "^3.925.0",
+		"@aws-sdk/client-rds-data": "^3.926.0",
 		"@superbuilders/errors": "^3.0.2",
 		"@superbuilders/slog": "^4.0.0",
 		"@t3-oss/env-nextjs": "^0.13.8",
+		"arkregex": "^0.0.2",
 		"drizzle-orm": "^0.44.7",
 		"he": "^1.2.0",
-		"inngest": "^3.44.5",
+		"inngest": "^3.45.0",
 		"linkedom": "^0.18.12",
 		"next": "^16.0.1",
 		"openai": "^6.8.1",

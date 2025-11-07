@@ -6,16 +6,27 @@ import type {
 	FeedbackDimension,
 	FeedbackPlanAny
 } from "@/core/feedback/plan/types"
+import {
+	assertChoiceIdentifier,
+	assertFeedbackCombinationIdentifier
+} from "@/core/identifiers/runtime"
+import type {
+	ChoiceIdentifier,
+	FeedbackCombinationIdentifier
+} from "@/core/identifiers/types"
 import type { AnyInteraction } from "@/core/interactions/types"
 import type { ResponseDeclaration } from "@/core/item/types"
 
 const SYNTHETIC_OVERALL_IDENTIFIER = "RESPONSE__OVERALL"
 
-const normalizeIdPart = (part: string): string =>
-	part.toUpperCase().replace(/[^A-Z0-9_]/g, "_")
+const normalizeIdPart = (part: string): ChoiceIdentifier => {
+	const normalized = part.toUpperCase().replace(/[^A-Z0-9_]/g, "_")
+	const ensured = /^[A-Z]/.test(normalized) ? normalized : `N_${normalized}`
+	return assertChoiceIdentifier(ensured)
+}
 
-const deriveComboIdentifier = (pathParts: string[]): string =>
-	`FB__${pathParts.join("__")}`
+const deriveComboIdentifier = (pathParts: ChoiceIdentifier[]) =>
+	assertFeedbackCombinationIdentifier(`FB__${pathParts.join("__")}`)
 
 /**
  * Derives an explicit FeedbackPlan from interactions and responseDeclarations.
@@ -94,9 +105,12 @@ export function buildFeedbackPlanFromInteractions<E extends readonly string[]>(
 	})
 
 	const combinations: Array<
-		FeedbackCombination<string, readonly FeedbackDimension[]>
+		FeedbackCombination<
+			FeedbackCombinationIdentifier,
+			readonly FeedbackDimension[]
+		>
 	> = []
-	const combinationIds = new Set<string>()
+	const combinationIds = new Set<FeedbackCombinationIdentifier>()
 
 	const useSyntheticOverall =
 		enumeratedDimensions.length === 1 &&

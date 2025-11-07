@@ -1,6 +1,11 @@
 import type { z } from "zod"
 import type { BlockContent, FeedbackBundle } from "@/core/content/types"
 import type { FeedbackPlanAny } from "@/core/feedback/plan/types"
+import type {
+	ChoiceIdentifier,
+	FeedbackCombinationIdentifier,
+	ResponseIdentifier
+} from "@/core/identifiers/types"
 import type { AnyInteraction } from "@/core/interactions/types"
 import type { typedSchemas } from "@/widgets/registry"
 
@@ -20,48 +25,48 @@ export type NumericRounding = DecimalPlacesRounding | SignificantFiguresRounding
 
 export type ResponseDeclaration =
 	| {
-			identifier: string
+			identifier: ResponseIdentifier
 			cardinality: "single"
 			baseType: "string"
 			correct: string
 	  }
 	| {
-			identifier: string
+			identifier: ResponseIdentifier
 			cardinality: "single"
 			baseType: "integer"
 			correct: number
 	  }
 	| {
-			identifier: string
+			identifier: ResponseIdentifier
 			cardinality: "single"
 			baseType: "float"
 			correct: number
 			rounding: NumericRounding
 	  }
 	| {
-			identifier: string
+			identifier: ResponseIdentifier
 			cardinality: "single"
 			baseType: "identifier"
-			correct: string
+			correct: FeedbackCombinationIdentifier | ChoiceIdentifier
 	  }
 	| {
-			identifier: string
+			identifier: ResponseIdentifier
 			cardinality: "multiple" | "ordered"
 			baseType: "identifier"
-			correct: string[]
+			correct: ChoiceIdentifier[]
 	  }
 	| {
-			identifier: string
+			identifier: ResponseIdentifier
 			cardinality: "multiple"
 			baseType: "directedPair"
-			correct: Array<{ source: string; target: string }>
+			correct: Array<{ source: ChoiceIdentifier; target: ChoiceIdentifier }>
 			allowEmpty: boolean
 	  }
 	| {
-			identifier: string
+			identifier: ResponseIdentifier
 			cardinality: "ordered"
 			baseType: "directedPair"
-			correct: Array<{ source: string; target: string }>
+			correct: Array<{ source: ChoiceIdentifier; target: ChoiceIdentifier }>
 			allowEmpty: false
 	  }
 

@@ -1,21 +1,21 @@
 import type {
-	CombinationIdentifierFor,
-	ResponseIdentifierFor
+	FeedbackCombinationIdentifier,
+	ResponseIdentifier
 } from "@/core/identifiers/types"
 
 type CorrectnessKey = "CORRECT" | "INCORRECT"
 
 export type EnumeratedFeedbackDimension<
-	Identifier extends string,
+	Identifier extends ResponseIdentifier,
 	Keys extends readonly string[]
 > = {
-	responseIdentifier: ResponseIdentifierFor<Identifier>
+	responseIdentifier: Identifier
 	kind: "enumerated"
 	keys: Keys
 }
 
-export type BinaryFeedbackDimension<Identifier extends string> = {
-	responseIdentifier: ResponseIdentifierFor<Identifier>
+export type BinaryFeedbackDimension<Identifier extends ResponseIdentifier> = {
+	responseIdentifier: Identifier
 	kind: "binary"
 }
 
@@ -24,10 +24,10 @@ export type FeedbackDimension =
 	| BinaryFeedbackDimension<string>
 
 export type FeedbackPathSegment<
-	Identifier extends string,
+	Identifier extends ResponseIdentifier,
 	Key extends string
 > = {
-	responseIdentifier: ResponseIdentifierFor<Identifier>
+	responseIdentifier: Identifier
 	key: Key
 }
 
@@ -51,28 +51,27 @@ type PathSegmentsForDimensions<
 				? readonly [
 						SegmentForDimension<Head>,
 						...PathSegmentsForDimensions<Tail>
-					]
+				  ]
 				: never
 			: never
 		: readonly []
-	: readonly FeedbackPathSegment<string, string>[]
+	: readonly FeedbackPathSegment<ResponseIdentifier, string>[]
 
 export type FeedbackCombination<
-	Id extends string,
+	Id extends FeedbackCombinationIdentifier,
 	Dimensions extends readonly FeedbackDimension[]
 > = {
-	readonly id: CombinationIdentifierFor<Id>
-	readonly path: PathSegmentsForDimensions<Dimensions> &
-		readonly FeedbackPathSegment<string, string>[]
+	readonly id: Id
+	readonly path: PathSegmentsForDimensions<Dimensions>
 }
 
 export interface FeedbackPlan<
 	Dimensions extends
 		readonly FeedbackDimension[] = readonly FeedbackDimension[],
 	Combinations extends readonly FeedbackCombination<
-		any,
+		FeedbackCombinationIdentifier,
 		Dimensions
-	>[] = readonly FeedbackCombination<string, Dimensions>[]
+ 	>[] = readonly FeedbackCombination<FeedbackCombinationIdentifier, Dimensions>[]
 > {
 	readonly dimensions: Dimensions
 	readonly combinations: Combinations
@@ -80,14 +79,20 @@ export interface FeedbackPlan<
 
 export type StaticFeedbackPlan<
 	Dimensions extends readonly FeedbackDimension[],
-	Combinations extends readonly FeedbackCombination<any, Dimensions>[]
+	Combinations extends readonly FeedbackCombination<
+		FeedbackCombinationIdentifier,
+		Dimensions
+	>[]
 > = FeedbackPlan<Dimensions, Combinations> & FeedbackPlanAny
 
 export type FeedbackPlanAny = {
 	readonly dimensions: readonly FeedbackDimension[]
 	readonly combinations: ReadonlyArray<{
 		readonly id: string
-		readonly path: ReadonlyArray<FeedbackPathSegment<string, string>>
+		readonly path: ReadonlyArray<{
+			responseIdentifier: string
+			key: string
+		}>
 	}>
 }
 

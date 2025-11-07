@@ -54,16 +54,35 @@ type LowerAlpha =
 	| "y"
 	| "z"
 
-export type ChoiceIdentifier = `${UpperAlpha}${string}`
+type Digit = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
 
-export type ResponseIdentifier = `RESPONSE${"" | `_${string}`}`
+type ChoiceIdentifierRest<S extends string = ""> =
+	S extends `${UpperAlpha | Digit | "_"}${infer Tail}`
+		? `${UpperAlpha | Digit | "_"}${ChoiceIdentifierRest<Tail>}`
+		: ""
+
+type SlotIdentifierRest<S extends string = ""> =
+	S extends `${LowerAlpha | Digit | "_"}${infer Tail}`
+		? `${LowerAlpha | Digit | "_"}${SlotIdentifierRest<Tail>}`
+		: ""
+
+type FeedbackCombinationRest<S extends string = ""> =
+	S extends `__${infer Segment}${infer Tail}`
+		? Segment extends ChoiceIdentifier
+			? `__${Segment}${FeedbackCombinationRest<Tail>}`
+			: ""
+		: ""
+
+export type ChoiceIdentifier = `${UpperAlpha}${ChoiceIdentifierRest}`
+
+export type ResponseIdentifier = `RESPONSE${"" | `_${ChoiceIdentifier}`}`
 
 export type FeedbackCombinationIdentifier =
 	| "CORRECT"
 	| "INCORRECT"
-	| `FB__${string}`
+	| `FB__${ChoiceIdentifier}${FeedbackCombinationRest}`
 
-export type SlotIdentifier = `${LowerAlpha}${string}`
+export type SlotIdentifier = `${LowerAlpha}${SlotIdentifierRest}`
 
 export type ChoiceIdentifierTuple<T extends readonly string[]> =
 	T extends readonly [
@@ -72,16 +91,3 @@ export type ChoiceIdentifierTuple<T extends readonly string[]> =
 	]
 		? readonly [Head, ...ChoiceIdentifierTuple<Tail>]
 		: readonly []
-
-export type ResponseIdentifierFor<Identifier extends string> =
-	string extends Identifier
-		? string
-		: Identifier extends ResponseIdentifier
-			? Identifier
-			: never
-
-export type CombinationIdentifierFor<Id extends string> = string extends Id
-	? string
-	: Id extends FeedbackCombinationIdentifier
-		? Id
-		: never

@@ -19,7 +19,6 @@ import {
 	stripXmlComments
 } from "@/compiler/utils/xml-fixes"
 import { escapeXmlAttribute } from "@/compiler/utils/xml-utils"
-import { expandFeedbackBundle } from "@/core/content/bundles"
 import type {
 	BlockContent,
 	BlockContentItem,
@@ -33,6 +32,7 @@ import {
 	convertAuthoringFeedbackToBundle,
 	validateFeedbackObject
 } from "@/schemas/feedback/authoring/schema"
+import { expandFeedbackBundle } from "@/schemas/feedback/bundles"
 import { createDynamicAssessmentItemSchema } from "@/schemas/item/schema"
 import { ErrUnsupportedInteraction } from "@/structured/client"
 import type {

@@ -1,7 +1,6 @@
 import * as errors from "@superbuilders/errors"
 import * as logger from "@superbuilders/slog"
 import { z } from "zod"
-import { createFeedbackBundle } from "@/core/content/bundles"
 import type {
 	FeedbackBundle,
 	FeedbackPreamble,
@@ -22,6 +21,7 @@ import {
 	createFeedbackPreambleSchema,
 	createFeedbackSharedPedagogySchema
 } from "@/schemas/content/contextual-schemas"
+import { createFeedbackBundle } from "@/schemas/feedback/bundles"
 import { buildFeedbackPlanFromInteractions } from "@/schemas/feedback/plan/builder"
 
 const combinationIdOf = <Plan extends FeedbackPlanAny>(

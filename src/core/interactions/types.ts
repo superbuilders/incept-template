@@ -1,48 +1,52 @@
 import type { BlockContent, InlineContent } from "@/core/content/types"
+import type {
+	ChoiceIdentifier,
+	ResponseIdentifier
+} from "@/core/identifiers/types"
 
 export type AnyInteraction<E extends readonly string[]> =
 	| {
 			type: "choiceInteraction"
-			responseIdentifier: string
+			responseIdentifier: ResponseIdentifier
 			prompt: InlineContent<E>
-			choices: Array<{ identifier: string; content: BlockContent<E> }>
+			choices: Array<{ identifier: ChoiceIdentifier; content: BlockContent<E> }>
 			shuffle: true
 			minChoices: number
 			maxChoices: number
 	  }
 	| {
 			type: "inlineChoiceInteraction"
-			responseIdentifier: string
-			choices: Array<{ identifier: string; content: InlineContent<E> }>
+			responseIdentifier: ResponseIdentifier
+			choices: Array<{ identifier: ChoiceIdentifier; content: InlineContent<E> }>
 			shuffle: true
 	  }
 	| {
 			type: "textEntryInteraction"
-			responseIdentifier: string
+			responseIdentifier: ResponseIdentifier
 			expectedLength: number | null
 	  }
 	| {
 			type: "orderInteraction"
-			responseIdentifier: string
+			responseIdentifier: ResponseIdentifier
 			prompt: InlineContent<E>
-			choices: Array<{ identifier: string; content: BlockContent<E> }>
+			choices: Array<{ identifier: ChoiceIdentifier; content: BlockContent<E> }>
 			shuffle: true
 			orientation: "vertical"
 	  }
 	| {
 			type: "gapMatchInteraction"
-			responseIdentifier: string
+			responseIdentifier: ResponseIdentifier
 			shuffle: boolean
 			content: BlockContent<E>
 			gapTexts: Array<{
-				identifier: string
+				identifier: ChoiceIdentifier
 				matchMax: number
 				content: InlineContent<E>
 			}>
-			gaps: Array<{ identifier: string; required: boolean | null }>
+			gaps: Array<{ identifier: ChoiceIdentifier; required: boolean | null }>
 	  }
 	| {
 			type: "unsupportedInteraction"
 			perseusType: string
-			responseIdentifier: string
+			responseIdentifier: ResponseIdentifier
 	  }
