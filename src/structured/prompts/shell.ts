@@ -38,7 +38,7 @@ We FULLY support the following QTI interaction types:
 
 These are the ONLY interaction types we support. Any Perseus widget that maps to one of these should be classified as an interaction.`
 
-	const systemInstruction = `You are an expert in educational content conversion. Your task is to analyze a Perseus JSON object and create a structured assessment shell in JSON format. Your primary goal is to accurately represent all content using a strict, nested object model.
+	const systemInstruction = `You are an expert in educational content conversion. Your task is to analyze a Perseus JSON objectFB__<responseIdentifier>_CORRECT and FB__<responseIdentifier>_INCORRECTcreate a structured assessment shell in JSON format. Your primary goal is to accurately represent all content using a strict, nested object model.
 
 **CRITICAL: STRUCTURED CONTENT MODEL**
 Your entire output for any rich text field (like 'body') MUST be a JSON array of block-level items.
@@ -1298,7 +1298,7 @@ You MUST provide a feedbackBlocks array that contains feedback for all possible 
 
 **For choice-based interactions** (e.g., choiceInteraction, inlineChoiceInteraction): Create one feedback block for each choice. The block's identifier MUST match the choice's identifier. The outcomeIdentifier MUST be FEEDBACK__<responseIdentifier>, where <responseIdentifier> is the ID from the interaction.
 
-**For other interactions** (e.g., textEntry, orderInteraction, gapMatch): Create two feedback blocks with identifier values of `FB__<responseIdentifier>_CORRECT` and `FB__<responseIdentifier>_INCORRECT`. The outcomeIdentifier MUST be FEEDBACK__<responseIdentifier>, where <responseIdentifier> is the ID from the interaction.
+**For other interactions** (e.g., textEntry, orderInteraction, gapMatch): Create two feedback blocks with identifier values of FB__<responseIdentifier>_CORRECT and FB__<responseIdentifier>_INCORRECT. The outcomeIdentifier MUST be FEEDBACK__<responseIdentifier>, where <responseIdentifier> is the ID from the interaction.
 
 The content field of each feedback block must contain rich, structured content using the same block content model as body content.
 

@@ -4,13 +4,13 @@ import { escapeXmlAttribute } from "@/compiler/utils/xml-utils"
 import type { FeedbackContent } from "@/core/content/types"
 import type {
 	FeedbackDimension,
-	FeedbackPlan
+	FeedbackPlanAny
 } from "@/core/feedback/plan/types"
 import type { AssessmentItem } from "@/core/item/types"
 
 // Internal type for compilation after nested feedback has been flattened
 type AssessmentItemWithFeedbackBlocks<E extends readonly string[]> = Omit<
-	AssessmentItem<E, FeedbackPlan>,
+	AssessmentItem<E, FeedbackPlanAny>,
 	"feedback"
 > & {
 	feedbackBlocks: Record<string, FeedbackContent<E>>
@@ -58,7 +58,7 @@ function buildCorrectComparison<E extends readonly string[]>(
 }
 
 export function compileResponseDeclarations<E extends readonly string[]>(
-	decls: AssessmentItem<E, FeedbackPlan>["responseDeclarations"]
+	decls: AssessmentItem<E, FeedbackPlanAny>["responseDeclarations"]
 ): string {
 	return decls
 		.map((decl): string => {
@@ -213,19 +213,14 @@ function generateComboModeProcessing<E extends readonly string[]>(
 		pathSegments: Array<{ responseIdentifier: string; key: string }>
 	): string {
 		if (dims.length === 0) {
-			const matchingCombo = combinations.find(
-				(combo: FeedbackPlan["combinations"][number]): boolean => {
-					if (combo.path.length !== pathSegments.length) return false
-					return combo.path.every(
-						(
-							seg: FeedbackPlan["combinations"][number]["path"][number],
-							i: number
-						): boolean =>
-							seg.responseIdentifier === pathSegments[i].responseIdentifier &&
-							seg.key === pathSegments[i].key
-					)
-				}
-			)
+			const matchingCombo = combinations.find((combo) => {
+				if (combo.path.length !== pathSegments.length) return false
+				return combo.path.every(
+					(seg, index) =>
+						seg.responseIdentifier === pathSegments[index].responseIdentifier &&
+						seg.key === pathSegments[index].key
+				)
+			})
 			if (!matchingCombo) {
 				logger.error("no combination found for path", { pathSegments })
 				throw errors.new("no combination found for path")

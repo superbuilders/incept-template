@@ -25,7 +25,7 @@ import type {
 	FeedbackContent,
 	InlineContent
 } from "@/core/content/types"
-import type { FeedbackPlan } from "@/core/feedback/plan/types"
+import type { FeedbackPlanAny } from "@/core/feedback/plan/types"
 import type { Interaction } from "@/core/interactions/types"
 import type { AssessmentItem, AssessmentItemInput } from "@/core/item/types"
 import {
@@ -34,7 +34,6 @@ import {
 } from "@/schemas/feedback/authoring/schema"
 import { expandFeedbackBundle } from "@/schemas/feedback/bundles"
 import { createDynamicAssessmentItemSchema } from "@/schemas/item/schema"
-import { ErrUnsupportedInteraction } from "@/structured/client"
 import type {
 	WidgetCollection,
 	WidgetDefinition,
@@ -49,10 +48,11 @@ export const ErrDuplicateChoiceIdentifier = errors.new(
 )
 
 // Internal type used during compilation after nested feedback is flattened
-type AssessmentItemWithFlatFeedback<
-	E extends readonly string[],
-	P extends FeedbackPlan
-> = Omit<AssessmentItem<E, P>, "feedback"> & {
+type AssessmentItemWithFlatFeedback<E extends readonly string[]> = Omit<
+	AssessmentItem<E, FeedbackPlanAny>,
+	"feedback"
+> & {
+	feedbackPlan: FeedbackPlanAny
 	feedbackBlocks: Record<string, FeedbackContent<E>>
 }
 
@@ -64,10 +64,9 @@ function isValidWidgetTypeInCollection<
 	return type in collection.widgets
 }
 
-function dedupePromptTextFromBody<
-	E extends readonly string[],
-	P extends FeedbackPlan
->(item: AssessmentItemWithFlatFeedback<E, P>) {
+function dedupePromptTextFromBody<E extends readonly string[]>(
+	item: AssessmentItemWithFlatFeedback<E>
+) {
 	if (!item.interactions || !item.body) return
 
 	// --- normalization helpers ---
@@ -516,10 +515,9 @@ function dedupePromptTextFromBody<
 	}
 }
 
-function enforceIdentifierOnlyMatching<
-	E extends readonly string[],
-	P extends FeedbackPlan
->(item: AssessmentItemWithFlatFeedback<E, P>) {
+function enforceIdentifierOnlyMatching<E extends readonly string[]>(
+	item: AssessmentItemWithFlatFeedback<E>
+) {
 	// Build allowed identifiers per responseIdentifier from interactions
 	const allowed: Record<string, Set<string>> = {}
 	const responseIdOwners = new Map<string, string>()
@@ -637,8 +635,8 @@ function enforceIdentifierOnlyMatching<
 	}
 }
 
-function collectRefs<E extends readonly string[], P extends FeedbackPlan>(
-	item: AssessmentItemWithFlatFeedback<E, P>
+function collectRefs<E extends readonly string[]>(
+	item: AssessmentItemWithFlatFeedback<E>
 ): { widgetRefs: Set<string>; interactionRefs: Set<string> } {
 	const widgetRefs = new Set<string>()
 	const interactionRefs = new Set<string>()
@@ -722,8 +720,8 @@ function collectRefs<E extends readonly string[], P extends FeedbackPlan>(
 	return { widgetRefs, interactionRefs }
 }
 
-function collectWidgetIds<E extends readonly string[], P extends FeedbackPlan>(
-	item: AssessmentItemWithFlatFeedback<E, P>
+function collectWidgetIds<E extends readonly string[]>(
+	item: AssessmentItemWithFlatFeedback<E>
 ): Set<string> {
 	return collectRefs(item).widgetRefs
 }
@@ -734,7 +732,7 @@ export async function compile<
 		readonly string[]
 	>
 >(
-	itemData: AssessmentItemInput<WidgetTypeTupleFrom<C>, FeedbackPlan>,
+	itemData: AssessmentItemInput<WidgetTypeTupleFrom<C>, FeedbackPlanAny>,
 	widgetCollection: C
 ): Promise<string> {
 	// Step 1: Widget Type Derivation
@@ -810,41 +808,11 @@ export async function compile<
 	})
 
 	// Create a normalized item with flat feedbackBlocks for downstream processing
-	const normalizedItem: AssessmentItemWithFlatFeedback<
-		WidgetTypeTupleFrom<C>,
-		FeedbackPlan
-	> = {
-		...enforcedItem,
-		feedbackBlocks
-	}
-
-	// Pre-compile gate for unsupported interactions
-	if (enforcedItem.interactions) {
-		for (const interaction of Object.values<
-			Interaction<WidgetTypeTupleFrom<C>>
-		>(enforcedItem.interactions)) {
-			if (interaction.type === "unsupportedInteraction") {
-				// Access property safely using in operator
-				const perseusType =
-					"perseusType" in interaction &&
-					typeof interaction.perseusType === "string"
-						? interaction.perseusType
-						: "unknown"
-				logger.error(
-					"unsupported interaction type detected, failing compilation",
-					{
-						identifier: enforcedItem.identifier,
-						perseusType: perseusType
-					}
-				)
-				// Throw the specific, non-retriable error
-				throw errors.wrap(
-					ErrUnsupportedInteraction,
-					`item contains unsupported Perseus interaction: ${perseusType}`
-				)
-			}
+	const normalizedItem: AssessmentItemWithFlatFeedback<WidgetTypeTupleFrom<C>> =
+		{
+			...enforcedItem,
+			feedbackBlocks
 		}
-	}
 
 	// Step 1: Manual deduplication of paragraphs that duplicate an interaction prompt
 	dedupePromptTextFromBody(normalizedItem)
@@ -957,7 +925,7 @@ export async function compile<
 
 	// NEW: Generate feedbackBlocks XML from map, ordered by feedbackPlan.combinations
 	const feedbackBlocksXml = normalizedItem.feedbackPlan.combinations
-		.map((combination: FeedbackPlan["combinations"][number]) => {
+		.map((combination) => {
 			const content = feedbackBlocks[combination.id]
 			if (!content) {
 				logger.error("missing feedback content for expected identifier", {
