@@ -2,15 +2,15 @@ import * as errors from "@superbuilders/errors"
 import * as logger from "@superbuilders/slog"
 import { z } from "zod"
 import type {
+	AuthoringFeedbackOverall,
+	NestedFeedbackAuthoring
+} from "@/core/feedback/authoring/types"
+import type {
 	FeedbackBundle,
 	FeedbackPreamble,
 	FeedbackPreambleMap,
 	FeedbackSharedPedagogy
-} from "@/core/content/types"
-import type {
-	AuthoringFeedbackOverall,
-	NestedFeedbackAuthoring
-} from "@/core/feedback/authoring/types"
+} from "@/core/feedback/content/types"
 import type {
 	FeedbackCombinationId,
 	FeedbackPlanAny

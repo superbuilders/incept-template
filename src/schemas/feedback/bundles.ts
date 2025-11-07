@@ -6,7 +6,7 @@ import type {
 	FeedbackPreamble,
 	FeedbackPreambleMap,
 	FeedbackSharedPedagogy
-} from "@/core/content/types"
+} from "@/core/feedback/content/types"
 import type {
 	FeedbackCombinationId,
 	FeedbackPlanAny

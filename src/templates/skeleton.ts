@@ -21,19 +21,49 @@ export function buildTemplateSkeleton(
 			: `// Widgets: ["${widgetKeys[0]}"]`
 
 	const header = `
-import type { FeedbackContent } from "@/core/content/types"
-import type { FeedbackPlan } from "@/core/feedback/plan/types"
+import type {
+	EnumeratedFeedbackDimension,
+	FeedbackCombination,
+	FeedbackPlan
+} from "@/core/feedback/plan/types"
+import type {
+	ChoiceIdentifierTuple,
+	FeedbackCombinationIdentifier,
+	ResponseIdentifier
+} from "@/core/identifiers/types"
 import type { AssessmentItemInput } from "@/core/item/types"
 import { createSeededRandom } from "@/templates/seeds"
 
 ${widgetComment}
 export type TemplateWidgets = readonly ${widgetTuple}
+
+const PLAN_CHOICE_IDS = [] as const satisfies ChoiceIdentifierTuple<readonly []>
+
+type TemplateDimensions = readonly [
+	EnumeratedFeedbackDimension<ResponseIdentifier, typeof PLAN_CHOICE_IDS>
+]
+
+const FEEDBACK_DIMENSIONS = [] as TemplateDimensions
+
+const FEEDBACK_COMBINATIONS = [] as const satisfies readonly FeedbackCombination<
+	FeedbackCombinationIdentifier,
+	TemplateDimensions
+>[]
+
+const feedbackPlan = {
+	dimensions: FEEDBACK_DIMENSIONS,
+	combinations: FEEDBACK_COMBINATIONS
+} satisfies FeedbackPlan
+
+type TemplateFeedbackPlan = typeof feedbackPlan
 `
 
 	const signature = `
 export default function generateTemplate(
 	seed: bigint
-): AssessmentItemInput<TemplateWidgets> {
+): AssessmentItemInput<TemplateWidgets, TemplateFeedbackPlan> {
+	const random = createSeededRandom(seed)
+
 	// Implementation must be deterministic, seed-driven, and pure.
 	// Generate widgets, interactions, and feedback based solely on values derived from the seed.
 }

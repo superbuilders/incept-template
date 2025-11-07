@@ -1,12 +1,11 @@
 import * as errors from "@superbuilders/errors"
 import * as logger from "@superbuilders/slog"
 import { z } from "zod"
+import type { BlockContent, InlineContent } from "@/core/content/types"
 import type {
-	BlockContent,
 	FeedbackContent,
-	FeedbackSharedPedagogy,
-	InlineContent
-} from "@/core/content/types"
+	FeedbackSharedPedagogy
+} from "@/core/feedback/content/types"
 import type { FeedbackPlanAny } from "@/core/feedback/plan/types"
 import type { Interaction } from "@/core/interactions/types"
 import type {

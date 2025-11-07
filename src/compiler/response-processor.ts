@@ -1,7 +1,7 @@
 import * as errors from "@superbuilders/errors"
 import * as logger from "@superbuilders/slog"
 import { escapeXmlAttribute } from "@/compiler/utils/xml-utils"
-import type { FeedbackContent } from "@/core/content/types"
+import type { FeedbackContent } from "@/core/feedback/content/types"
 import type {
 	FeedbackDimension,
 	FeedbackPlanAny

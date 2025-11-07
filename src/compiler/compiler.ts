@@ -22,9 +22,9 @@ import { escapeXmlAttribute } from "@/compiler/utils/xml-utils"
 import type {
 	BlockContent,
 	BlockContentItem,
-	FeedbackContent,
 	InlineContent
 } from "@/core/content/types"
+import type { FeedbackContent } from "@/core/feedback/content/types"
 import type { FeedbackPlanAny } from "@/core/feedback/plan/types"
 import type { Interaction } from "@/core/interactions/types"
 import type { AssessmentItem, AssessmentItemInput } from "@/core/item/types"

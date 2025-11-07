@@ -1,7 +1,7 @@
 import type {
 	FeedbackBundle,
 	FeedbackSharedPedagogy
-} from "@/core/content/types"
+} from "@/core/feedback/content/types"
 import type {
 	EnumeratedFeedbackDimension,
 	FeedbackCombination,

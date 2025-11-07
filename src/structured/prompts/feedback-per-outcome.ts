@@ -1,7 +1,7 @@
 import * as errors from "@superbuilders/errors"
 import * as logger from "@superbuilders/slog"
 import { z } from "zod"
-import type { FeedbackContent } from "@/core/content/types"
+import type { FeedbackContent } from "@/core/feedback/content/types"
 import type { FeedbackPlanAny } from "@/core/feedback/plan/types"
 import type { Interaction } from "@/core/interactions/types"
 import type { AssessmentItemShell } from "@/core/item/types"

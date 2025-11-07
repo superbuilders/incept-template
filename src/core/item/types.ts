@@ -1,5 +1,6 @@
 import type { z } from "zod"
-import type { BlockContent, FeedbackBundle } from "@/core/content/types"
+import type { BlockContent } from "@/core/content/types"
+import type { FeedbackBundle } from "@/core/feedback/content/types"
 import type { FeedbackPlanAny } from "@/core/feedback/plan/types"
 import type {
 	ChoiceIdentifier,

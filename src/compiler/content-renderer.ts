@@ -3,11 +3,10 @@ import * as logger from "@superbuilders/slog"
 import { sanitizeXmlAttributeValue } from "@/compiler/utils/xml-utils"
 import type {
 	BlockContent,
-	FeedbackContent,
 	InlineContent,
-	InlineContentItem,
-	StepBlock
+	InlineContentItem
 } from "@/core/content/types"
+import type { FeedbackContent, StepBlock } from "@/core/feedback/content/types"
 
 const GAP_PLACEHOLDER_STYLE =
 	"display: inline-block; min-width: 320px; min-height: 120px; border: 2px dashed #ccc; padding: 12px; vertical-align: middle;"
