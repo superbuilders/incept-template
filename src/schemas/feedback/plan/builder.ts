@@ -6,18 +6,19 @@ import type {
 	FeedbackDimension,
 	FeedbackPlanAny
 } from "@/core/feedback/plan/types"
+import type {
+	ChoiceIdentifier,
+	FeedbackCombinationIdentifier,
+	ResponseIdentifier
+} from "@/core/identifiers/types"
+import type { Interaction } from "@/core/interactions/types"
+import type { ResponseDeclaration } from "@/core/item/types"
 import {
 	assertChoiceIdentifier,
 	assertFeedbackCombinationIdentifier
-} from "@/core/identifiers/runtime"
-import type {
-	ChoiceIdentifier,
-	FeedbackCombinationIdentifier
-} from "@/core/identifiers/types"
-import type { AnyInteraction } from "@/core/interactions/types"
-import type { ResponseDeclaration } from "@/core/item/types"
+} from "@/schemas/identifiers/runtime"
 
-const SYNTHETIC_OVERALL_IDENTIFIER = "RESPONSE__OVERALL"
+const SYNTHETIC_OVERALL_IDENTIFIER: ResponseIdentifier = "RESPONSE__OVERALL"
 
 const normalizeIdPart = (part: string): ChoiceIdentifier => {
 	const normalized = part.toUpperCase().replace(/[^A-Z0-9_]/g, "_")
@@ -34,10 +35,10 @@ const deriveComboIdentifier = (pathParts: ChoiceIdentifier[]) =>
  * The compiler will validate this plan but never infer its own.
  */
 export function buildFeedbackPlanFromInteractions<E extends readonly string[]>(
-	interactions: Record<string, AnyInteraction<E>>,
+	interactions: Record<string, Interaction<E>>,
 	responseDeclarations: ResponseDeclaration[]
 ): FeedbackPlanAny {
-	const sortedInteractions: Array<AnyInteraction<E>> = Object.values(
+	const sortedInteractions: Array<Interaction<E>> = Object.values(
 		interactions
 	).sort((a, b) => {
 		if (a.responseIdentifier < b.responseIdentifier) return -1
@@ -74,7 +75,7 @@ export function buildFeedbackPlanFromInteractions<E extends readonly string[]>(
 	}
 
 	const enumeratedDimensions: EnumeratedFeedbackDimension<
-		string,
+		ResponseIdentifier,
 		readonly string[]
 	>[] = dimensions.map((dim) =>
 		dim.kind === "enumerated"
@@ -118,7 +119,7 @@ export function buildFeedbackPlanFromInteractions<E extends readonly string[]>(
 
 	const buildCombinations = (
 		index: number,
-		path: Array<{ responseIdentifier: string; key: string }>
+		path: Array<{ responseIdentifier: ResponseIdentifier; key: string }>
 	) => {
 		if (index >= enumeratedDimensions.length) {
 			let derivedId: string

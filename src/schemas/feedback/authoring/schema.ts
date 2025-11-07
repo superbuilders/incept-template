@@ -15,7 +15,7 @@ import type {
 	FeedbackCombinationId,
 	FeedbackPlanAny
 } from "@/core/feedback/plan/types"
-import type { AnyInteraction } from "@/core/interactions/types"
+import type { Interaction } from "@/core/interactions/types"
 import type { ResponseDeclaration } from "@/core/item/types"
 import {
 	createFeedbackPreambleSchema,
@@ -130,7 +130,7 @@ export function buildEmptyNestedFeedback<
 export function buildFeedbackFromNestedForTemplate<
 	const E extends readonly string[]
 >(
-	interactions: Record<string, AnyInteraction<E>>,
+	interactions: Record<string, Interaction<E>>,
 	responseDeclarations: ResponseDeclaration[],
 	feedbackObject: AuthoringFeedbackOverall<FeedbackPlanAny, E>,
 	widgetTypeKeys: E

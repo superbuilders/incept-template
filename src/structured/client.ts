@@ -8,7 +8,7 @@ import type {
 	InlineContent
 } from "@/core/content/types"
 import type { FeedbackPlan } from "@/core/feedback/plan/types"
-import type { AnyInteraction } from "@/core/interactions/types"
+import type { Interaction } from "@/core/interactions/types"
 import type {
 	AssessmentItemInput,
 	AssessmentItemShell,
@@ -367,7 +367,7 @@ async function generateFeedbackForOutcomeNested<
 	widgetCollection: C,
 	feedbackPlan: FeedbackPlan,
 	combination: FeedbackPlan["combinations"][0],
-	interactions: Record<string, AnyInteraction<WidgetTypeTupleFrom<C>>>,
+	interactions: Record<string, Interaction<WidgetTypeTupleFrom<C>>>,
 	envelope: AiContextEnvelope,
 	imageContext: ImageContext
 ): Promise<{ id: string; content: FeedbackContent<WidgetTypeTupleFrom<C>> }> {
@@ -457,7 +457,7 @@ async function runShardedFeedbackNested<
 	shell: AssessmentItemShell<WidgetTypeTupleFrom<C>>,
 	collection: C,
 	plan: FeedbackPlan,
-	interactions: Record<string, AnyInteraction<WidgetTypeTupleFrom<C>>>,
+	interactions: Record<string, Interaction<WidgetTypeTupleFrom<C>>>,
 	envelope: AiContextEnvelope,
 	imageContext: ImageContext
 ): Promise<Record<string, FeedbackContent<WidgetTypeTupleFrom<C>>>> {

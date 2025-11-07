@@ -20,8 +20,8 @@ export type BinaryFeedbackDimension<Identifier extends ResponseIdentifier> = {
 }
 
 export type FeedbackDimension =
-	| EnumeratedFeedbackDimension<string, readonly string[]>
-	| BinaryFeedbackDimension<string>
+	| EnumeratedFeedbackDimension<ResponseIdentifier, readonly string[]>
+	| BinaryFeedbackDimension<ResponseIdentifier>
 
 export type FeedbackPathSegment<
 	Identifier extends ResponseIdentifier,
@@ -36,7 +36,7 @@ type SegmentForDimension<D extends FeedbackDimension> =
 		? FeedbackPathSegment<Identifier, Keys[number]>
 		: D extends BinaryFeedbackDimension<infer Identifier>
 			? FeedbackPathSegment<Identifier, CorrectnessKey>
-			: FeedbackPathSegment<string, string>
+			: never
 
 type IsTuple<T extends readonly unknown[]> = number extends T["length"]
 	? false
@@ -51,7 +51,7 @@ type PathSegmentsForDimensions<
 				? readonly [
 						SegmentForDimension<Head>,
 						...PathSegmentsForDimensions<Tail>
-				  ]
+					]
 				: never
 			: never
 		: readonly []
@@ -71,7 +71,10 @@ export interface FeedbackPlan<
 	Combinations extends readonly FeedbackCombination<
 		FeedbackCombinationIdentifier,
 		Dimensions
- 	>[] = readonly FeedbackCombination<FeedbackCombinationIdentifier, Dimensions>[]
+	>[] = readonly FeedbackCombination<
+		FeedbackCombinationIdentifier,
+		Dimensions
+	>[]
 > {
 	readonly dimensions: Dimensions
 	readonly combinations: Combinations
@@ -90,7 +93,7 @@ export type FeedbackPlanAny = {
 	readonly combinations: ReadonlyArray<{
 		readonly id: string
 		readonly path: ReadonlyArray<{
-			responseIdentifier: string
+			responseIdentifier: ResponseIdentifier
 			key: string
 		}>
 	}>

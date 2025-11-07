@@ -4,7 +4,7 @@ import type {
 	ResponseIdentifier
 } from "@/core/identifiers/types"
 
-export type AnyInteraction<E extends readonly string[]> =
+export type Interaction<E extends readonly string[]> =
 	| {
 			type: "choiceInteraction"
 			responseIdentifier: ResponseIdentifier

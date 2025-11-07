@@ -26,7 +26,7 @@ import type {
 	InlineContent
 } from "@/core/content/types"
 import type { FeedbackPlan } from "@/core/feedback/plan/types"
-import type { AnyInteraction } from "@/core/interactions/types"
+import type { Interaction } from "@/core/interactions/types"
 import type { AssessmentItem, AssessmentItemInput } from "@/core/item/types"
 import {
 	convertAuthoringFeedbackToBundle,
@@ -693,7 +693,7 @@ function collectRefs<E extends readonly string[], P extends FeedbackPlan>(
 	}
 
 	if (item.interactions) {
-		for (const interaction of Object.values<AnyInteraction<E>>(
+		for (const interaction of Object.values<Interaction<E>>(
 			item.interactions
 		)) {
 			if (
@@ -821,7 +821,7 @@ export async function compile<
 	// Pre-compile gate for unsupported interactions
 	if (enforcedItem.interactions) {
 		for (const interaction of Object.values<
-			AnyInteraction<WidgetTypeTupleFrom<C>>
+			Interaction<WidgetTypeTupleFrom<C>>
 		>(enforcedItem.interactions)) {
 			if (interaction.type === "unsupportedInteraction") {
 				// Access property safely using in operator

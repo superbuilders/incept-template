@@ -1,4 +1,4 @@
-import type { AnyInteraction } from "@/core/interactions/types"
+import type { Interaction } from "@/core/interactions/types"
 import type { AssessmentItemShell } from "@/core/item/types"
 
 export type FeedbackTarget = {
@@ -19,7 +19,7 @@ export type FeedbackTarget = {
  */
 export function enumerateFeedbackTargets<E extends readonly string[]>(
 	responseDeclarations: AssessmentItemShell<E>["responseDeclarations"],
-	interactions: Record<string, AnyInteraction<E>>
+	interactions: Record<string, Interaction<E>>
 ): FeedbackTarget[] {
 	const targets: FeedbackTarget[] = []
 	const responseIdToBaseType = new Map<string, string>()

@@ -3,7 +3,7 @@ import {
 	CHOICE_IDENTIFIER_REGEX,
 	RESPONSE_IDENTIFIER_REGEX
 } from "@/compiler/qti-constants"
-import type { AnyInteraction } from "@/core/interactions/types"
+import type { Interaction } from "@/core/interactions/types"
 import {
 	createChoiceInteractionChoiceContentSchema,
 	createChoiceInteractionPromptSchema,
@@ -14,7 +14,7 @@ import {
 // Returns the discriminated union of all interactions scoped to E
 export function createAnyInteractionSchema<const E extends readonly string[]>(
 	widgetTypeKeys: E
-): z.ZodType<AnyInteraction<E>> {
+): z.ZodType<Interaction<E>> {
 	const PromptSchema = createChoiceInteractionPromptSchema(widgetTypeKeys)
 	const ChoiceContentSchema =
 		createChoiceInteractionChoiceContentSchema(widgetTypeKeys)

@@ -6,7 +6,7 @@ import type {
 	FeedbackCombinationIdentifier,
 	ResponseIdentifier
 } from "@/core/identifiers/types"
-import type { AnyInteraction } from "@/core/interactions/types"
+import type { Interaction } from "@/core/interactions/types"
 import type { typedSchemas } from "@/widgets/registry"
 
 export type Widget = z.infer<(typeof typedSchemas)[keyof typeof typedSchemas]>
@@ -86,7 +86,7 @@ export type AssessmentItem<
 	responseDeclarations: ResponseDeclaration[]
 	body: BlockContent<E> | null
 	widgets: Record<string, Widget> | null
-	interactions: Record<string, AnyInteraction<E>> | null
+	interactions: Record<string, Interaction<E>> | null
 	feedbackPlan: P
 	feedback: FeedbackBundle<P, E>
 }

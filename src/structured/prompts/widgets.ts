@@ -1,4 +1,4 @@
-import type { AnyInteraction } from "@/core/interactions/types"
+import type { Interaction } from "@/core/interactions/types"
 import type { AssessmentItemShell } from "@/core/item/types"
 import { caretBanPromptSection } from "@/structured/prompts/caret"
 import {
@@ -22,7 +22,7 @@ export function createWidgetContentPrompt<
 	envelope: AiContextEnvelope,
 	assessmentShell: AssessmentItemShell<E>,
 	widgetMapping: Record<string, E[number]>,
-	generatedInteractions: Record<string, AnyInteraction<E>>,
+	generatedInteractions: Record<string, Interaction<E>>,
 	widgetCollection: C,
 	imageContext: ImageContext
 ): {

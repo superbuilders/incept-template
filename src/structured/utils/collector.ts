@@ -7,7 +7,7 @@ import type {
 	InlineContent
 } from "@/core/content/types"
 import type { FeedbackPlan } from "@/core/feedback/plan/types"
-import type { AnyInteraction } from "@/core/interactions/types"
+import type { Interaction } from "@/core/interactions/types"
 
 function walkInline<E extends readonly string[]>(
 	inline: InlineContent<E> | null,
@@ -84,7 +84,7 @@ function walkBlock<E extends readonly string[]>(
 }
 
 function walkInteractions<E extends readonly string[]>(
-	interactions: Record<string, AnyInteraction<E>> | null,
+	interactions: Record<string, Interaction<E>> | null,
 	out: Map<string, string>
 ): void {
 	if (!interactions) return
@@ -140,7 +140,7 @@ export function collectWidgetRefs<
 	body: BlockContent<E> | null
 	feedback: FeedbackBundle<P, E> | null
 	feedbackPlan: P | null
-	interactions: Record<string, AnyInteraction<E>> | null
+	interactions: Record<string, Interaction<E>> | null
 }): Map<string, string> {
 	const out = new Map<string, string>()
 
@@ -163,7 +163,7 @@ export function collectAllWidgetSlotIds<
 	body: BlockContent<E> | null
 	feedback: FeedbackBundle<P, E> | null
 	feedbackPlan: P | null
-	interactions: Record<string, AnyInteraction<E>> | null
+	interactions: Record<string, Interaction<E>> | null
 }): string[] {
 	const refs = collectWidgetRefs(item)
 	return Array.from(refs.keys()).sort()
