@@ -2,14 +2,10 @@ import * as errors from "@superbuilders/errors"
 import * as logger from "@superbuilders/slog"
 import type {
 	BlockContent,
-	FeedbackContent,
+	FeedbackBundle,
+	FeedbackSharedPedagogy,
 	InlineContent
 } from "@/core/content/types"
-import type {
-	AuthoringFeedbackOverall,
-	AuthoringNestedLeaf,
-	AuthoringNestedNode
-} from "@/core/feedback/authoring/types"
 import type { FeedbackPlan } from "@/core/feedback/plan/types"
 import type { AnyInteraction } from "@/core/interactions/types"
 
@@ -119,78 +115,15 @@ function walkInteractions<E extends readonly string[]>(
 	}
 }
 
-function isLeafNode<E extends readonly string[]>(
-	node: AuthoringNestedLeaf<E> | AuthoringNestedNode<FeedbackPlan, E>
-): node is AuthoringNestedLeaf<E> {
-	return (
-		"content" in node &&
-		typeof node.content === "object" &&
-		node.content !== null &&
-		"steps" in node.content &&
-		"solution" in node.content
-	)
-}
-
-function walkFeedbackNode<E extends readonly string[]>(
-	node: AuthoringNestedLeaf<E> | AuthoringNestedNode<FeedbackPlan, E>,
+function walkSharedPedagogy<E extends readonly string[]>(
+	shared: FeedbackSharedPedagogy<E>,
 	out: Map<string, string>
 ): void {
-	if (isLeafNode(node)) {
-		const feedbackContent: FeedbackContent<E> = node.content
-		walkInline(feedbackContent.preamble.summary, out)
-		for (const step of feedbackContent.steps) {
-			walkInline(step.title, out)
-			walkBlock(step.content, out)
-		}
-		walkInline(feedbackContent.solution.content, out)
-		return
+	for (const step of shared.steps) {
+		walkInline(step.title, out)
+		walkBlock(step.content, out)
 	}
-
-	const branchNode = node
-	for (const responseNode of Object.values(branchNode)) {
-		for (const keyNode of Object.values(responseNode)) {
-			walkFeedbackNode(keyNode, out)
-		}
-	}
-}
-
-function isFallbackFeedback<E extends readonly string[]>(
-	overall: AuthoringFeedbackOverall<FeedbackPlan, E>
-): overall is {
-	CORRECT: AuthoringNestedLeaf<E>
-	INCORRECT: AuthoringNestedLeaf<E>
-} {
-	return "CORRECT" in overall && "INCORRECT" in overall
-}
-
-function walkFeedbackOverall<E extends readonly string[]>(
-	overall: AuthoringFeedbackOverall<FeedbackPlan, E>,
-	out: Map<string, string>
-): void {
-	if (isFallbackFeedback(overall)) {
-		const correctContent = overall.CORRECT.content
-		const incorrectContent = overall.INCORRECT.content
-		walkInline(correctContent.preamble.summary, out)
-		for (const step of correctContent.steps) {
-			walkInline(step.title, out)
-			walkBlock(step.content, out)
-		}
-		walkInline(correctContent.solution.content, out)
-		walkInline(incorrectContent.preamble.summary, out)
-		for (const step of incorrectContent.steps) {
-			walkInline(step.title, out)
-			walkBlock(step.content, out)
-		}
-		walkInline(incorrectContent.solution.content, out)
-		return
-	}
-
-	const comboFeedback = overall
-	for (const responseNode of Object.values(comboFeedback)) {
-		for (const keyNode of Object.values(responseNode)) {
-			walkFeedbackNode(keyNode, out)
-		}
-	}
+	walkInline(shared.solution.content, out)
 }
 
 /**
@@ -200,18 +133,20 @@ function walkFeedbackOverall<E extends readonly string[]>(
  * @param item - An object conforming to the structure of an AssessmentItemInput.
  * @returns A Map from widgetId to widgetType. Throws if the same widgetId has conflicting types.
  */
-export function collectWidgetRefs<E extends readonly string[]>(item: {
+export function collectWidgetRefs<
+	P extends FeedbackPlan,
+	E extends readonly string[]
+>(item: {
 	body: BlockContent<E> | null
-	feedback: {
-		FEEDBACK__OVERALL: AuthoringFeedbackOverall<FeedbackPlan, E>
-	} | null
+	feedback: FeedbackBundle<P, E> | null
+	feedbackPlan: P | null
 	interactions: Record<string, AnyInteraction<E>> | null
 }): Map<string, string> {
 	const out = new Map<string, string>()
 
 	walkBlock(item.body, out)
-	if (item.feedback) {
-		walkFeedbackOverall(item.feedback.FEEDBACK__OVERALL, out)
+	if (item.feedback && item.feedbackPlan) {
+		walkSharedPedagogy(item.feedback.shared, out)
 	}
 	walkInteractions(item.interactions, out)
 
@@ -221,11 +156,13 @@ export function collectWidgetRefs<E extends readonly string[]>(item: {
 /**
  * Collects just the widget IDs from an assessment item.
  */
-export function collectAllWidgetSlotIds<E extends readonly string[]>(item: {
+export function collectAllWidgetSlotIds<
+	P extends FeedbackPlan,
+	E extends readonly string[]
+>(item: {
 	body: BlockContent<E> | null
-	feedback: {
-		FEEDBACK__OVERALL: AuthoringFeedbackOverall<FeedbackPlan, E>
-	} | null
+	feedback: FeedbackBundle<P, E> | null
+	feedbackPlan: P | null
 	interactions: Record<string, AnyInteraction<E>> | null
 }): string[] {
 	const refs = collectWidgetRefs(item)

@@ -33,7 +33,7 @@ export function createPerOutcomeNestedFeedbackPrompt<
 	>
 >(
 	assessmentShell: AssessmentItemShell<WidgetTypeTupleFrom<C>>,
-	feedbackPlan: FeedbackPlan,
+	_feedbackPlan: FeedbackPlan,
 	combination: FeedbackCombination,
 	widgetCollection: C,
 	interactions: Record<string, AnyInteraction<WidgetTypeTupleFrom<C>>>
@@ -55,12 +55,14 @@ export function createPerOutcomeNestedFeedbackPrompt<
 							`${i + 1}. Interaction '${seg.responseIdentifier}': Student chose '${seg.key}'`
 					)
 					.join("\n")
-			: "Fallback mode (no interaction-specific path)"
+			: "Overall outcome (no interaction-specific path)"
 
 	const getCorrectnessSummary = (): string => {
-		if (feedbackPlan.mode === "fallback") {
+		if (combination.path.length === 0) {
 			return `Overall outcome: ${combination.id}`
 		}
+		let hasMismatch = false
+		let hasUnknown = false
 		for (const seg of combination.path) {
 			const decl = assessmentShell.responseDeclarations.find(
 				(d) => d.identifier === seg.responseIdentifier
@@ -71,13 +73,19 @@ export function createPerOutcomeNestedFeedbackPrompt<
 				typeof decl.correct === "string"
 			) {
 				if (decl.correct !== seg.key) {
-					return "Overall outcome for this path: INCORRECT"
+					hasMismatch = true
 				}
 			} else {
-				return "Overall outcome for this path: Mixed/Complex"
+				hasUnknown = true
 			}
 		}
-		return "Overall outcome for this path: CORRECT"
+		if (hasMismatch) {
+			return "Overall outcome for this path: INCORRECT"
+		}
+		if (!hasUnknown) {
+			return "Overall outcome for this path: CORRECT"
+		}
+		return "Overall outcome for this path: Mixed/Complex"
 	}
 	const correctnessSummary = getCorrectnessSummary()
 

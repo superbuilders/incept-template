@@ -2,14 +2,9 @@ import * as errors from "@superbuilders/errors"
 import type * as logger from "@superbuilders/slog"
 import type {
 	BlockContent,
-	FeedbackContent,
+	FeedbackBundle,
 	InlineContent
 } from "@/core/content/types"
-import type {
-	AuthoringFeedbackOverall,
-	AuthoringNestedLeaf,
-	AuthoringNestedNode
-} from "@/core/feedback/authoring/types"
 import type { FeedbackPlan } from "@/core/feedback/plan/types"
 import type { AssessmentItemInput } from "@/core/item/types"
 import {
@@ -72,19 +67,6 @@ function processBlockContent<E extends readonly string[]>(
 	}
 }
 
-function processFeedbackContent<E extends readonly string[]>(
-	feedback: FeedbackContent<E> | null,
-	logger: logger.Logger
-): void {
-	if (!feedback) return
-	processInlineContent(feedback.preamble.summary, logger)
-	for (const step of feedback.steps) {
-		processInlineContent(step.title, logger)
-		processBlockContent(step.content, logger)
-	}
-	processInlineContent(feedback.solution.content, logger)
-}
-
 export function validateAndSanitizeHtmlFields<E extends readonly string[]>(
 	item: AssessmentItemInput<E, FeedbackPlan>,
 	logger: logger.Logger
@@ -99,49 +81,18 @@ export function validateAndSanitizeHtmlFields<E extends readonly string[]>(
 	processBlockContent(sanitizedItem.body, logger)
 
 	// Process nested feedback content recursively with precise types
-	function isLeafNode(
-		node: AuthoringNestedLeaf<E> | AuthoringNestedNode<FeedbackPlan, E>
-	): node is AuthoringNestedLeaf<E> {
-		return "content" in node
-	}
+	const feedbackBundle: FeedbackBundle<FeedbackPlan, E> | null =
+		"feedback" in sanitizedItem ? sanitizedItem.feedback : null
 
-	function processFeedbackNode(
-		node: AuthoringNestedLeaf<E> | AuthoringNestedNode<FeedbackPlan, E>
-	): void {
-		if (isLeafNode(node)) {
-			processFeedbackContent(node.content, logger)
-			return
+	if (feedbackBundle) {
+		for (const preamble of Object.values(feedbackBundle.preambles)) {
+			processInlineContent(preamble.summary, logger)
 		}
-		for (const responseId in node) {
-			const responseNode = node[responseId]
-			for (const key in responseNode) {
-				processFeedbackNode(responseNode[key])
-			}
+		for (const step of feedbackBundle.shared.steps) {
+			processInlineContent(step.title, logger)
+			processBlockContent(step.content, logger)
 		}
-	}
-
-	function isFallbackFeedback(
-		overall: AuthoringFeedbackOverall<FeedbackPlan, E>
-	): overall is {
-		CORRECT: AuthoringNestedLeaf<E>
-		INCORRECT: AuthoringNestedLeaf<E>
-	} {
-		return "CORRECT" in overall && "INCORRECT" in overall
-	}
-
-	function processOverall(
-		overall: AuthoringFeedbackOverall<FeedbackPlan, E>
-	): void {
-		if (isFallbackFeedback(overall)) {
-			processFeedbackContent(overall.CORRECT.content, logger)
-			processFeedbackContent(overall.INCORRECT.content, logger)
-			return
-		}
-		processFeedbackNode(overall)
-	}
-
-	if (sanitizedItem.feedback?.FEEDBACK__OVERALL) {
-		processOverall(sanitizedItem.feedback.FEEDBACK__OVERALL)
+		processInlineContent(feedbackBundle.shared.solution.content, logger)
 	}
 
 	if (sanitizedItem.interactions) {

@@ -4,15 +4,12 @@ import { z } from "zod"
 import type {
 	BlockContent,
 	FeedbackContent,
+	FeedbackSharedPedagogy,
 	InlineContent
 } from "@/core/content/types"
-import {
-	createComboFeedbackObjectSchema,
-	createFallbackFeedbackObjectSchema
-} from "@/core/feedback/authoring/schema"
+import { createFeedbackObjectSchema } from "@/core/feedback/authoring/schema"
 import { buildFeedbackPlanFromInteractions } from "@/core/feedback/plan/builder"
-import { isComboPlan, isFallbackPlan } from "@/core/feedback/plan/guards"
-import type { ComboPlan, FeedbackPlan } from "@/core/feedback/plan/types"
+import type { FeedbackPlan } from "@/core/feedback/plan/types"
 import { createAnyInteractionSchema } from "@/core/interactions/schema"
 import type { AnyInteraction } from "@/core/interactions/types"
 import { createAssessmentItemShellSchema } from "@/core/item/schema"
@@ -74,19 +71,6 @@ type ExtendedContentPart =
 export const ErrUnsupportedInteraction = errors.new(
 	"unsupported interaction type found"
 )
-
-type Leaf<E extends readonly string[]> = { content: FeedbackContent<E> }
-interface NestedNode<E extends readonly string[]> {
-	[responseIdentifier: string]: {
-		[key: string]: Leaf<E> | NestedNode<E>
-	}
-}
-
-function isLeaf<E extends readonly string[]>(
-	v: Leaf<E> | NestedNode<E>
-): v is Leaf<E> {
-	return Object.hasOwn(v, "content")
-}
 
 async function resolveRasterImages(
 	envelope: AiContextEnvelope
@@ -462,29 +446,6 @@ async function generateFeedbackForOutcomeNested<
 	return { id: combination.id, content: parsedContent }
 }
 
-/**
- * Promotes a partial record of feedback content to a total record, ensuring both
- * CORRECT and INCORRECT keys are present. Throws an error if either is missing.
- * This function acts as a strict type guard at the assembly stage.
- */
-function promoteFallback<E extends readonly string[]>(
-	parts: Partial<Record<"CORRECT" | "INCORRECT", FeedbackContent<E>>>
-): Record<"CORRECT" | "INCORRECT", FeedbackContent<E>> {
-	const correct = parts.CORRECT
-	const incorrect = parts.INCORRECT
-
-	if (!correct || !incorrect) {
-		const context = {
-			hasCorrect: Boolean(correct),
-			hasIncorrect: Boolean(incorrect)
-		}
-		logger.error("missing required fallback feedback content", context)
-		throw errors.new("missing required fallback feedback content")
-	}
-
-	return { CORRECT: correct, INCORRECT: incorrect }
-}
-
 async function runShardedFeedbackNested<
 	C extends WidgetCollection<
 		Record<string, WidgetDefinition<unknown, unknown>>,
@@ -697,15 +658,11 @@ export async function generateFromEnvelope<
 		assessmentShell.responseDeclarations
 	)
 	logger.debug("built feedback plan", {
-		mode: feedbackPlan.mode,
 		dimensionCount: feedbackPlan.dimensions.length,
 		combinationCount: feedbackPlan.combinations.length
 	})
 
-	if (
-		feedbackPlan.mode === "combo" &&
-		feedbackPlan.combinations.length > 2048
-	) {
+	if (feedbackPlan.combinations.length > 2048) {
 		logger.error("structured feedback combination limit exceeded", {
 			combinationCount: feedbackPlan.combinations.length,
 			dimensionCount: feedbackPlan.dimensions.length
@@ -714,8 +671,7 @@ export async function generateFromEnvelope<
 	}
 
 	logger.info("starting sharded feedback generation", {
-		combinationCount: feedbackPlan.combinations.length,
-		mode: feedbackPlan.mode
+		combinationCount: feedbackPlan.combinations.length
 	})
 	const shardedResult = await errors.try(
 		runShardedFeedbackNested(
@@ -740,108 +696,68 @@ export async function generateFromEnvelope<
 		feedbackBlockCount: Object.keys(feedbackBlocks).length
 	})
 
-	let nestedFeedbackObject: { feedback: { FEEDBACK__OVERALL: unknown } }
-
-	if (isFallbackPlan(feedbackPlan)) {
-		// Use promoteFallback for typed promotion from partial to total
-		const promotedContent = promoteFallback(feedbackBlocks)
-		nestedFeedbackObject = {
-			feedback: {
-				FEEDBACK__OVERALL: {
-					CORRECT: { content: promotedContent.CORRECT },
-					INCORRECT: { content: promotedContent.INCORRECT }
-				}
-			}
-		}
-	} else {
-		const root: NestedNode<WidgetTypeTupleFrom<C>> = {}
-
-		for (const combination of feedbackPlan.combinations) {
-			const content = feedbackBlocks[combination.id]
-			if (!content) {
-				logger.error("missing content for combination in final assembly", {
-					combinationId: combination.id
-				})
-				throw errors.new(
-					`missing feedback content for combination ${combination.id}`
-				)
-			}
-			let currentNode: NestedNode<WidgetTypeTupleFrom<C>> = root
-			for (let i = 0; i < combination.path.length; i++) {
-				const segment = combination.path[i]
-				if (!segment) {
-					logger.error("invalid combination path segment during assembly", {
-						combinationId: combination.id,
-						index: i
-					})
-					throw errors.new("invalid combination path segment")
-				}
-				const isLast = i === combination.path.length - 1
-				const branch = currentNode[segment.responseIdentifier] || {}
-				currentNode[segment.responseIdentifier] = branch
-				if (isLast) {
-					branch[segment.key] = { content }
-				} else {
-					const nextNode = branch[segment.key]
-					if (nextNode) {
-						if (isLeaf(nextNode)) {
-							logger.error("leaf encountered before end of path", {
-								combinationId: combination.id,
-								index: i
-							})
-							throw errors.new("invalid feedback tree shape during assembly")
-						}
-						currentNode = nextNode
-					} else {
-						const emptyNode: NestedNode<WidgetTypeTupleFrom<C>> = {}
-						branch[segment.key] = emptyNode
-						currentNode = emptyNode
-					}
-				}
-			}
-		}
-
-		nestedFeedbackObject = { feedback: { FEEDBACK__OVERALL: root } }
+	const combinationIds = feedbackPlan.combinations.map((combo) => combo.id)
+	const missingContent = combinationIds.filter(
+		(id) => feedbackBlocks[id] === undefined
+	)
+	if (missingContent.length > 0) {
+		logger.error("missing feedback content for combinations", {
+			missing: missingContent
+		})
+		throw errors.new(
+			`missing feedback content for combinations: ${missingContent.join(", ")}`
+		)
 	}
 
-	// Validate nested feedback against the official schema to satisfy AssessmentItem type
-	let FeedbackObjectSchema:
-		| ReturnType<
-				typeof createFallbackFeedbackObjectSchema<WidgetTypeTupleFrom<C>>
-		  >
-		| ReturnType<
-				typeof createComboFeedbackObjectSchema<
-					ComboPlan,
-					WidgetTypeTupleFrom<C>
-				>
-		  >
+	const representativeId =
+		combinationIds.find((id) => feedbackBlocks[id]) ?? combinationIds[0]
+	const representativeContent =
+		representativeId !== undefined ? feedbackBlocks[representativeId] : null
 
-	if (isFallbackPlan(feedbackPlan)) {
-		FeedbackObjectSchema = createFallbackFeedbackObjectSchema(
-			widgetCollection.widgetTypeKeys
-		)
-	} else if (isComboPlan(feedbackPlan)) {
-		FeedbackObjectSchema = createComboFeedbackObjectSchema(
-			feedbackPlan,
-			widgetCollection.widgetTypeKeys
-		)
-	} else {
-		logger.error("unsupported feedback plan mode")
-		throw errors.new("unsupported feedback plan mode")
+	if (!representativeContent) {
+		logger.error("unable to select representative feedback content", {
+			combinationIds
+		})
+		throw errors.new("no feedback content available to build shared pedagogy")
 	}
+
+	const shared: FeedbackSharedPedagogy<WidgetTypeTupleFrom<C>> = {
+		steps: representativeContent.steps,
+		solution: representativeContent.solution
+	}
+
+	const preambleEntries = combinationIds.map((id) => {
+		const content = feedbackBlocks[id]
+		if (!content) {
+			logger.error("missing feedback content during preamble assembly", { id })
+			throw errors.new(`missing feedback content for combination '${id}'`)
+		}
+		return [id, content.preamble] as const
+	})
+
+	const feedbackBundleCandidate = {
+		shared,
+		preambles: Object.fromEntries(preambleEntries)
+	}
+
+	const FeedbackObjectSchema = createFeedbackObjectSchema(
+		feedbackPlan,
+		widgetCollection.widgetTypeKeys
+	)
 	const feedbackValidation = FeedbackObjectSchema.safeParse(
-		nestedFeedbackObject.feedback
+		feedbackBundleCandidate
 	)
 	if (!feedbackValidation.success) {
-		logger.error("nested feedback validation failed", {
+		logger.error("feedback bundle validation failed", {
 			error: feedbackValidation.error
 		})
-		throw errors.wrap(feedbackValidation.error, "nested feedback validation")
+		throw errors.wrap(feedbackValidation.error, "feedback bundle validation")
 	}
 
 	const widgetRefs = collectWidgetRefs({
 		body: assessmentShell.body,
-		feedback: { FEEDBACK__OVERALL: feedbackValidation.data.FEEDBACK__OVERALL },
+		feedback: feedbackValidation.data,
+		feedbackPlan,
 		interactions: generatedInteractions
 	})
 
