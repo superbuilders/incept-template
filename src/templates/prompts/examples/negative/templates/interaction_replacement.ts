@@ -1,5 +1,8 @@
-import type { FeedbackContent } from "@/core/content/types"
-import type { ComboPlan } from "@/core/feedback/plan/types"
+import type {
+	FeedbackBundle,
+	FeedbackSharedPedagogy
+} from "@/core/content/types"
+import type { FeedbackPlan } from "@/core/feedback/plan/types"
 import type { AssessmentItemInput } from "@/core/item/types"
 import { createSeededRandom } from "@/templates/seeds"
 
@@ -132,7 +135,6 @@ export default function generateTemplate(
 
 	// Feedback plan (combo) with one enumerated dimension
 	const feedbackPlan = {
-		mode: "combo",
 		dimensions: [
 			{
 				responseIdentifier: "RESPONSE",
@@ -144,182 +146,106 @@ export default function generateTemplate(
 			id: `FB__RESPONSE_${choiceId}`,
 			path: [{ responseIdentifier: "RESPONSE", key: choiceId }]
 		}))
-	} satisfies ComboPlan
+	} satisfies FeedbackPlan
 
-	// Build feedback content per choice
-	const buildCorrectFeedback = (): FeedbackContent<TemplateWidgets> => {
-		return {
-			preamble: {
-				correctness: "correct",
-				summary: [
+	const sharedPedagogy: FeedbackSharedPedagogy<TemplateWidgets> = {
+		steps: [
+			{
+				type: "step",
+				title: [{ type: "text", content: "Focus on one label at a time" }],
+				content: [
+					{ type: "widgetRef", widgetId, widgetType: "dotPlot" },
 					{
-						type: "text",
-						content: `You matched ${askedValue} to the ${correctCount} dot${correctCount === 1 ? "" : "s"} above it.`
+						type: "paragraph",
+						content: [
+							{
+								type: "text",
+								content: `Trace a vertical line above ${askedValue} and count only the dots stacked in that column.`
+							}
+						]
 					}
 				]
 			},
-			steps: [
-				{
-					type: "step",
-					title: [{ type: "text", content: "Read the column at the label" }],
-					content: [
-						{
-							type: "paragraph",
-							content: [
-								{
-									type: "text",
-									content: `At ${askedValue}, count the stacked dots.`
-								}
-							]
-						},
-						{
-							type: "paragraph",
-							content: [
-								{
-									type: "text",
-									content: `There ${correctCount === 1 ? "is" : "are"} ${correctCount} dot${correctCount === 1 ? "" : "s"} in that column.`
-								}
-							]
-						}
-					]
-				},
-				{
-					type: "step",
-					title: [{ type: "text", content: "Quick reasonableness check" }],
-					content: [
-						{
-							type: "paragraph",
-							content: [
-								{
-									type: "text",
-									content: `The plot shows ${totalDots} total data point${totalDots === 1 ? "" : "s"}. Your selected count fits within that total.`
-								}
-							]
-						}
-					]
-				},
-				{
-					type: "step",
-					title: [{ type: "text", content: "Confirm the final tally" }],
-					content: [
-						{
-							type: "paragraph",
-							content: [
-								{
-									type: "text",
-									content: `Say out loud how many dots are stacked at ${askedValue} to double-check: ${correctCount}.`
-								}
-							]
-						}
-					]
-				}
-			],
-			solution: {
-				type: "solution",
+			{
+				type: "step",
+				title: [{ type: "text", content: "Check the total context" }],
 				content: [
 					{
-						type: "text",
-						content: `Therefore, the count at ${askedValue} is ${correctCount}.`
-					}
-				]
-			}
-		}
-	}
-
-	const buildIncorrectFeedback = (
-		chosen: number
-	): FeedbackContent<TemplateWidgets> => {
-		const diff = Math.abs(chosen - correctCount)
-		let direction: "matched" | "too low" | "too high"
-		if (chosen === correctCount) {
-			direction = "matched"
-		} else if (chosen < correctCount) {
-			direction = "too low"
-		} else {
-			direction = "too high"
-		}
-		return {
-			preamble: {
-				correctness: "incorrect",
-				summary: [
-					{
-						type: "text",
-						content: `You selected ${chosen}, which is ${direction}. At ${askedValue}, the column has ${correctCount} dot${correctCount === 1 ? "" : "s"}.`
+						type: "paragraph",
+						content: [
+							{
+								type: "text",
+								content: `The plot shows ${totalDots} data point${totalDots === 1 ? "" : "s"}. Any answer must fit within that amount.`
+							}
+						]
 					}
 				]
 			},
-			steps: [
-				{
-					type: "step",
-					title: [{ type: "text", content: "Focus on one label at a time" }],
-					content: [
-						{ type: "widgetRef", widgetId, widgetType: "dotPlot" },
-						{
-							type: "paragraph",
-							content: [
-								{
-									type: "text",
-									content:
-										"Trace a vertical line directly above the label and count only the dots stacked in that column."
-								}
-							]
-						}
-					]
-				},
-				{
-					type: "step",
-					title: [{ type: "text", content: `Recount at ${askedValue}` }],
-					content: [
-						{
-							type: "paragraph",
-							content: [
-								{
-									type: "text",
-									content: `${diff === 0 ? "Your count is already correct." : `You were off by ${diff}.`} At ${askedValue}, there ${correctCount === 1 ? "is" : "are"} ${correctCount} dot${correctCount === 1 ? "" : "s"}.`
-								}
-							]
-						}
-					]
-				},
-				{
-					type: "step",
-					title: [{ type: "text", content: "Check another column to verify" }],
-					content: [
-						{
-							type: "paragraph",
-							content: [
-								{
-									type: "text",
-									content:
-										"Pick a different label, count its dots, and compare the approach so you stay consistent each time."
-								}
-							]
-						}
-					]
-				}
-			],
-			solution: {
-				type: "solution",
+			{
+				type: "step",
+				title: [{ type: "text", content: "State the final tally" }],
 				content: [
 					{
-						type: "text",
-						content: `Therefore, the correct count at ${askedValue} is ${correctCount}.`
+						type: "paragraph",
+						content: [
+							{
+								type: "text",
+								content: `At ${askedValue}, there ${correctCount === 1 ? "is" : "are"} ${correctCount} dot${correctCount === 1 ? "" : "s"}.`
+							}
+						]
 					}
 				]
 			}
+		],
+		solution: {
+			type: "solution",
+			content: [
+				{
+					type: "text",
+					content: `Therefore, the correct count at ${askedValue} is ${correctCount}.`
+				}
+			]
 		}
 	}
 
-	const feedbackOverallMap = Object.fromEntries(
+	const preambles = Object.fromEntries(
 		choiceIdentifiers.map((choiceId, idx) => {
 			const chosenNumber = optionNumbers[idx]
-			const content =
-				chosenNumber === correctCount
-					? buildCorrectFeedback()
-					: buildIncorrectFeedback(chosenNumber)
-			return [choiceId, { content }] as const
+			if (chosenNumber === correctCount) {
+				return [
+					`FB__RESPONSE_${choiceId}`,
+					{
+						correctness: "correct",
+						summary: [
+							{
+								type: "text",
+								content: `You matched ${askedValue} to the ${correctCount} dot${correctCount === 1 ? "" : "s"} above it.`
+							}
+						]
+					}
+				] as const
+			}
+			const diff = Math.abs(chosenNumber - correctCount)
+			const direction = chosenNumber < correctCount ? "too low" : "too high"
+			return [
+				`FB__RESPONSE_${choiceId}`,
+				{
+					correctness: "incorrect",
+					summary: [
+						{
+							type: "text",
+							content: `You selected ${chosenNumber}, which is ${direction}. You were off by ${diff}. At ${askedValue}, the column has ${correctCount} dot${correctCount === 1 ? "" : "s"}.`
+						}
+					]
+				}
+			] as const
 		})
 	)
+
+	const feedbackBundle: FeedbackBundle<typeof feedbackPlan, TemplateWidgets> = {
+		shared: sharedPedagogy,
+		preambles
+	}
 
 	// Final assessment item
 	const assessmentItem = {
@@ -402,11 +328,7 @@ export default function generateTemplate(
 
 		feedbackPlan,
 
-		feedback: {
-			FEEDBACK__OVERALL: {
-				RESPONSE: feedbackOverallMap
-			}
-		}
+		feedback: feedbackBundle
 	} satisfies AssessmentItemInput<TemplateWidgets, typeof feedbackPlan>
 
 	return assessmentItem

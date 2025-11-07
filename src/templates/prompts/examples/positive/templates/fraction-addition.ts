@@ -6,7 +6,11 @@
 
 import * as errors from "@superbuilders/errors"
 import * as logger from "@superbuilders/slog"
-import type { FeedbackContent } from "@/core/content/types"
+import type {
+	FeedbackBundle,
+	FeedbackPreamble,
+	FeedbackSharedPedagogy
+} from "@/core/content/types"
 import type { FeedbackPlan } from "@/core/feedback/plan/types"
 import type { AssessmentItemInput } from "@/core/item/types"
 import { createSeededRandom } from "@/templates/seeds"
@@ -20,7 +24,6 @@ type FractionAdditionFeedbackPlan = ReturnType<typeof buildFeedbackPlan>
 
 function buildFeedbackPlan(choiceIdentifiers: readonly string[]) {
 	return {
-		mode: "combo" as const,
 		dimensions: [
 			{
 				responseIdentifier: "RESPONSE",
@@ -195,8 +198,10 @@ export const generateFractionAdditionQuestion: TemplateModule<
 		...distractors.map((d) => ({ ...d, isCorrect: false }))
 	]
 
+	type ChoiceOption = (typeof allChoices)[number]
+
 	// Filter out any distractors that happen to equal the correct answer.
-	const uniqueChoices = allChoices.filter(
+	const uniqueChoices: ChoiceOption[] = allChoices.filter(
 		(choice, index, self) =>
 			index ===
 			self.findIndex(
@@ -219,7 +224,7 @@ export const generateFractionAdditionQuestion: TemplateModule<
 	}
 
 	// Sort choices by their decimal value to ensure a deterministic, non-random order.
-	const finalChoices = uniqueChoices
+	const finalChoices: ChoiceOption[] = uniqueChoices
 		.slice(0, 4)
 		.sort(
 			(a, b) =>
@@ -236,6 +241,233 @@ export const generateFractionAdditionQuestion: TemplateModule<
 
 	const feedbackPlan = buildFeedbackPlan(choiceIdentifiers)
 
+	const commonDenom = f1.denominator * f2.denominator
+	const num1Expanded = Math.abs(f1.numerator) * f2.denominator
+	const num2Expanded = Math.abs(f2.numerator) * f1.denominator
+	const sumNumerator = num1Expanded + num2Expanded
+
+	const sharedPedagogy: FeedbackSharedPedagogy<TemplateWidgets> = {
+		steps: [
+			{
+				type: "step",
+				title: [
+					{
+						type: "text",
+						content: "Align the denominators so the parts match"
+					}
+				],
+				content: [
+					{
+						type: "paragraph",
+						content: [
+							{
+								type: "text",
+								content:
+									"Multiply each denominator so both fractions describe the same sized pieces: "
+							},
+							{
+								type: "math",
+								mathml: `<mn>${f1.denominator}</mn><mo>×</mo><mn>${f2.denominator}</mn><mo>=</mo><mn>${commonDenom}</mn>`
+							},
+							{ type: "text", content: "." }
+						]
+					}
+				]
+			},
+			{
+				type: "step",
+				title: [
+					{
+						type: "text",
+						content: "Scale each fraction to that shared denominator"
+					}
+				],
+				content: [
+					{
+						type: "paragraph",
+						content: [
+							{ type: "text", content: "Convert " },
+							{ type: "math", mathml: formatFractionMathML(f1) },
+							{ type: "text", content: " to " },
+							{
+								type: "math",
+								mathml: `<mfrac><mn>${num1Expanded}</mn><mn>${commonDenom}</mn></mfrac>`
+							},
+							{ type: "text", content: " and " },
+							{ type: "math", mathml: formatFractionMathML(f2) },
+							{ type: "text", content: " to " },
+							{
+								type: "math",
+								mathml: `<mfrac><mn>${num2Expanded}</mn><mn>${commonDenom}</mn></mfrac>`
+							},
+							{ type: "text", content: " so their pieces now match." }
+						]
+					}
+				]
+			},
+			{
+				type: "step",
+				title: [
+					{
+						type: "text",
+						content: "Add the matching pieces and simplify"
+					}
+				],
+				content: [
+					{
+						type: "paragraph",
+						content: [
+							{ type: "text", content: "Combine the scaled numerators: " },
+							{
+								type: "math",
+								mathml: `<mfrac><mn>${num1Expanded}</mn><mn>${commonDenom}</mn></mfrac><mo>+</mo><mfrac><mn>${num2Expanded}</mn><mn>${commonDenom}</mn></mfrac><mo>=</mo><mfrac><mn>${sumNumerator}</mn><mn>${commonDenom}</mn></mfrac>`
+							},
+							{ type: "text", content: ", then reduce to " },
+							{ type: "math", mathml: formatFractionMathML(correctAnswer) },
+							{ type: "text", content: "." }
+						]
+					}
+				]
+			}
+		],
+		solution: {
+			type: "solution",
+			content: [
+				{ type: "text", content: "Therefore, the correct sum is " },
+				{ type: "math", mathml: formatFractionMathML(correctAnswer) },
+				{ type: "text", content: "." }
+			]
+		}
+	}
+
+	const buildPreambleForChoice = (
+		choice: (typeof finalChoices)[number]
+	): FeedbackPreamble => {
+		switch (choice.type) {
+			case "CORRECT":
+				return {
+					correctness: "correct",
+					summary: [
+						{ type: "text", content: "Great work—your choice " },
+						{ type: "math", mathml: formatFractionMathML(correctAnswer) },
+						{ type: "text", content: " shows you aligned " },
+						{ type: "math", mathml: formatFractionMathML(f1) },
+						{ type: "text", content: " and " },
+						{ type: "math", mathml: formatFractionMathML(f2) },
+						{
+							type: "text",
+							content: " to a shared denominator and simplified correctly."
+						}
+					]
+				}
+			case "ADD_ACROSS":
+				return {
+					correctness: "incorrect",
+					summary: [
+						{ type: "text", content: "You chose " },
+						{ type: "math", mathml: formatFractionMathML(choice.fraction) },
+						{ type: "text", content: " by adding the numerators " },
+						{
+							type: "math",
+							mathml: `<mn>${f1.numerator}</mn><mo>+</mo><mn>${f2.numerator}</mn>`
+						},
+						{ type: "text", content: " and the denominators " },
+						{
+							type: "math",
+							mathml: `<mn>${f1.denominator}</mn><mo>+</mo><mn>${f2.denominator}</mn>`
+						},
+						{
+							type: "text",
+							content: ", which changes the size of each fractional part."
+						}
+					]
+				}
+			case "ADD_NUM_KEEP_DEN":
+				return {
+					correctness: "incorrect",
+					summary: [
+						{ type: "text", content: "You picked " },
+						{ type: "math", mathml: formatFractionMathML(choice.fraction) },
+						{ type: "text", content: " by adding the numerators " },
+						{
+							type: "math",
+							mathml: `<mn>${f1.numerator}</mn><mo>+</mo><mn>${f2.numerator}</mn>`
+						},
+						{ type: "text", content: " but leaving the denominator at " },
+						{ type: "math", mathml: `<mn>${f1.denominator}</mn>` },
+						{
+							type: "text",
+							content: ", so the two addends never described equal parts."
+						}
+					]
+				}
+			case "MULTIPLY_DENOMINATORS_ONLY":
+				return {
+					correctness: "incorrect",
+					summary: [
+						{ type: "text", content: "You submitted " },
+						{ type: "math", mathml: formatFractionMathML(choice.fraction) },
+						{ type: "text", content: ", which keeps the numerators " },
+						{
+							type: "math",
+							mathml: `<mn>${f1.numerator}</mn><mo>+</mo><mn>${f2.numerator}</mn>`
+						},
+						{ type: "text", content: " while multiplying the denominator to " },
+						{ type: "math", mathml: `<mn>${commonDenom}</mn>` },
+						{
+							type: "text",
+							content:
+								"; numerator and denominator must scale by the same factor."
+						}
+					]
+				}
+			case "FORGOT_TO_SIMPLIFY":
+				return {
+					correctness: "incorrect",
+					summary: [
+						{ type: "text", content: "You reached " },
+						{ type: "math", mathml: formatFractionMathML(choice.fraction) },
+						{ type: "text", content: ", which equals the correct sum " },
+						{ type: "math", mathml: formatFractionMathML(correctAnswer) },
+						{
+							type: "text",
+							content:
+								" but still needs to be divided by the greatest common divisor."
+						}
+					]
+				}
+			default:
+				logger.error("unsupported choice type for feedback preamble")
+				throw errors.new("unsupported choice type for feedback preamble")
+		}
+	}
+
+	const preambles = Object.fromEntries(
+		finalChoices.map((choice, index) => {
+			const choiceId = choiceIdentifiers[index]
+			if (choiceId === undefined) {
+				logger.error("missing choice identifier during feedback construction", {
+					index,
+					identifierCount: choiceIdentifiers.length
+				})
+				throw errors.new("missing choice identifier for feedback")
+			}
+			return [
+				`FB__RESPONSE_${choiceId}`,
+				buildPreambleForChoice(choice)
+			] as const
+		})
+	)
+
+	const feedbackBundle: FeedbackBundle<
+		FractionAdditionFeedbackPlan,
+		TemplateWidgets
+	> = {
+		shared: sharedPedagogy,
+		preambles
+	}
+
+	// --- 3d. Construct the Final AssessmentItemInput Object ---
 	// --- 3d. Construct the Final AssessmentItemInput Object ---
 	// TODO: Update this template to use feedbackPlan + map structure
 	const assessmentItem = {
@@ -338,783 +570,7 @@ export const generateFractionAdditionQuestion: TemplateModule<
 		],
 
 		feedbackPlan,
-		feedback: {
-			FEEDBACK__OVERALL: {
-				RESPONSE: Object.fromEntries(
-					finalChoices.map((choice, index) => {
-						const choiceId = choiceIdentifiers[index]
-						if (choiceId === undefined) {
-							logger.error(
-								"missing choice identifier during feedback construction",
-								{ index, identifierCount: choiceIdentifiers.length }
-							)
-							throw errors.new("missing choice identifier for feedback")
-						}
-						// Helper values for worked example
-						const commonDenom = f1.denominator * f2.denominator
-						const num1Expanded = Math.abs(f1.numerator) * f2.denominator
-						const num2Expanded = Math.abs(f2.numerator) * f1.denominator
-						const sumNumerator = num1Expanded + num2Expanded
-
-						let feedbackContent: FeedbackContent<TemplateWidgets>
-
-						switch (choice.type) {
-							case "CORRECT":
-								feedbackContent = {
-									preamble: {
-										correctness: "correct",
-										summary: [
-											{ type: "text", content: "Great work—your choice " },
-											{
-												type: "math",
-												mathml: formatFractionMathML(correctAnswer)
-											},
-											{
-												type: "text",
-												content: " shows you aligned "
-											},
-											{
-												type: "math",
-												mathml: formatFractionMathML(f1)
-											},
-											{ type: "text", content: " and " },
-											{
-												type: "math",
-												mathml: formatFractionMathML(f2)
-											},
-											{
-												type: "text",
-												content:
-													" to a shared denominator and simplified correctly."
-											}
-										]
-									},
-									steps: [
-										{
-											type: "step",
-											title: [
-												{
-													type: "text",
-													content: "Align the denominators so the parts match"
-												}
-											],
-											content: [
-												{
-													type: "paragraph",
-													content: [
-														{
-															type: "text",
-															content:
-																"Multiply each denominator so both fractions describe the same sized pieces: "
-														},
-														{
-															type: "math",
-															mathml: `<mn>${f1.denominator}</mn><mo>×</mo><mn>${f2.denominator}</mn><mo>=</mo><mn>${commonDenom}</mn>`
-														},
-														{ type: "text", content: "." }
-													]
-												}
-											]
-										},
-										{
-											type: "step",
-											title: [
-												{
-													type: "text",
-													content:
-														"Scale each fraction to that shared denominator"
-												}
-											],
-											content: [
-												{
-													type: "paragraph",
-													content: [
-														{ type: "text", content: "Convert " },
-														{ type: "math", mathml: formatFractionMathML(f1) },
-														{ type: "text", content: " to " },
-														{
-															type: "math",
-															mathml: `<mfrac><mn>${num1Expanded}</mn><mn>${commonDenom}</mn></mfrac>`
-														},
-														{ type: "text", content: " and " },
-														{ type: "math", mathml: formatFractionMathML(f2) },
-														{ type: "text", content: " to " },
-														{
-															type: "math",
-															mathml: `<mfrac><mn>${num2Expanded}</mn><mn>${commonDenom}</mn></mfrac>`
-														},
-														{
-															type: "text",
-															content: " so their pieces now match."
-														}
-													]
-												}
-											]
-										},
-										{
-											type: "step",
-											title: [
-												{
-													type: "text",
-													content: "Add the matching pieces and simplify"
-												}
-											],
-											content: [
-												{
-													type: "paragraph",
-													content: [
-														{
-															type: "text",
-															content: "Combine the scaled numerators: "
-														},
-														{
-															type: "math",
-															mathml: `<mfrac><mn>${num1Expanded}</mn><mn>${commonDenom}</mn></mfrac><mo>+</mo><mfrac><mn>${num2Expanded}</mn><mn>${commonDenom}</mn></mfrac><mo>=</mo><mfrac><mn>${sumNumerator}</mn><mn>${commonDenom}</mn></mfrac>`
-														},
-														{
-															type: "text",
-															content: ", then reduce to "
-														},
-														{
-															type: "math",
-															mathml: formatFractionMathML(correctAnswer)
-														},
-														{ type: "text", content: "." }
-													]
-												}
-											]
-										}
-									],
-									solution: {
-										type: "solution",
-										content: [
-											{
-												type: "text",
-												content: "Therefore, the correct sum is "
-											},
-											{
-												type: "math",
-												mathml: formatFractionMathML(correctAnswer)
-											},
-											{ type: "text", content: "." }
-										]
-									}
-								}
-								break
-
-							case "ADD_ACROSS":
-								feedbackContent = {
-									preamble: {
-										correctness: "incorrect",
-										summary: [
-											{ type: "text", content: "You chose " },
-											{
-												type: "math",
-												mathml: formatFractionMathML(choice.fraction)
-											},
-											{ type: "text", content: " by adding the numerators " },
-											{
-												type: "math",
-												mathml: `<mn>${f1.numerator}</mn><mo>+</mo><mn>${f2.numerator}</mn>`
-											},
-											{ type: "text", content: " and the denominators " },
-											{
-												type: "math",
-												mathml: `<mn>${f1.denominator}</mn><mo>+</mo><mn>${f2.denominator}</mn>`
-											},
-											{
-												type: "text",
-												content:
-													", which changes the size of each fractional part."
-											}
-										]
-									},
-									steps: [
-										{
-											type: "step",
-											title: [
-												{
-													type: "text",
-													content: "Match the size of each fractional part"
-												}
-											],
-											content: [
-												{
-													type: "paragraph",
-													content: [
-														{
-															type: "text",
-															content:
-																"Keep denominators steady while you add. Multiply each denominator so both fractions share "
-														},
-														{
-															type: "math",
-															mathml: `<mn>${commonDenom}</mn>`
-														},
-														{
-															type: "text",
-															content:
-																", giving you equal-sized pieces to combine."
-														}
-													]
-												}
-											]
-										},
-										{
-											type: "step",
-											title: [
-												{
-													type: "text",
-													content:
-														"Rewrite both fractions using the shared denominator"
-												}
-											],
-											content: [
-												{
-													type: "paragraph",
-													content: [
-														{
-															type: "text",
-															content: "Convert the first addend: "
-														},
-														{
-															type: "math",
-															mathml: `<mfrac><mn>${Math.abs(
-																f1.numerator
-															)}</mn><mn>${f1.denominator}</mn></mfrac><mo>=</mo><mfrac><mn>${num1Expanded}</mn><mn>${commonDenom}</mn></mfrac>`
-														}
-													]
-												},
-												{
-													type: "paragraph",
-													content: [
-														{
-															type: "text",
-															content: "Convert the second addend: "
-														},
-														{
-															type: "math",
-															mathml: `<mfrac><mn>${Math.abs(
-																f2.numerator
-															)}</mn><mn>${f2.denominator}</mn></mfrac><mo>=</mo><mfrac><mn>${num2Expanded}</mn><mn>${commonDenom}</mn></mfrac>`
-														},
-														{
-															type: "text",
-															content:
-																" so both fractions talk about the same whole."
-														}
-													]
-												}
-											]
-										},
-										{
-											type: "step",
-											title: [
-												{
-													type: "text",
-													content: "Add the aligned numerators and simplify"
-												}
-											],
-											content: [
-												{
-													type: "paragraph",
-													content: [
-														{
-															type: "text",
-															content:
-																"Now add the converted fractions without touching the denominator: "
-														},
-														{
-															type: "math",
-															mathml: `<mfrac><mn>${num1Expanded}</mn><mn>${commonDenom}</mn></mfrac><mo>+</mo><mfrac><mn>${num2Expanded}</mn><mn>${commonDenom}</mn></mfrac><mo>=</mo><mfrac><mn>${sumNumerator}</mn><mn>${commonDenom}</mn></mfrac>`
-														},
-														{
-															type: "text",
-															content:
-																", then reduce the result to the simplified fraction "
-														},
-														{
-															type: "math",
-															mathml: formatFractionMathML(correctAnswer)
-														},
-														{ type: "text", content: "." }
-													]
-												}
-											]
-										}
-									],
-									solution: {
-										type: "solution",
-										content: [
-											{
-												type: "text",
-												content: "Therefore, the correct sum is "
-											},
-											{
-												type: "math",
-												mathml: formatFractionMathML(correctAnswer)
-											},
-											{
-												type: "text",
-												content: "."
-											}
-										]
-									}
-								}
-								break
-
-							case "ADD_NUM_KEEP_DEN":
-								feedbackContent = {
-									preamble: {
-										correctness: "incorrect",
-										summary: [
-											{ type: "text", content: "You picked " },
-											{
-												type: "math",
-												mathml: formatFractionMathML(choice.fraction)
-											},
-											{ type: "text", content: " by adding the numerators " },
-											{
-												type: "math",
-												mathml: `<mn>${f1.numerator}</mn><mo>+</mo><mn>${f2.numerator}</mn>`
-											},
-											{
-												type: "text",
-												content: " but leaving the denominator at "
-											},
-											{
-												type: "math",
-												mathml: `<mn>${f1.denominator}</mn>`
-											},
-											{
-												type: "text",
-												content:
-													", so the two addends never described equal parts."
-											}
-										]
-									},
-									steps: [
-										{
-											type: "step",
-											title: [
-												{
-													type: "text",
-													content: "Check that denominators match before adding"
-												}
-											],
-											content: [
-												{
-													type: "paragraph",
-													content: [
-														{
-															type: "text",
-															content:
-																"Only numerators add; denominators must already be equal. We need to express both fractions in the same-size pieces before combining them."
-														}
-													]
-												}
-											]
-										},
-										{
-											type: "step",
-											title: [
-												{
-													type: "text",
-													content:
-														"Rewrite each fraction with the shared denominator"
-												}
-											],
-											content: [
-												{
-													type: "paragraph",
-													content: [
-														{
-															type: "text",
-															content:
-																"Convert the first fraction to the shared denominator "
-														},
-														{ type: "math", mathml: `<mn>${commonDenom}</mn>` },
-														{
-															type: "math",
-															mathml: `<mo>:</mo><mfrac><mn>${Math.abs(
-																f1.numerator
-															)}</mn><mn>${f1.denominator}</mn></mfrac><mo>=</mo><mfrac><mn>${num1Expanded}</mn><mn>${commonDenom}</mn></mfrac>`
-														}
-													]
-												},
-												{
-													type: "paragraph",
-													content: [
-														{
-															type: "text",
-															content:
-																"Convert the second fraction the same way: "
-														},
-														{
-															type: "math",
-															mathml: `<mfrac><mn>${Math.abs(
-																f2.numerator
-															)}</mn><mn>${f2.denominator}</mn></mfrac><mo>=</mo><mfrac><mn>${num2Expanded}</mn><mn>${commonDenom}</mn></mfrac>`
-														},
-														{
-															type: "text",
-															content: ", so both now talk about equal parts."
-														}
-													]
-												}
-											]
-										},
-										{
-											type: "step",
-											title: [
-												{
-													type: "text",
-													content: "Add the aligned numerators and simplify"
-												}
-											],
-											content: [
-												{
-													type: "paragraph",
-													content: [
-														{
-															type: "text",
-															content: "Now add the rewritten fractions: "
-														},
-														{
-															type: "math",
-															mathml: `<mfrac><mn>${num1Expanded}</mn><mn>${commonDenom}</mn></mfrac><mo>+</mo><mfrac><mn>${num2Expanded}</mn><mn>${commonDenom}</mn></mfrac><mo>=</mo><mfrac><mn>${sumNumerator}</mn><mn>${commonDenom}</mn></mfrac>`
-														},
-														{
-															type: "text",
-															content: ", then reduce the result to "
-														},
-														{
-															type: "math",
-															mathml: formatFractionMathML(correctAnswer)
-														},
-														{ type: "text", content: "." }
-													]
-												}
-											]
-										}
-									],
-									solution: {
-										type: "solution",
-										content: [
-											{
-												type: "text",
-												content: "Therefore, the correct sum is "
-											},
-											{
-												type: "math",
-												mathml: formatFractionMathML(correctAnswer)
-											},
-											{
-												type: "text",
-												content: "."
-											}
-										]
-									}
-								}
-								break
-
-							case "MULTIPLY_DENOMINATORS_ONLY":
-								feedbackContent = {
-									preamble: {
-										correctness: "incorrect",
-										summary: [
-											{ type: "text", content: "You submitted " },
-											{
-												type: "math",
-												mathml: formatFractionMathML(choice.fraction)
-											},
-											{
-												type: "text",
-												content: ", which keeps the numerators "
-											},
-											{
-												type: "math",
-												mathml: `<mn>${f1.numerator}</mn><mo>+</mo><mn>${f2.numerator}</mn>`
-											},
-											{
-												type: "text",
-												content: " while multiplying the denominator to "
-											},
-											{
-												type: "math",
-												mathml: `<mn>${f1.denominator * f2.denominator}</mn>`
-											},
-											{
-												type: "text",
-												content:
-													"; numerator and denominator must scale by the same factor."
-											}
-										]
-									},
-									steps: [
-										{
-											type: "step",
-											title: [
-												{
-													type: "text",
-													content: "Scale numerator and denominator together"
-												}
-											],
-											content: [
-												{
-													type: "paragraph",
-													content: [
-														{
-															type: "text",
-															content:
-																"Equivalent fractions multiply both numerator and denominator by the same factor so the pieces stay the same size: "
-														},
-														{
-															type: "math",
-															mathml:
-																"<mfrac><mi>a</mi><mi>b</mi></mfrac><mo>=</mo><mfrac><mrow><mi>a</mi><mo>×</mo><mi>k</mi></mrow><mrow><mi>b</mi><mo>×</mo><mi>k</mi></mrow></mfrac>"
-														}
-													]
-												}
-											]
-										},
-										{
-											type: "step",
-											title: [
-												{
-													type: "text",
-													content:
-														"Convert each fraction using the shared denominator"
-												}
-											],
-											content: [
-												{
-													type: "paragraph",
-													content: [
-														{ type: "text", content: "First fraction: " },
-														{
-															type: "math",
-															mathml: `<mfrac><mn>${Math.abs(
-																f1.numerator
-															)}</mn><mn>${f1.denominator}</mn></mfrac><mo>=</mo><mfrac><mn>${num1Expanded}</mn><mn>${commonDenom}</mn></mfrac>`
-														},
-														{ type: "text", content: "." }
-													]
-												},
-												{
-													type: "paragraph",
-													content: [
-														{ type: "text", content: "Second fraction: " },
-														{
-															type: "math",
-															mathml: `<mfrac><mn>${Math.abs(
-																f2.numerator
-															)}</mn><mn>${f2.denominator}</mn></mfrac><mo>=</mo><mfrac><mn>${num2Expanded}</mn><mn>${commonDenom}</mn></mfrac>`
-														},
-														{
-															type: "text",
-															content:
-																". Both fractions now talk about equal-sized pieces."
-														}
-													]
-												}
-											]
-										},
-										{
-											type: "step",
-											title: [
-												{
-													type: "text",
-													content: "Add the converted fractions and simplify"
-												}
-											],
-											content: [
-												{
-													type: "paragraph",
-													content: [
-														{
-															type: "text",
-															content: "Add the aligned fractions: "
-														},
-														{
-															type: "math",
-															mathml: `<mfrac><mn>${num1Expanded}</mn><mn>${commonDenom}</mn></mfrac><mo>+</mo><mfrac><mn>${num2Expanded}</mn><mn>${commonDenom}</mn></mfrac><mo>=</mo><mfrac><mn>${sumNumerator}</mn><mn>${commonDenom}</mn></mfrac>`
-														},
-														{
-															type: "text",
-															content: ", then reduce to "
-														},
-														{
-															type: "math",
-															mathml: formatFractionMathML(correctAnswer)
-														},
-														{ type: "text", content: "." }
-													]
-												}
-											]
-										}
-									],
-									solution: {
-										type: "solution",
-										content: [
-											{
-												type: "text",
-												content: "Therefore, the correct sum is "
-											},
-											{
-												type: "math",
-												mathml: formatFractionMathML(correctAnswer)
-											},
-											{
-												type: "text",
-												content: "."
-											}
-										]
-									}
-								}
-								break
-
-							case "FORGOT_TO_SIMPLIFY":
-								feedbackContent = {
-									preamble: {
-										correctness: "incorrect",
-										summary: [
-											{ type: "text", content: "You reached " },
-											{
-												type: "math",
-												mathml: formatFractionMathML(choice.fraction)
-											},
-											{
-												type: "text",
-												content: ", which equals the correct sum "
-											},
-											{
-												type: "math",
-												mathml: formatFractionMathML(correctAnswer)
-											},
-											{
-												type: "text",
-												content:
-													" but still needs to be divided by the greatest common divisor."
-											}
-										]
-									},
-									steps: [
-										{
-											type: "step",
-											title: [
-												{
-													type: "text",
-													content:
-														"Compare your fraction with the simplified form"
-												}
-											],
-											content: [
-												{
-													type: "paragraph",
-													content: [
-														{ type: "text", content: "Your answer " },
-														{
-															type: "math",
-															mathml: formatFractionMathML(choice.fraction)
-														},
-														{ type: "text", content: " equals " },
-														{
-															type: "math",
-															mathml: formatFractionMathML(correctAnswer)
-														},
-														{
-															type: "text",
-															content:
-																" after reducing, so you are one step away."
-														}
-													]
-												}
-											]
-										},
-										{
-											type: "step",
-											title: [
-												{
-													type: "text",
-													content:
-														"Find the greatest factor shared by numerator and denominator"
-												}
-											],
-											content: [
-												{
-													type: "paragraph",
-													content: [
-														{
-															type: "text",
-															content: `The numerator ${sumNumerator} and denominator ${commonDenom} share a greatest common divisor of ${gcd(sumNumerator, commonDenom)}. Use that number to reduce the fraction.`
-														}
-													]
-												}
-											]
-										},
-										{
-											type: "step",
-											title: [
-												{ type: "text", content: "Divide by the GCD to finish" }
-											],
-											content: [
-												{
-													type: "paragraph",
-													content: [
-														{ type: "text", content: "Compute " },
-														{
-															type: "math",
-															mathml: `<mfrac><mrow><mn>${sumNumerator}</mn><mo>÷</mo><mn>${gcd(
-																sumNumerator,
-																commonDenom
-															)}</mn></mrow><mrow><mn>${commonDenom}</mn><mo>÷</mo><mn>${gcd(
-																sumNumerator,
-																commonDenom
-															)}</mn></mrow></mfrac>`
-														},
-														{ type: "text", content: " = " },
-														{
-															type: "text",
-															content:
-																"which reduces directly to the simplified fraction "
-														},
-														{
-															type: "math",
-															mathml: formatFractionMathML(correctAnswer)
-														},
-														{ type: "text", content: "." }
-													]
-												}
-											]
-										}
-									],
-									solution: {
-										type: "solution",
-										content: [
-											{
-												type: "text",
-												content: "Therefore, the correct sum is "
-											},
-											{
-												type: "math",
-												mathml: formatFractionMathML(correctAnswer)
-											},
-											{
-												type: "text",
-												content: "."
-											}
-										]
-									}
-								}
-								break
-						}
-
-						return [choiceId, { content: feedbackContent }] as const
-					})
-				)
-			}
-		}
+		feedback: feedbackBundle
 	} satisfies AssessmentItemInput<TemplateWidgets, typeof feedbackPlan>
 
 	return assessmentItem

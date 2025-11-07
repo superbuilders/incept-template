@@ -1,20 +1,16 @@
-import type { FeedbackContent } from "@/core/content/types"
+import type {
+	FeedbackBundle,
+	FeedbackSharedPedagogy
+} from "@/core/content/types"
 import type { FeedbackPlan } from "@/core/feedback/plan/types"
 import type { AssessmentItemInput } from "@/core/item/types"
 import type { TemplateModule } from "@/templates/types"
-import type { WidgetTypeTuple } from "@/widgets/collections/types"
 
 type TemplateWidgets = readonly ["partitionedShape"]
 
-type LegacyTemplateModule<E extends WidgetTypeTuple> = TemplateModule<
-	E,
-	FeedbackPlan
->
-
 const choiceIdentifiers = ["A", "B", "C", "D"] as const
 
-const legacyFeedbackPlan: FeedbackPlan = {
-	mode: "combo",
+const legacyFeedbackPlan = {
 	dimensions: [
 		{
 			responseIdentifier: "RESPONSE",
@@ -26,103 +22,95 @@ const legacyFeedbackPlan: FeedbackPlan = {
 		id: `FB__RESPONSE_${key}`,
 		path: [{ responseIdentifier: "RESPONSE", key }]
 	}))
+} satisfies FeedbackPlan
+
+const sharedPedagogy: FeedbackSharedPedagogy<TemplateWidgets> = {
+	steps: [
+		{
+			type: "step",
+			title: [{ type: "text", content: "Review the worked example." }],
+			content: [
+				{
+					type: "paragraph",
+					content: [
+						{ type: "text", content: "Check common denominators carefully." }
+					]
+				}
+			]
+		},
+		{
+			type: "step",
+			title: [{ type: "text", content: "Recompute the numerators." }],
+			content: [
+				{
+					type: "paragraph",
+					content: [
+						{
+							type: "text",
+							content: "Make sure you combine the numerators correctly."
+						}
+					]
+				}
+			]
+		},
+		{
+			type: "step",
+			title: [{ type: "text", content: "Simplify the result." }],
+			content: [
+				{
+					type: "paragraph",
+					content: [
+						{
+							type: "text",
+							content: "Reduce the fraction to lowest terms if needed."
+						}
+					]
+				}
+			]
+		}
+	],
+	solution: {
+		type: "solution",
+		content: [
+			{
+				type: "text",
+				content:
+					"The correct answer is A; it represents the properly summed fraction."
+			}
+		]
+	}
 }
 
-const feedbackByChoice: Record<string, FeedbackContent<TemplateWidgets>> = {
-	A: {
-		preamble: {
+const feedbackBundle: FeedbackBundle<
+	typeof legacyFeedbackPlan,
+	TemplateWidgets
+> = {
+	shared: sharedPedagogy,
+	preambles: {
+		FB__RESPONSE_A: {
 			correctness: "correct",
 			summary: [{ type: "text", content: "Good work." }]
 		},
-		steps: [
-			{
-				type: "step",
-				title: [{ type: "text", content: "Keep doing that" }],
-				content: [
-					{
-						type: "paragraph",
-						content: [{ type: "text", content: "This is fine." }]
-					}
-				]
-			}
-		],
-		solution: {
-			type: "solution",
-			content: [{ type: "text", content: "Correct choice." }]
-		}
-	},
-	B: {
-		preamble: {
+		FB__RESPONSE_B: {
 			correctness: "incorrect",
 			summary: [{ type: "text", content: "You picked B." }]
 		},
-		steps: [
-			{
-				type: "step",
-				title: [{ type: "text", content: "Generic coaching" }],
-				content: [
-					{
-						type: "paragraph",
-						content: [{ type: "text", content: "Try reviewing the lesson." }]
-					}
-				]
-			}
-		],
-		solution: {
-			type: "solution",
-			content: [{ type: "text", content: "Better luck next time." }]
-		}
-	},
-	C: {
-		preamble: {
+		FB__RESPONSE_C: {
 			correctness: "incorrect",
 			summary: [{ type: "text", content: "You picked C." }]
 		},
-		steps: [
-			{
-				type: "step",
-				title: [{ type: "text", content: "Keep trying" }],
-				content: [
-					{
-						type: "paragraph",
-						content: [{ type: "text", content: "Remember the worked example." }]
-					}
-				]
-			}
-		],
-		solution: {
-			type: "solution",
-			content: [{ type: "text", content: "Consider another option." }]
-		}
-	},
-	D: {
-		preamble: {
+		FB__RESPONSE_D: {
 			correctness: "incorrect",
 			summary: [{ type: "text", content: "You picked D." }]
-		},
-		steps: [
-			{
-				type: "step",
-				title: [{ type: "text", content: "Generic coaching" }],
-				content: [
-					{
-						type: "paragraph",
-						content: [{ type: "text", content: "Check the numerators again." }]
-					}
-				]
-			}
-		],
-		solution: {
-			type: "solution",
-			content: [{ type: "text", content: "Try computing the sum." }]
 		}
 	}
 }
 
-export const generateLegacyTemplate: LegacyTemplateModule<TemplateWidgets> = (
-	_seed
-) => {
-	const assessmentItem = {
+export const generateLegacyTemplate: TemplateModule<
+	TemplateWidgets,
+	typeof legacyFeedbackPlan
+> = (_seed) => {
+	return {
 		identifier: "legacy-fraction-addition",
 		title: "Legacy Fraction Addition",
 		responseDeclarations: [
@@ -165,14 +153,6 @@ export const generateLegacyTemplate: LegacyTemplateModule<TemplateWidgets> = (
 			}
 		},
 		feedbackPlan: legacyFeedbackPlan,
-		feedback: {
-			FEEDBACK__OVERALL: {
-				RESPONSE: Object.fromEntries(
-					choiceIdentifiers.map((id) => [id, { content: feedbackByChoice[id] }])
-				)
-			}
-		}
-	} satisfies AssessmentItemInput<TemplateWidgets, FeedbackPlan>
-
-	return assessmentItem
+		feedback: feedbackBundle
+	} satisfies AssessmentItemInput<TemplateWidgets, typeof legacyFeedbackPlan>
 }
