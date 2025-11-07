@@ -130,6 +130,7 @@ export const executeTemplateCandidate = inngest.createFunction(
 	{ event: "template/candidate.execution.requested" },
 	async ({ event, step, logger }) => {
 		const { templateId, attempt, seed } = event.data
+		const baseEventId = event.id
 		logger.info("template candidate execution requested", {
 			templateId,
 			attempt,
@@ -151,6 +152,7 @@ export const executeTemplateCandidate = inngest.createFunction(
 			})
 			const failureEventResult = await errors.try(
 				step.sendEvent("template-candidate-execution-failed", {
+					id: `${baseEventId}-candidate-execution-failed-${attempt}-${seed}`,
 					name: "template/candidate.execution.failed",
 					data: { templateId, attempt, seed, reason }
 				})
@@ -318,6 +320,7 @@ export const executeTemplateCandidate = inngest.createFunction(
 
 		const completionEventResult = await errors.try(
 			step.sendEvent("template-candidate-execution-completed", {
+				id: `${baseEventId}-candidate-execution-completed-${attempt}-${seed}`,
 				name: "template/candidate.execution.completed",
 				data: { templateId, attempt, seed, executionId }
 			})

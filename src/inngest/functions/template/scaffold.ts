@@ -108,6 +108,7 @@ export const scaffoldTemplateFunction = inngest.createFunction(
 	{ event: "template/template.scaffold.requested" },
 	async ({ event, step, logger }) => {
 		const { templateId, exampleAssessmentItemBody, metadata } = event.data
+		const baseEventId = event.id
 		logger.info("starting template scaffold", {
 			templateId,
 			payloadType: typeof exampleAssessmentItemBody
@@ -131,6 +132,7 @@ export const scaffoldTemplateFunction = inngest.createFunction(
 
 			const failureEventResult = await errors.try(
 				step.sendEvent("send-template-scaffold-failed", {
+					id: `${baseEventId}-scaffold-failed`,
 					name: "template/template.scaffold.failed",
 					data: { templateId, reason }
 				})
@@ -176,6 +178,7 @@ export const scaffoldTemplateFunction = inngest.createFunction(
 
 		const completionEventResult = await errors.try(
 			step.sendEvent("send-template-scaffold-completed", {
+				id: `${baseEventId}-scaffold-completed`,
 				name: "template/template.scaffold.completed",
 				data: { templateId }
 			})

@@ -115,6 +115,7 @@ export const validateTemplateCandidate = inngest.createFunction(
 	{ event: "template/candidate.validation.requested" },
 	async ({ event, step, logger }) => {
 		const { templateId, attempt } = event.data
+		const baseEventId = event.id
 		logger.info("validating template candidate", { templateId, attempt })
 
 		const evaluationResult = await errors.try(
@@ -152,6 +153,7 @@ export const validateTemplateCandidate = inngest.createFunction(
 			})
 
 			await step.sendEvent("candidate-validation-completed", {
+				id: `${baseEventId}-candidate-validation-succeeded-${attempt}`,
 				name: "template/candidate.validation.completed",
 				data: { templateId, attempt, diagnosticsCount: 0 }
 			})
@@ -200,6 +202,7 @@ export const validateTemplateCandidate = inngest.createFunction(
 		}
 
 		await step.sendEvent("candidate-validation-completed", {
+			id: `${baseEventId}-candidate-validation-diagnostics-${attempt}`,
 			name: "template/candidate.validation.completed",
 			data: { templateId, attempt, diagnosticsCount: diagnostics.length }
 		})

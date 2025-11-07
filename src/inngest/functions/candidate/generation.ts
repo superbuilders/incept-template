@@ -199,6 +199,7 @@ export const generateTemplateCandidate = inngest.createFunction(
 	{ event: "template/candidate.generation.requested" },
 	async ({ event, step, logger }) => {
 		const { templateId, attempt } = event.data
+		const baseEventId = event.id
 		logger.info("generating template candidate", { templateId, attempt })
 
 		const generationResult = await errors.try(
@@ -215,6 +216,7 @@ export const generateTemplateCandidate = inngest.createFunction(
 
 			const failureEventResult = await errors.try(
 				step.sendEvent("template-candidate-generation-failed", {
+					id: `${baseEventId}-candidate-generation-failed-attempt-${attempt}`,
 					name: "template/candidate.generation.failed",
 					data: { templateId, attempt, reason }
 				})
@@ -248,12 +250,14 @@ export const generateTemplateCandidate = inngest.createFunction(
 
 			if (!generationResult.data.validatedAt) {
 				await step.sendEvent("request-existing-candidate-validation", {
+					id: `${baseEventId}-candidate-validation-request-${generationResult.data.attempt}`,
 					name: "template/candidate.validation.requested",
 					data: { templateId, attempt: generationResult.data.attempt }
 				})
 			} else {
 				const completionEventResult = await errors.try(
 					step.sendEvent("existing-candidate-validation-completed", {
+						id: `${baseEventId}-candidate-validation-already-${generationResult.data.attempt}`,
 						name: "template/candidate.validation.completed",
 						data: {
 							templateId,
@@ -291,6 +295,7 @@ export const generateTemplateCandidate = inngest.createFunction(
 		})
 
 		await step.sendEvent("request-candidate-validation", {
+			id: `${baseEventId}-candidate-validation-request-${generationResult.data.attempt}`,
 			name: "template/candidate.validation.requested",
 			data: { templateId, attempt: generationResult.data.attempt }
 		})

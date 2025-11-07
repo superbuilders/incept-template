@@ -61,6 +61,7 @@ export const executeTemplate = inngest.createFunction(
 	{ event: "template/template.execution.requested" },
 	async ({ event, step, logger }) => {
 		const { templateId, seed } = event.data
+		const baseEventId = event.id
 		logger.info("template execution requested", { templateId, seed })
 
 		const candidate = await findLatestValidatedCandidate(logger, templateId)
@@ -86,6 +87,7 @@ export const executeTemplate = inngest.createFunction(
 			}
 			const failureEventResult = await errors.try(
 				step.sendEvent("template-execution-failed-no-candidate", {
+					id: `${baseEventId}-template-execution-no-candidate`,
 					name: "template/template.execution.failed",
 					data: { templateId, attempt: failureAttempt, seed, reason }
 				})
@@ -113,6 +115,7 @@ export const executeTemplate = inngest.createFunction(
 		})
 		const dispatchResult = await errors.try(
 			step.sendEvent("template-execution-dispatch", {
+				id: `${baseEventId}-candidate-execution-request-${candidate.attempt}-${seed}`,
 				name: "template/candidate.execution.requested",
 				data: { templateId, attempt: candidate.attempt, seed }
 			})
@@ -156,6 +159,7 @@ export const executeTemplate = inngest.createFunction(
 			})
 			const failureEventResult = await errors.try(
 				step.sendEvent("template-execution-timeout", {
+					id: `${baseEventId}-template-execution-timeout-${candidate.attempt}-${seed}`,
 					name: "template/template.execution.failed",
 					data: { templateId, seed, reason, attempt: candidate.attempt }
 				})
@@ -179,6 +183,7 @@ export const executeTemplate = inngest.createFunction(
 			const executionId = outcome.evt.data.executionId
 			const completionEventResult = await errors.try(
 				step.sendEvent("template-execution-completed", {
+					id: `${baseEventId}-template-execution-completed-${candidate.attempt}-${seed}`,
 					name: "template/template.execution.completed",
 					data: {
 						templateId,
@@ -224,6 +229,7 @@ export const executeTemplate = inngest.createFunction(
 		}
 		const failureEventResult = await errors.try(
 			step.sendEvent("template-execution-failed", {
+				id: `${baseEventId}-template-execution-failed-${candidate.attempt}-${seed}`,
 				name: "template/template.execution.failed",
 				data: { templateId, seed, reason, attempt: candidate.attempt }
 			})

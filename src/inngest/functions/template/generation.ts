@@ -17,6 +17,7 @@ export const startTemplateGeneration = inngest.createFunction(
 	{ event: "template/template.generation.requested" },
 	async ({ event, step, logger }) => {
 		const { templateId } = event.data
+		const baseEventId = event.id
 		logger.info("starting template generation workflow", { templateId })
 
 		const templateResult = await db
@@ -33,6 +34,7 @@ export const startTemplateGeneration = inngest.createFunction(
 
 			const failureEventResult = await errors.try(
 				step.sendEvent("template-generation-start-failed", {
+					id: `${baseEventId}-generation-start-failed`,
 					name: "template/template.generation.failed",
 					data: { templateId, attempt: 0, reason }
 				})
@@ -71,6 +73,7 @@ export const startTemplateGeneration = inngest.createFunction(
 
 			const completionEventResult = await errors.try(
 				step.sendEvent("template-generation-already-completed", {
+					id: `${baseEventId}-generation-already-completed`,
 					name: "template/template.generation.completed",
 					data: { templateId, attempt: latestCandidate.attempt }
 				})
@@ -106,6 +109,7 @@ export const startTemplateGeneration = inngest.createFunction(
 
 			const requestGenerationEventResult = await errors.try(
 				step.sendEvent(`request-candidate-generation-${currentAttempt}`, {
+					id: `${baseEventId}-candidate-generation-${currentAttempt}`,
 					name: "template/candidate.generation.requested",
 					data: { templateId, attempt: currentAttempt }
 				})
@@ -151,6 +155,7 @@ export const startTemplateGeneration = inngest.createFunction(
 				})
 				const failureEventResult = await errors.try(
 					step.sendEvent("template-generation-timed-out", {
+						id: `${baseEventId}-generation-timeout-${currentAttempt}`,
 						name: "template/template.generation.failed",
 						data: { templateId, reason, attempt: currentAttempt }
 					})
@@ -178,6 +183,7 @@ export const startTemplateGeneration = inngest.createFunction(
 					})
 					const completionEventResult = await errors.try(
 						step.sendEvent("template-generation-completed", {
+							id: `${baseEventId}-generation-completed-${currentAttempt}`,
 							name: "template/template.generation.completed",
 							data: { templateId, attempt: currentAttempt }
 						})
@@ -213,6 +219,7 @@ export const startTemplateGeneration = inngest.createFunction(
 					const reason = `candidate validation failed after ${MAX_ATTEMPTS} attempts`
 					const failureEventResult = await errors.try(
 						step.sendEvent("template-generation-failed-validation", {
+							id: `${baseEventId}-generation-validation-failed-${currentAttempt}`,
 							name: "template/template.generation.failed",
 							data: { templateId, attempt: currentAttempt, reason }
 						})
@@ -258,6 +265,7 @@ export const startTemplateGeneration = inngest.createFunction(
 				})
 				const failureEventResult = await errors.try(
 					step.sendEvent("template-generation-failed-generation", {
+						id: `${baseEventId}-generation-candidate-failed-${currentAttempt}`,
 						name: "template/template.generation.failed",
 						data: { templateId, reason, attempt: currentAttempt }
 					})
