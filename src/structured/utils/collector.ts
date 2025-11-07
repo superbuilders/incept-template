@@ -6,7 +6,7 @@ import type {
 	FeedbackSharedPedagogy,
 	InlineContent
 } from "@/core/content/types"
-import type { FeedbackPlan } from "@/core/feedback/plan/types"
+import type { FeedbackPlanAny } from "@/core/feedback/plan/types"
 import type { Interaction } from "@/core/interactions/types"
 
 function walkInline<E extends readonly string[]>(
@@ -109,7 +109,6 @@ function walkInteractions<E extends readonly string[]>(
 				}
 				break
 			case "textEntryInteraction":
-			case "unsupportedInteraction":
 				break
 		}
 	}
@@ -134,7 +133,7 @@ function walkSharedPedagogy<E extends readonly string[]>(
  * @returns A Map from widgetId to widgetType. Throws if the same widgetId has conflicting types.
  */
 export function collectWidgetRefs<
-	P extends FeedbackPlan,
+	P extends FeedbackPlanAny,
 	E extends readonly string[]
 >(item: {
 	body: BlockContent<E> | null
@@ -157,7 +156,7 @@ export function collectWidgetRefs<
  * Collects just the widget IDs from an assessment item.
  */
 export function collectAllWidgetSlotIds<
-	P extends FeedbackPlan,
+	P extends FeedbackPlanAny,
 	E extends readonly string[]
 >(item: {
 	body: BlockContent<E> | null

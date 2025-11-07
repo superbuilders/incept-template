@@ -1,10 +1,6 @@
 import * as errors from "@superbuilders/errors"
 import * as logger from "@superbuilders/slog"
 import { z } from "zod"
-import {
-	CHOICE_IDENTIFIER_REGEX,
-	RESPONSE_IDENTIFIER_REGEX
-} from "@/compiler/qti-constants"
 import type { FeedbackPlanAny } from "@/core/feedback/plan/types"
 import type {
 	AssessmentItem,
@@ -14,21 +10,19 @@ import type {
 import { createBodyContentSchema } from "@/schemas/content/contextual-schemas"
 import { createFeedbackObjectSchema } from "@/schemas/feedback/authoring/schema"
 import { FeedbackPlanSchema } from "@/schemas/feedback/plan/schema"
+import {
+	ChoiceIdentifierSchema,
+	FeedbackCombinationIdentifierSchema,
+	ResponseIdentifierSchema
+} from "@/schemas/identifiers/schema"
 import { createAnyInteractionSchema } from "@/schemas/interactions/schema"
 import { WidgetSchema } from "@/widgets/registry"
 
-// Response Declaration Schema (shared across all dynamic schemas)
 const BaseResponseDeclarationSchema = z
 	.object({
-		identifier: z
-			.string()
-			.regex(
-				RESPONSE_IDENTIFIER_REGEX,
-				"invalid response identifier: must start with RESP"
-			)
-			.describe(
-				"Unique ID linking an interaction to this response declaration."
-			),
+		identifier: ResponseIdentifierSchema.describe(
+			"Unique ID linking an interaction to its response declaration."
+		),
 		cardinality: z
 			.enum(["single", "multiple", "ordered"])
 			.describe(
@@ -89,8 +83,10 @@ const IdentifierSingleResponseDeclaration =
 		baseType: z.literal("identifier"),
 		cardinality: z.literal("single"),
 		correct: z
-			.string()
-			.describe("The single correct choice identifier for this response.")
+			.union([FeedbackCombinationIdentifierSchema, ChoiceIdentifierSchema])
+			.describe(
+				"The single correct choice identifier or feedback combination id for this response."
+			)
 	}).strict()
 
 const IdentifierMultipleResponseDeclaration =
@@ -98,7 +94,7 @@ const IdentifierMultipleResponseDeclaration =
 		baseType: z.literal("identifier"),
 		cardinality: z.literal("multiple"),
 		correct: z
-			.array(z.string())
+			.array(ChoiceIdentifierSchema)
 			.nonempty()
 			.describe("The set of correct choice identifiers for this response.")
 	}).strict()
@@ -108,7 +104,7 @@ const IdentifierOrderedResponseDeclaration =
 		baseType: z.literal("identifier"),
 		cardinality: z.literal("ordered"),
 		correct: z
-			.array(z.string())
+			.array(ChoiceIdentifierSchema)
 			.nonempty()
 			.describe(
 				"The ordered sequence of correct choice identifiers for this response."
@@ -117,20 +113,12 @@ const IdentifierOrderedResponseDeclaration =
 
 const GapMatchCorrectPairSchema = z
 	.object({
-		source: z
-			.string()
-			.regex(
-				CHOICE_IDENTIFIER_REGEX,
-				"invalid source identifier: must be uppercase"
-			)
-			.describe("The identifier of the gap-text (draggable item)."),
-		target: z
-			.string()
-			.regex(
-				CHOICE_IDENTIFIER_REGEX,
-				"invalid target identifier: must be uppercase"
-			)
-			.describe("The identifier of the gap where the item should be placed.")
+		source: ChoiceIdentifierSchema.describe(
+			"The identifier of the gap-text (draggable item)."
+		),
+		target: ChoiceIdentifierSchema.describe(
+			"The identifier of the gap where the item should be placed."
+		)
 	})
 	.strict()
 	.describe("A source→target pair representing a correct match.")
@@ -247,7 +235,7 @@ export function createDynamicAssessmentItemSchema<
 	const AllowedWidgetSchema = WidgetSchema.superRefine((val, ctx) => {
 		if (!allowedTypeNames.has(val.type)) {
 			ctx.addIssue({
-				code: "custom",
+				code: z.ZodIssueCode.custom,
 				message: `widget type '${val.type}' is not allowed in this collection`,
 				path: ["type"]
 			})
@@ -331,7 +319,7 @@ export function createDynamicAssessmentItemSchema<
 
 				if (!gapTextIds.has(source)) {
 					ctx.addIssue({
-						code: "custom",
+						code: z.ZodIssueCode.custom,
 						message: `gap match validation: correct pair source '${source}' not in gapTexts`,
 						path: ["interactions", interactionKey, "gapTexts"]
 					})
@@ -339,7 +327,7 @@ export function createDynamicAssessmentItemSchema<
 
 				if (!declaredGapIds.has(target)) {
 					ctx.addIssue({
-						code: "custom",
+						code: z.ZodIssueCode.custom,
 						message: `gap match validation: correct pair target '${target}' not in gaps`,
 						path: ["interactions", interactionKey, "gaps"]
 					})
@@ -353,7 +341,7 @@ export function createDynamicAssessmentItemSchema<
 				const pairKey = `${pair.source}→${pair.target}`
 				if (seenPairs.has(pairKey)) {
 					ctx.addIssue({
-						code: "custom",
+						code: z.ZodIssueCode.custom,
 						message: `gap match validation: duplicate correct pair '${pairKey}'`,
 						path: ["responseDeclarations"]
 					})
@@ -372,7 +360,7 @@ export function createDynamicAssessmentItemSchema<
 				const matchMax = gapText?.matchMax ?? 1
 				if (matchMax !== 0 && usageCount > matchMax) {
 					ctx.addIssue({
-						code: "custom",
+						code: z.ZodIssueCode.custom,
 						message: `gap match validation: source '${source}' used ${usageCount} times, exceeds matchMax ${matchMax}`,
 						path: ["responseDeclarations"]
 					})
@@ -381,7 +369,7 @@ export function createDynamicAssessmentItemSchema<
 
 			if (declaration.cardinality !== "multiple") {
 				ctx.addIssue({
-					code: "custom",
+					code: z.ZodIssueCode.custom,
 					message: `gap match validation: cardinality must be 'multiple', not '${declaration.cardinality}'`,
 					path: ["responseDeclarations"]
 				})
@@ -400,7 +388,7 @@ export function createDynamicAssessmentItemSchema<
 				if (!node) continue
 				if (node.type === "gap") {
 					ctx.addIssue({
-						code: "custom",
+						code: z.ZodIssueCode.custom,
 						message:
 							"gap placeholders are only allowed inside gapMatchInteraction content",
 						path: contextPath

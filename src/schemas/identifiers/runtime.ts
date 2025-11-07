@@ -1,3 +1,5 @@
+import * as errors from "@superbuilders/errors"
+import * as logger from "@superbuilders/slog"
 import { regex } from "arkregex"
 import type {
 	ChoiceIdentifier,
@@ -6,12 +8,17 @@ import type {
 	SlotIdentifier
 } from "@/core/identifiers/types"
 
-const choiceIdentifierRegex = regex("^[A-Z][A-Z0-9_]*$")
-const responseIdentifierRegex = regex("^RESP(?:_[A-Z][A-Z0-9_]*)?$")
-const feedbackCombinationRegex = regex(
-	"^FB__[A-Z][A-Z0-9_]*(?:__[A-Z][A-Z0-9_]*)*$"
-)
-const slotIdentifierRegex = regex("^[a-z][a-z0-9_]*$")
+export const CHOICE_IDENTIFIER_PATTERN = "^[A-Z][A-Z0-9_]*$" as const
+export const RESPONSE_IDENTIFIER_PATTERN =
+	"^RESP(?:_[A-Z][A-Z0-9_]*)?$" as const
+export const FEEDBACK_COMBINATION_PATTERN =
+	"^FB__[A-Z][A-Z0-9_]*(?:__[A-Z][A-Z0-9_]*)*$" as const
+export const SLOT_IDENTIFIER_PATTERN = "^[a-z][a-z0-9_]*$" as const
+
+const choiceIdentifierRegex = regex(CHOICE_IDENTIFIER_PATTERN)
+const responseIdentifierRegex = regex(RESPONSE_IDENTIFIER_PATTERN)
+const feedbackCombinationRegex = regex(FEEDBACK_COMBINATION_PATTERN)
+const slotIdentifierRegex = regex(SLOT_IDENTIFIER_PATTERN)
 
 export const isChoiceIdentifier = (value: string): value is ChoiceIdentifier =>
 	choiceIdentifierRegex.test(value)
@@ -30,7 +37,8 @@ export const isSlotIdentifier = (value: string): value is SlotIdentifier =>
 
 export function assertChoiceIdentifier(value: string): ChoiceIdentifier {
 	if (!isChoiceIdentifier(value)) {
-		throw new TypeError(`Invalid choice identifier: ${value}`)
+		logger.error(`Invalid choice identifier: ${value}`)
+		throw errors.new(`Invalid choice identifier: ${value}`)
 	}
 	return value
 }

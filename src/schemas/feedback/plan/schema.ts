@@ -1,31 +1,22 @@
 import { z } from "zod"
 import {
-	CHOICE_IDENTIFIER_REGEX,
-	RESPONSE_IDENTIFIER_REGEX
-} from "@/compiler/qti-constants"
+	ChoiceIdentifierSchema,
+	FeedbackCombinationIdentifierSchema,
+	ResponseIdentifierSchema
+} from "@/schemas/identifiers/schema"
 
 export const FeedbackDimensionSchema = z
 	.discriminatedUnion("kind", [
 		z
 			.object({
-				responseIdentifier: z
-					.string()
-					.regex(
-						RESPONSE_IDENTIFIER_REGEX,
-						"invalid response identifier: must start with RESP"
-					),
+				responseIdentifier: ResponseIdentifierSchema,
 				kind: z.literal("enumerated"),
-				keys: z.array(z.string()).min(1)
+				keys: z.array(ChoiceIdentifierSchema).min(1)
 			})
 			.strict(),
 		z
 			.object({
-				responseIdentifier: z
-					.string()
-					.regex(
-						RESPONSE_IDENTIFIER_REGEX,
-						"invalid response identifier: must start with RESP"
-					),
+				responseIdentifier: ResponseIdentifierSchema,
 				kind: z.literal("binary")
 			})
 			.strict()
@@ -36,16 +27,16 @@ export const FeedbackDimensionSchema = z
 
 export const FeedbackCombinationSchema = z
 	.object({
-		id: z.string().min(1),
+		id: FeedbackCombinationIdentifierSchema,
 		path: z
 			.array(
 				z
 					.object({
-						responseIdentifier: z.string().regex(RESPONSE_IDENTIFIER_REGEX),
+						responseIdentifier: ResponseIdentifierSchema,
 						key: z.union([
 							z.literal("CORRECT"),
 							z.literal("INCORRECT"),
-							z.string().regex(CHOICE_IDENTIFIER_REGEX)
+							ChoiceIdentifierSchema
 						])
 					})
 					.strict()
@@ -72,7 +63,7 @@ export const FeedbackPlanSchema = z
 		for (const combination of plan.combinations) {
 			if (combination.path.length !== dimensionCount) {
 				ctx.addIssue({
-					code: z.ZodIssueCode.custom,
+					code: "custom",
 					message:
 						"Each feedback combination path must include exactly one segment per feedback dimension.",
 					path: ["combinations"]
@@ -82,7 +73,7 @@ export const FeedbackPlanSchema = z
 			for (const segment of combination.path) {
 				if (!dimensionIds.includes(segment.responseIdentifier)) {
 					ctx.addIssue({
-						code: z.ZodIssueCode.custom,
+						code: "custom",
 						message: `Combination references unknown response identifier '${segment.responseIdentifier}'.`,
 						path: ["combinations"]
 					})

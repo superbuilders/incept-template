@@ -7,7 +7,7 @@ import type {
 	FeedbackSharedPedagogy,
 	InlineContent
 } from "@/core/content/types"
-import type { FeedbackPlan } from "@/core/feedback/plan/types"
+import type { FeedbackPlanAny } from "@/core/feedback/plan/types"
 import type { Interaction } from "@/core/interactions/types"
 import type {
 	AssessmentItemInput,
@@ -336,7 +336,6 @@ async function generateInteractionContent<
 		}
 	)
 
-	// MODIFIED: API call migrated to Responses API
 	return ai.json(
 		{
 			model: OPENAI_MODEL,
@@ -365,8 +364,8 @@ async function generateFeedbackForOutcomeNested<
 	ai: Ai,
 	assessmentShell: AssessmentItemShell<WidgetTypeTupleFrom<C>>,
 	widgetCollection: C,
-	feedbackPlan: FeedbackPlan,
-	combination: FeedbackPlan["combinations"][0],
+	feedbackPlan: FeedbackPlanAny,
+	combination: FeedbackPlanAny["combinations"][0],
 	interactions: Record<string, Interaction<WidgetTypeTupleFrom<C>>>,
 	envelope: AiContextEnvelope,
 	imageContext: ImageContext
@@ -456,7 +455,7 @@ async function runShardedFeedbackNested<
 	ai: Ai,
 	shell: AssessmentItemShell<WidgetTypeTupleFrom<C>>,
 	collection: C,
-	plan: FeedbackPlan,
+	plan: FeedbackPlanAny,
 	interactions: Record<string, Interaction<WidgetTypeTupleFrom<C>>>,
 	envelope: AiContextEnvelope,
 	imageContext: ImageContext
@@ -551,7 +550,7 @@ export async function generateFromEnvelope<
 	ai: Ai,
 	envelope: AiContextEnvelope,
 	widgetCollection: C
-): Promise<AssessmentItemInput<WidgetTypeTupleFrom<C>, FeedbackPlan>> {
+): Promise<AssessmentItemInput<WidgetTypeTupleFrom<C>, FeedbackPlanAny>> {
 	if (!envelope.primaryContent || envelope.primaryContent.trim() === "") {
 		logger.error("envelope validation failed", {
 			reason: "primaryContent is empty"
