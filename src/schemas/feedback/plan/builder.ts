@@ -15,10 +15,12 @@ import type { Interaction } from "@/core/interactions/types"
 import type { ResponseDeclaration } from "@/core/item/types"
 import {
 	assertChoiceIdentifier,
-	assertFeedbackCombinationIdentifier
+	assertFeedbackCombinationIdentifier,
+	assertResponseIdentifier
 } from "@/schemas/identifiers/runtime"
 
-const SYNTHETIC_OVERALL_IDENTIFIER: ResponseIdentifier = "RESP__OVERALL"
+const SYNTHETIC_OVERALL_IDENTIFIER: ResponseIdentifier =
+	assertResponseIdentifier("RESP_OVERALL")
 
 const normalizeIdPart = (part: string): ChoiceIdentifier => {
 	const normalized = part.toUpperCase().replace(/[^A-Z0-9_]/g, "_")
@@ -120,16 +122,20 @@ export function buildFeedbackPlanFromInteractions<E extends readonly string[]>(
 	const buildCombinations = (
 		index: number,
 		path: Array<{ responseIdentifier: ResponseIdentifier; key: string }>
-	) => {
+	): void => {
 		if (index >= enumeratedDimensions.length) {
-			let derivedId: string
+			let derivedId: FeedbackCombinationIdentifier
 			if (useSyntheticOverall) {
-				derivedId = path[0]?.key ?? "CORRECT"
+				const outcome = path[0]?.key ?? "CORRECT"
+				derivedId = assertFeedbackCombinationIdentifier(outcome)
 			} else {
 				derivedId = deriveComboIdentifier(
-					path.map(
-						(seg) =>
-							`${normalizeIdPart(seg.responseIdentifier)}_${normalizeIdPart(seg.key)}`
+					path.map((seg) =>
+						assertChoiceIdentifier(
+							`${normalizeIdPart(seg.responseIdentifier)}_${normalizeIdPart(
+								seg.key
+							)}`
+						)
 					)
 				)
 			}

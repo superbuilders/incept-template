@@ -16,9 +16,14 @@ import { createSeededRandom } from "@/templates/seeds"
 
 export type TemplateWidgets = readonly ["dotPlot"]
 
-type PlanChoiceIds = ChoiceIdentifierTuple<readonly ["A", "B", "C", "D"]>
+const PLAN_CHOICE_IDS = [
+	"A",
+	"B",
+	"C",
+	"D"
+] as const satisfies ChoiceIdentifierTuple<readonly ["A", "B", "C", "D"]>
 
-const PLAN_CHOICE_IDS: PlanChoiceIds = ["A", "B", "C", "D"]
+type PlanChoiceId = (typeof PLAN_CHOICE_IDS)[number]
 
 type PlanDimensions = readonly [
 	EnumeratedFeedbackDimension<"RESP", typeof PLAN_CHOICE_IDS>
@@ -34,25 +39,27 @@ const FEEDBACK_DIMENSIONS: PlanDimensions = [
 
 const FEEDBACK_COMBINATIONS = [
 	{
-		id: "FB__RESP_A",
+		id: "FB__A",
 		path: [{ responseIdentifier: "RESP", key: "A" }]
 	},
 	{
-		id: "FB__RESP_B",
+		id: "FB__B",
 		path: [{ responseIdentifier: "RESP", key: "B" }]
 	},
 	{
-		id: "FB__RESP_C",
+		id: "FB__C",
 		path: [{ responseIdentifier: "RESP", key: "C" }]
 	},
 	{
-		id: "FB__RESP_D",
+		id: "FB__D",
 		path: [{ responseIdentifier: "RESP", key: "D" }]
 	}
-] satisfies readonly FeedbackCombination<
+] as const satisfies readonly FeedbackCombination<
 	FeedbackCombinationIdentifier,
 	PlanDimensions
 >[]
+
+type PlanCombinationId = (typeof FEEDBACK_COMBINATIONS)[number]["id"]
 
 type PlanCombinations = typeof FEEDBACK_COMBINATIONS
 
@@ -246,12 +253,17 @@ export default function generateTemplate(
 		}
 	}
 
-	const valueForKey = (key: PlanChoiceIds[number]): number => {
+	const valueForKey = (key: PlanChoiceId): number => {
 		const index = choiceIdentifiers.indexOf(key)
 		return optionNumbers[index] ?? optionNumbers[0]
 	}
 
-	const buildPreamble = (key: PlanChoiceIds[number]) => {
+	type PreambleForCombination = FeedbackBundle<
+		typeof feedbackPlan,
+		TemplateWidgets
+	>["preambles"][PlanCombinationId]
+
+	const buildPreamble = (key: PlanChoiceId): PreambleForCombination => {
 		const chosenNumber = valueForKey(key)
 		if (key === correctChoiceIdentifier) {
 			return {
@@ -281,10 +293,10 @@ export default function generateTemplate(
 		typeof feedbackPlan,
 		TemplateWidgets
 	>["preambles"] = {
-		FB__RESP_A: buildPreamble("A"),
-		FB__RESP_B: buildPreamble("B"),
-		FB__RESP_C: buildPreamble("C"),
-		FB__RESP_D: buildPreamble("D")
+		FB__A: buildPreamble("A"),
+		FB__B: buildPreamble("B"),
+		FB__C: buildPreamble("C"),
+		FB__D: buildPreamble("D")
 	}
 
 	const feedbackBundle: FeedbackBundle<typeof feedbackPlan, TemplateWidgets> = {

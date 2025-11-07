@@ -13,11 +13,14 @@ import type {
 } from "@/core/identifiers/types"
 import type { AssessmentItemInput } from "@/core/item/types"
 
-type TemplateWidgets = readonly []
+export type TemplateWidgets = readonly []
 
-type PlanChoiceIds = ChoiceIdentifierTuple<readonly ["A", "B", "C", "D"]>
-
-const PLAN_CHOICE_IDS: PlanChoiceIds = ["A", "B", "C", "D"]
+const PLAN_CHOICE_IDS = [
+	"A",
+	"B",
+	"C",
+	"D"
+] as const satisfies ChoiceIdentifierTuple<readonly ["A", "B", "C", "D"]>
 
 type PlanDimensions = readonly [
 	EnumeratedFeedbackDimension<"RESP", typeof PLAN_CHOICE_IDS>
@@ -33,22 +36,22 @@ const FEEDBACK_DIMENSIONS: PlanDimensions = [
 
 const FEEDBACK_COMBINATIONS = [
 	{
-		id: "FB__RESP_A",
+		id: "FB__A",
 		path: [{ responseIdentifier: "RESP", key: "A" }]
 	},
 	{
-		id: "FB__RESP_B",
+		id: "FB__B",
 		path: [{ responseIdentifier: "RESP", key: "B" }]
 	},
 	{
-		id: "FB__RESP_C",
+		id: "FB__C",
 		path: [{ responseIdentifier: "RESP", key: "C" }]
 	},
 	{
-		id: "FB__RESP_D",
+		id: "FB__D",
 		path: [{ responseIdentifier: "RESP", key: "D" }]
 	}
-] satisfies readonly FeedbackCombination<
+] as const satisfies readonly FeedbackCombination<
 	FeedbackCombinationIdentifier,
 	PlanDimensions
 >[]
@@ -105,50 +108,52 @@ const sharedPedagogy: FeedbackSharedPedagogy<TemplateWidgets> = {
 	}
 }
 
+const preambles = {
+	FB__A: {
+		correctness: "correct",
+		summary: [
+			{
+				type: "text",
+				content:
+					"Nice job! You handled those fractions just like the walkthrough showed, so everything lines up perfectly."
+			}
+		]
+	},
+	FB__B: {
+		correctness: "incorrect",
+		summary: [
+			{
+				type: "text",
+				content:
+					"Not quite what we were expecting—you kept the denominator and only touched the numerators."
+			}
+		]
+	},
+	FB__C: {
+		correctness: "incorrect",
+		summary: [
+			{
+				type: "text",
+				content:
+					"Oops! You multiplied the denominators but forgot to do anything special with the numerators."
+			}
+		]
+	},
+	FB__D: {
+		correctness: "incorrect",
+		summary: [
+			{
+				type: "text",
+				content:
+					"You had the right idea but typed the decimal instead of the fraction form we asked for."
+			}
+		]
+	}
+} satisfies FeedbackBundle<typeof feedbackPlan, TemplateWidgets>["preambles"]
+
 const feedbackBundle: FeedbackBundle<typeof feedbackPlan, TemplateWidgets> = {
 	shared: sharedPedagogy,
-	preambles: {
-		FB__RESP_A: {
-			correctness: "correct",
-			summary: [
-				{
-					type: "text",
-					content:
-						"Nice job! You handled those fractions just like the walkthrough showed, so everything lines up perfectly."
-				}
-			]
-		},
-		FB__RESP_B: {
-			correctness: "incorrect",
-			summary: [
-				{
-					type: "text",
-					content:
-						"Not quite what we were expecting—you kept the denominator and only touched the numerators."
-				}
-			]
-		},
-		FB__RESP_C: {
-			correctness: "incorrect",
-			summary: [
-				{
-					type: "text",
-					content:
-						"Oops! You multiplied the denominators but forgot to do anything special with the numerators."
-				}
-			]
-		},
-		FB__RESP_D: {
-			correctness: "incorrect",
-			summary: [
-				{
-					type: "text",
-					content:
-						"You had the right idea but typed the decimal instead of the fraction form we asked for."
-				}
-			]
-		}
-	}
+	preambles
 }
 
 const assessmentItem: AssessmentItemInput<
