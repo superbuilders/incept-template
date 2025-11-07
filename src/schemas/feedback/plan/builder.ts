@@ -6,11 +6,16 @@ import type {
 	FeedbackDimension,
 	FeedbackPlanAny
 } from "@/core/feedback/plan/types"
-import { deriveComboIdentifier, normalizeIdPart } from "@/core/feedback/utils"
 import type { AnyInteraction } from "@/core/interactions/types"
 import type { ResponseDeclaration } from "@/core/item/types"
 
 const SYNTHETIC_OVERALL_IDENTIFIER = "RESPONSE__OVERALL"
+
+const normalizeIdPart = (part: string): string =>
+	part.toUpperCase().replace(/[^A-Z0-9_]/g, "_")
+
+const deriveComboIdentifier = (pathParts: string[]): string =>
+	`FB__${pathParts.join("__")}`
 
 /**
  * Derives an explicit FeedbackPlan from interactions and responseDeclarations.
