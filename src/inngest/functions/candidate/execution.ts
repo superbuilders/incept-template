@@ -37,6 +37,15 @@ const SLASH_ALIAS_TARGETS = RAW_ALIAS_TARGETS.filter(
 		existsSync(candidate) && array.indexOf(candidate) === index
 )
 
+const REQUIRED_ALIAS_TYPE_SPECIFIERS = [
+	"core/content/types",
+	"core/feedback/content/types",
+	"core/feedback/plan/types",
+	"core/feedback/authoring/types",
+	"core/interactions/types",
+	"core/item/types"
+] as const
+
 function hasDefaultExport(value: unknown): value is ModuleWithDefault {
 	return typeof value === "object" && value !== null && "default" in value
 }
@@ -227,6 +236,15 @@ export const executeTemplateCandidate = inngest.createFunction(
 		const tempDir = await mkdtemp(path.join(tmpdir(), "template-execution-"))
 		cleanupStack.defer(() => rmSync(tempDir, { recursive: true, force: true }))
 
+		const requiredTypeModulesResult = errors.trySync(() =>
+			ensureRequiredTypeModulesAvailable(logger, templateId, attempt)
+		)
+		if (requiredTypeModulesResult.error) {
+			return fail("required type module missing", {
+				error: requiredTypeModulesResult.error
+			})
+		}
+
 		const rewrittenSource = rewriteAliasImports(
 			logger,
 			templateId,
@@ -403,4 +421,25 @@ function rewriteAliasImports(
 	}
 
 	return transformed
+}
+
+function ensureRequiredTypeModulesAvailable(
+	logger: Logger,
+	templateId: string,
+	attempt: number
+) {
+	for (const specifier of REQUIRED_ALIAS_TYPE_SPECIFIERS) {
+		const resolutionResult = errors.trySync(() =>
+			resolveAliasSpecifier(logger, templateId, attempt, specifier)
+		)
+		if (resolutionResult.error) {
+			logger.error("required type module resolution failed", {
+				templateId,
+				attempt,
+				specifier,
+				error: resolutionResult.error
+			})
+			throw resolutionResult.error
+		}
+	}
 }

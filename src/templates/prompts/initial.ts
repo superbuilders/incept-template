@@ -18,6 +18,7 @@ import {
 	createAssessmentItemTypesSection,
 	createContentTypesSection,
 	createFeedbackAuthoringTypesSection,
+	createFeedbackContentTypesSection,
 	createFeedbackPlanSchemaSection,
 	createFeedbackPlanTypesSection,
 	createInteractionTypesSection
@@ -48,6 +49,7 @@ export function composeInitialPrompt(
 		createInteractionTypesSection(),
 		createFeedbackPlanTypesSection(),
 		createFeedbackPlanSchemaSection(),
+		createFeedbackContentTypesSection(),
 		createFeedbackAuthoringTypesSection(),
 		IDENTIFIER_GUIDANCE_SECTION,
 		FEEDBACK_GUIDANCE_SECTION,
