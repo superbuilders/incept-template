@@ -17,7 +17,10 @@ import type {
 	FeedbackCombination,
 	StaticFeedbackPlan
 } from "@/core/feedback/plan/types"
-import type { ChoiceIdentifierTuple } from "@/core/identifiers/types"
+import type {
+	ChoiceIdentifierTuple,
+	FeedbackCombinationIdentifier
+} from "@/core/identifiers/types"
 import type { AssessmentItemInput } from "@/core/item/types"
 import { createSeededRandom } from "@/templates/seeds"
 import type { TemplateModule } from "@/templates/types"
@@ -27,15 +30,11 @@ import type { TemplateModule } from "@/templates/types"
 export type TemplateWidgets = readonly ["partitionedShape"]
 
 const PLAN_CHOICE_IDS = [
-	"CHOICE_0",
-	"CHOICE_1",
-	"CHOICE_2",
-	"CHOICE_3"
-] as const satisfies ChoiceIdentifierTuple<
-	readonly ["CHOICE_0", "CHOICE_1", "CHOICE_2", "CHOICE_3"]
->
-
-type ChoiceId = (typeof PLAN_CHOICE_IDS)[number]
+	"A",
+	"B",
+	"C",
+	"D"
+] as const satisfies ChoiceIdentifierTuple<readonly ["A", "B", "C", "D"]>
 
 type PlanDimensions = readonly [
 	EnumeratedFeedbackDimension<"RESPONSE", typeof PLAN_CHOICE_IDS>
@@ -49,26 +48,29 @@ const FEEDBACK_DIMENSIONS: PlanDimensions = [
 	}
 ]
 
-type PlanCombinationId = `FB__RESPONSE_${ChoiceId}`
-
 const FEEDBACK_COMBINATIONS = [
 	{
-		id: "FB__RESPONSE_CHOICE_0",
-		path: [{ responseIdentifier: "RESPONSE", key: "CHOICE_0" }]
+		id: "FB__A",
+		path: [{ responseIdentifier: "RESPONSE", key: "A" }]
 	},
 	{
-		id: "FB__RESPONSE_CHOICE_1",
-		path: [{ responseIdentifier: "RESPONSE", key: "CHOICE_1" }]
+		id: "FB__B",
+		path: [{ responseIdentifier: "RESPONSE", key: "B" }]
 	},
 	{
-		id: "FB__RESPONSE_CHOICE_2",
-		path: [{ responseIdentifier: "RESPONSE", key: "CHOICE_2" }]
+		id: "FB__C",
+		path: [{ responseIdentifier: "RESPONSE", key: "C" }]
 	},
 	{
-		id: "FB__RESPONSE_CHOICE_3",
-		path: [{ responseIdentifier: "RESPONSE", key: "CHOICE_3" }]
+		id: "FB__D",
+		path: [{ responseIdentifier: "RESPONSE", key: "D" }]
 	}
-] as const satisfies readonly FeedbackCombination<string, PlanDimensions>[]
+] as const satisfies readonly FeedbackCombination<
+	FeedbackCombinationIdentifier,
+	PlanDimensions
+>[]
+
+type PlanCombinationId = (typeof FEEDBACK_COMBINATIONS)[number]["id"]
 
 type PlanCombinations = typeof FEEDBACK_COMBINATIONS
 
@@ -306,10 +308,10 @@ export const generateFractionAdditionQuestion: TemplateModule<
 	}
 
 	const expectedCombinationIds: readonly PlanCombinationId[] = [
-		"FB__RESPONSE_CHOICE_0",
-		"FB__RESPONSE_CHOICE_1",
-		"FB__RESPONSE_CHOICE_2",
-		"FB__RESPONSE_CHOICE_3"
+		"FB__A",
+		"FB__B",
+		"FB__C",
+		"FB__D"
 	]
 
 	const actualCombinationIds: readonly PlanCombinationId[] = [
@@ -564,10 +566,10 @@ export const generateFractionAdditionQuestion: TemplateModule<
 	}
 
 	const preambles: FeedbackPreambleMap<typeof feedbackPlan> = {
-		FB__RESPONSE_CHOICE_0: buildPreambleForChoice(choice0),
-		FB__RESPONSE_CHOICE_1: buildPreambleForChoice(choice1),
-		FB__RESPONSE_CHOICE_2: buildPreambleForChoice(choice2),
-		FB__RESPONSE_CHOICE_3: buildPreambleForChoice(choice3)
+		FB__A: buildPreambleForChoice(choice0),
+		FB__B: buildPreambleForChoice(choice1),
+		FB__C: buildPreambleForChoice(choice2),
+		FB__D: buildPreambleForChoice(choice3)
 	}
 
 	const feedbackBundle: FeedbackBundle<typeof feedbackPlan, TemplateWidgets> = {

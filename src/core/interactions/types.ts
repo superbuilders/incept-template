@@ -17,7 +17,10 @@ export type Interaction<E extends readonly string[]> =
 	| {
 			type: "inlineChoiceInteraction"
 			responseIdentifier: ResponseIdentifier
-			choices: Array<{ identifier: ChoiceIdentifier; content: InlineContent<E> }>
+			choices: Array<{
+				identifier: ChoiceIdentifier
+				content: InlineContent<E>
+			}>
 			shuffle: true
 	  }
 	| {
@@ -36,7 +39,7 @@ export type Interaction<E extends readonly string[]> =
 	| {
 			type: "gapMatchInteraction"
 			responseIdentifier: ResponseIdentifier
-			shuffle: boolean
+			shuffle: true
 			content: BlockContent<E>
 			gapTexts: Array<{
 				identifier: ChoiceIdentifier
@@ -44,9 +47,4 @@ export type Interaction<E extends readonly string[]> =
 				content: InlineContent<E>
 			}>
 			gaps: Array<{ identifier: ChoiceIdentifier; required: boolean | null }>
-	  }
-	| {
-			type: "unsupportedInteraction"
-			perseusType: string
-			responseIdentifier: ResponseIdentifier
 	  }
