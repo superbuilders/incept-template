@@ -4,7 +4,7 @@ import type {
 	EnumeratedFeedbackDimension,
 	FeedbackCombination,
 	FeedbackDimension,
-	FeedbackPlan
+	FeedbackPlanAny
 } from "@/core/feedback/plan/types"
 import { deriveComboIdentifier, normalizeIdPart } from "@/core/feedback/utils"
 import type { AnyInteraction } from "@/core/interactions/types"
@@ -20,7 +20,7 @@ const SYNTHETIC_OVERALL_IDENTIFIER = "RESPONSE__OVERALL"
 export function buildFeedbackPlanFromInteractions<E extends readonly string[]>(
 	interactions: Record<string, AnyInteraction<E>>,
 	responseDeclarations: ResponseDeclaration[]
-): FeedbackPlan {
+): FeedbackPlanAny {
 	const sortedInteractions: Array<AnyInteraction<E>> = Object.values(
 		interactions
 	).sort((a, b) => {
@@ -57,15 +57,17 @@ export function buildFeedbackPlanFromInteractions<E extends readonly string[]>(
 		})
 	}
 
-	const enumeratedDimensions: EnumeratedFeedbackDimension[] = dimensions.map(
-		(dim) =>
-			dim.kind === "enumerated"
-				? dim
-				: {
-						responseIdentifier: dim.responseIdentifier,
-						kind: "enumerated" as const,
-						keys: ["CORRECT", "INCORRECT"]
-					}
+	const enumeratedDimensions: EnumeratedFeedbackDimension<
+		string,
+		readonly string[]
+	>[] = dimensions.map((dim) =>
+		dim.kind === "enumerated"
+			? dim
+			: {
+					responseIdentifier: dim.responseIdentifier,
+					kind: "enumerated" as const,
+					keys: ["CORRECT", "INCORRECT"]
+				}
 	)
 
 	if (enumeratedDimensions.length === 0) {
@@ -86,7 +88,9 @@ export function buildFeedbackPlanFromInteractions<E extends readonly string[]>(
 		dimensionCount: enumeratedDimensions.length
 	})
 
-	const combinations: FeedbackCombination[] = []
+	const combinations: Array<
+		FeedbackCombination<string, readonly FeedbackDimension[]>
+	> = []
 	const combinationIds = new Set<string>()
 
 	const useSyntheticOverall =
@@ -135,5 +139,5 @@ export function buildFeedbackPlanFromInteractions<E extends readonly string[]>(
 	return {
 		dimensions: enumeratedDimensions,
 		combinations
-	}
+	} satisfies FeedbackPlanAny
 }

@@ -1,6 +1,6 @@
 import type {
 	FeedbackCombinationKeyspace,
-	FeedbackPlan
+	FeedbackPlanAny
 } from "@/core/feedback/plan/types"
 
 export type InlineContentItem<E extends readonly string[]> =
@@ -62,13 +62,13 @@ export type FeedbackSharedPedagogy<E extends readonly string[]> = {
 	solution: SolutionBlock<E>
 }
 
-export type FeedbackPreambleMap<P extends FeedbackPlan> = Record<
+export type FeedbackPreambleMap<P extends FeedbackPlanAny> = Record<
 	FeedbackCombinationKeyspace<P>,
 	FeedbackPreamble
 >
 
 export type FeedbackBundle<
-	P extends FeedbackPlan,
+	P extends FeedbackPlanAny,
 	E extends readonly string[]
 > = {
 	shared: FeedbackSharedPedagogy<E>

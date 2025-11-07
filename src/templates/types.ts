@@ -1,4 +1,4 @@
-import type { FeedbackPlan } from "@/core/feedback/plan/types"
+import type { FeedbackPlanAny } from "@/core/feedback/plan/types"
 import type { AssessmentItemInput } from "@/core/item/types"
 import type { WidgetTypeTuple } from "@/widgets/collections/types"
 
@@ -11,5 +11,5 @@ export type TypeScriptDiagnostic = {
 
 export type TemplateModule<
 	E extends WidgetTypeTuple,
-	P extends FeedbackPlan
+	P extends FeedbackPlanAny
 > = (seed: bigint) => AssessmentItemInput<E, P>

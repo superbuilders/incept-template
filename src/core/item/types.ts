@@ -1,6 +1,6 @@
 import type { z } from "zod"
 import type { BlockContent, FeedbackBundle } from "@/core/content/types"
-import type { FeedbackPlan } from "@/core/feedback/plan/types"
+import type { FeedbackPlanAny } from "@/core/feedback/plan/types"
 import type { AnyInteraction } from "@/core/interactions/types"
 import type { typedSchemas } from "@/widgets/registry"
 
@@ -74,7 +74,7 @@ export type AssessmentItemShell<E extends readonly string[]> = {
 
 export type AssessmentItem<
 	E extends readonly string[],
-	P extends FeedbackPlan
+	P extends FeedbackPlanAny
 > = {
 	identifier: string
 	title: string
@@ -88,5 +88,5 @@ export type AssessmentItem<
 
 export type AssessmentItemInput<
 	E extends readonly string[],
-	P extends FeedbackPlan
+	P extends FeedbackPlanAny
 > = AssessmentItem<E, P>

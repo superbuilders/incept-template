@@ -9,11 +9,15 @@ import type {
 } from "@/core/content/types"
 import type {
 	FeedbackCombinationId,
-	FeedbackPlan
+	FeedbackPlanAny
 } from "@/core/feedback/plan/types"
 
+const combinationIdOf = <Plan extends FeedbackPlanAny>(
+	combination: Plan["combinations"][number]
+): FeedbackCombinationId<Plan> => combination.id
+
 export function createFeedbackBundle<
-	P extends FeedbackPlan,
+	P extends FeedbackPlanAny,
 	E extends readonly string[]
 >(
 	plan: P,
@@ -35,8 +39,9 @@ export function createFeedbackBundle<
 	}
 
 	const normalized: PartialFeedbackPreambleMap<P> = {}
+
 	for (const combination of plan.combinations) {
-		const combinationId: FeedbackCombinationId<P> = combination.id
+		const combinationId = combinationIdOf<P>(combination)
 		const preamble = preambles[combinationId]
 		if (!preamble) {
 			logger.error("missing preamble during bundle normalization", {
@@ -58,7 +63,7 @@ export function createFeedbackBundle<
 }
 
 export function expandFeedbackBundle<
-	P extends FeedbackPlan,
+	P extends FeedbackPlanAny,
 	E extends readonly string[]
 >(
 	plan: P,
@@ -67,7 +72,7 @@ export function expandFeedbackBundle<
 	const contentMap: PartialFeedbackContentMap<P, E> = {}
 
 	for (const combination of plan.combinations) {
-		const combinationId: FeedbackCombinationId<P> = combination.id
+		const combinationId = combinationIdOf<P>(combination)
 		const preamble = bundle.preambles[combinationId]
 		if (!preamble) {
 			logger.error("missing preamble while expanding bundle", {
@@ -86,16 +91,16 @@ export function expandFeedbackBundle<
 	return contentMap
 }
 
-type PartialFeedbackPreambleMap<P extends FeedbackPlan> = {
+type PartialFeedbackPreambleMap<P extends FeedbackPlanAny> = {
 	[K in FeedbackCombinationId<P>]?: FeedbackPreamble
 }
 
-function assertPreambleMapComplete<P extends FeedbackPlan>(
+function assertPreambleMapComplete<P extends FeedbackPlanAny>(
 	plan: P,
 	map: PartialFeedbackPreambleMap<P>
 ): asserts map is FeedbackPreambleMap<P> {
 	for (const combination of plan.combinations) {
-		const combinationId: FeedbackCombinationId<P> = combination.id
+		const combinationId = combinationIdOf<P>(combination)
 		if (!Object.hasOwn(map, combinationId)) {
 			logger.error("missing feedback preamble entry", { combinationId })
 			throw errors.new(`missing feedback preamble for '${combinationId}'`)
@@ -109,21 +114,21 @@ function assertPreambleMapComplete<P extends FeedbackPlan>(
 }
 
 type PartialFeedbackContentMap<
-	P extends FeedbackPlan,
+	P extends FeedbackPlanAny,
 	E extends readonly string[]
 > = {
 	[K in FeedbackCombinationId<P>]?: FeedbackContent<E>
 }
 
 function assertContentMapComplete<
-	P extends FeedbackPlan,
+	P extends FeedbackPlanAny,
 	E extends readonly string[]
 >(
 	plan: P,
 	map: PartialFeedbackContentMap<P, E>
 ): asserts map is Record<FeedbackCombinationId<P>, FeedbackContent<E>> {
 	for (const combination of plan.combinations) {
-		const combinationId: FeedbackCombinationId<P> = combination.id
+		const combinationId = combinationIdOf<P>(combination)
 		if (!Object.hasOwn(map, combinationId)) {
 			logger.error("missing expanded feedback content", { combinationId })
 			throw errors.new(

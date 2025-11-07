@@ -19,13 +19,17 @@ import type {
 import { buildFeedbackPlanFromInteractions } from "@/core/feedback/plan/builder"
 import type {
 	FeedbackCombinationId,
-	FeedbackPlan
+	FeedbackPlanAny
 } from "@/core/feedback/plan/types"
 import type { AnyInteraction } from "@/core/interactions/types"
 import type { ResponseDeclaration } from "@/core/item/types"
 
+const combinationIdOf = <Plan extends FeedbackPlanAny>(
+	combination: Plan["combinations"][number]
+): FeedbackCombinationId<Plan> => combination.id
+
 export function createFeedbackObjectSchema<
-	P extends FeedbackPlan,
+	P extends FeedbackPlanAny,
 	const E extends readonly string[]
 >(
 	feedbackPlan: P,
@@ -35,9 +39,8 @@ export function createFeedbackObjectSchema<
 	const PreambleSchema: z.ZodType<FeedbackPreamble> =
 		createFeedbackPreambleSchema(widgetTypeKeys)
 
-	const combinationIds = feedbackPlan.combinations.map<
-		FeedbackCombinationId<P>
-	>((combo) => combo.id)
+	const combinationIds: FeedbackCombinationId<P>[] =
+		feedbackPlan.combinations.map((combo) => combinationIdOf<P>(combo))
 
 	const ensureNonEmptyTuple = <T>(items: T[]): [T, ...T[]] => {
 		if (items.length === 0) {
@@ -67,7 +70,7 @@ export function createFeedbackObjectSchema<
 }
 
 export function validateFeedbackObject<
-	P extends FeedbackPlan,
+	P extends FeedbackPlanAny,
 	const E extends readonly string[]
 >(
 	feedbackObject: unknown,
@@ -86,7 +89,7 @@ export function validateFeedbackObject<
 }
 
 export function convertAuthoringFeedbackToBundle<
-	P extends FeedbackPlan,
+	P extends FeedbackPlanAny,
 	E extends readonly string[]
 >(
 	feedback: AuthoringFeedbackOverall<P, E>,
@@ -96,7 +99,7 @@ export function convertAuthoringFeedbackToBundle<
 }
 
 export function buildEmptyNestedFeedback<
-	P extends FeedbackPlan,
+	P extends FeedbackPlanAny,
 	const E extends readonly string[]
 >(feedbackPlan: P): NestedFeedbackAuthoring<P, E> {
 	const shared: FeedbackSharedPedagogy<E> = {
@@ -111,7 +114,7 @@ export function buildEmptyNestedFeedback<
 
 	const preambles: PartialFeedbackPreambleMap<P> = {}
 	for (const combination of feedbackPlan.combinations) {
-		const combinationId: FeedbackCombinationId<P> = combination.id
+		const combinationId = combinationIdOf<P>(combination)
 		preambles[combinationId] = { ...defaultPreamble }
 	}
 	assertPreambleMapComplete(feedbackPlan, preambles)
@@ -129,11 +132,11 @@ export function buildFeedbackFromNestedForTemplate<
 >(
 	interactions: Record<string, AnyInteraction<E>>,
 	responseDeclarations: ResponseDeclaration[],
-	feedbackObject: AuthoringFeedbackOverall<FeedbackPlan, E>,
+	feedbackObject: AuthoringFeedbackOverall<FeedbackPlanAny, E>,
 	widgetTypeKeys: E
 ): {
-	feedbackPlan: FeedbackPlan
-	feedback: FeedbackBundle<FeedbackPlan, E>
+	feedbackPlan: FeedbackPlanAny
+	feedback: FeedbackBundle<FeedbackPlanAny, E>
 } {
 	const plan = buildFeedbackPlanFromInteractions(
 		interactions,
@@ -144,16 +147,16 @@ export function buildFeedbackFromNestedForTemplate<
 	return { feedbackPlan: plan, feedback: bundle }
 }
 
-type PartialFeedbackPreambleMap<P extends FeedbackPlan> = {
+type PartialFeedbackPreambleMap<P extends FeedbackPlanAny> = {
 	[K in FeedbackCombinationId<P>]?: FeedbackPreamble
 }
 
-function assertPreambleMapComplete<P extends FeedbackPlan>(
+function assertPreambleMapComplete<P extends FeedbackPlanAny>(
 	plan: P,
 	map: PartialFeedbackPreambleMap<P>
 ): asserts map is FeedbackPreambleMap<P> {
 	for (const combination of plan.combinations) {
-		const combinationId: FeedbackCombinationId<P> = combination.id
+		const combinationId = combinationIdOf<P>(combination)
 		if (!Object.hasOwn(map, combinationId)) {
 			logger.error("missing feedback preamble entry", { combinationId })
 			throw errors.new(`missing feedback preamble for '${combinationId}'`)

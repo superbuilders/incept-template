@@ -12,7 +12,12 @@ import type {
 	FeedbackPreambleMap,
 	FeedbackSharedPedagogy
 } from "@/core/content/types"
-import type { FeedbackPlan } from "@/core/feedback/plan/types"
+import type {
+	ChoiceIdentifierTuple,
+	EnumeratedFeedbackDimension,
+	FeedbackCombination,
+	StaticFeedbackPlan
+} from "@/core/feedback/plan/types"
 import type { AssessmentItemInput } from "@/core/item/types"
 import { createSeededRandom } from "@/templates/seeds"
 import type { TemplateModule } from "@/templates/types"
@@ -21,26 +26,61 @@ import type { TemplateModule } from "@/templates/types"
 // The template includes a 'partitionedShape' widget in the widgets map below
 export type TemplateWidgets = readonly ["partitionedShape"]
 
-const PLAN_CHOICE_IDS: readonly [
+const PLAN_CHOICE_IDS = [
 	"CHOICE_0",
 	"CHOICE_1",
 	"CHOICE_2",
 	"CHOICE_3"
-] = ["CHOICE_0", "CHOICE_1", "CHOICE_2", "CHOICE_3"]
+] as const satisfies ChoiceIdentifierTuple<
+	readonly ["CHOICE_0", "CHOICE_1", "CHOICE_2", "CHOICE_3"]
+>
 
-const feedbackPlan = {
-	dimensions: [
-		{
-			responseIdentifier: "RESPONSE",
-			kind: "enumerated",
-			keys: PLAN_CHOICE_IDS
-		}
-	],
-	combinations: PLAN_CHOICE_IDS.map((choiceId) => ({
-		id: `FB__RESPONSE_${choiceId}`,
-		path: [{ responseIdentifier: "RESPONSE", key: choiceId }]
-	}))
-} as const satisfies FeedbackPlan
+type ChoiceId = (typeof PLAN_CHOICE_IDS)[number]
+
+type PlanDimensions = readonly [
+	EnumeratedFeedbackDimension<"RESPONSE", typeof PLAN_CHOICE_IDS>
+]
+
+const FEEDBACK_DIMENSIONS: PlanDimensions = [
+	{
+		responseIdentifier: "RESPONSE",
+		kind: "enumerated",
+		keys: PLAN_CHOICE_IDS
+	}
+]
+
+type PlanCombinationId = `FB__RESPONSE_${ChoiceId}`
+
+type PlanCombinations = readonly [
+	FeedbackCombination<"FB__RESPONSE_CHOICE_0", PlanDimensions>,
+	FeedbackCombination<"FB__RESPONSE_CHOICE_1", PlanDimensions>,
+	FeedbackCombination<"FB__RESPONSE_CHOICE_2", PlanDimensions>,
+	FeedbackCombination<"FB__RESPONSE_CHOICE_3", PlanDimensions>
+]
+
+const FEEDBACK_COMBINATIONS: PlanCombinations = [
+	{
+		id: "FB__RESPONSE_CHOICE_0",
+		path: [{ responseIdentifier: "RESPONSE", key: "CHOICE_0" }]
+	},
+	{
+		id: "FB__RESPONSE_CHOICE_1",
+		path: [{ responseIdentifier: "RESPONSE", key: "CHOICE_1" }]
+	},
+	{
+		id: "FB__RESPONSE_CHOICE_2",
+		path: [{ responseIdentifier: "RESPONSE", key: "CHOICE_2" }]
+	},
+	{
+		id: "FB__RESPONSE_CHOICE_3",
+		path: [{ responseIdentifier: "RESPONSE", key: "CHOICE_3" }]
+	}
+]
+
+const feedbackPlan: StaticFeedbackPlan<PlanDimensions, PlanCombinations> = {
+	dimensions: FEEDBACK_DIMENSIONS,
+	combinations: FEEDBACK_COMBINATIONS
+}
 
 // -----------------------------------------------------------------------------
 // 2. FUNDAMENTAL DATA TYPE & TEMPLATE PROPS SCHEMA
@@ -256,33 +296,53 @@ export const generateFractionAdditionQuestion: TemplateModule<
 		throw errors.new("fraction addition template: unable to enumerate choices")
 	}
 
-	if (feedbackPlan.combinations.length !== PLAN_CHOICE_IDS.length) {
+	const [choice0, choice1, choice2, choice3] = finalChoices
+	if (!choice0 || !choice1 || !choice2 || !choice3) {
+		logger.error("fraction addition template: missing choice after slicing")
+		throw errors.new("fraction addition template: missing choice entry")
+	}
+
+	const [combo0, combo1, combo2, combo3] = feedbackPlan.combinations
+	if (!combo0 || !combo1 || !combo2 || !combo3) {
 		logger.error(
-			"fraction addition template: feedback plan missing combinations",
-			{
-				combinationCount: feedbackPlan.combinations.length,
-				expected: PLAN_CHOICE_IDS.length
-			}
+			"fraction addition template: feedback plan missing combinations"
 		)
 		throw errors.new("fraction addition template: invalid feedback plan")
 	}
 
-	const combinationEntries = feedbackPlan.combinations.map(
-		(combination, index) => {
-			const choice = finalChoices[index]
-			if (choice === undefined) {
-				logger.error(
-					"fraction addition template: missing choice after slicing",
-					{
-						index,
-						finalChoiceCount: finalChoices.length
-					}
-				)
-				throw errors.new("fraction addition template: missing choice entry")
-			}
-			return { combination, choice }
+	const expectedCombinationIds: readonly PlanCombinationId[] = [
+		"FB__RESPONSE_CHOICE_0",
+		"FB__RESPONSE_CHOICE_1",
+		"FB__RESPONSE_CHOICE_2",
+		"FB__RESPONSE_CHOICE_3"
+	]
+
+	const actualCombinationIds: readonly PlanCombinationId[] = [
+		combo0.id,
+		combo1.id,
+		combo2.id,
+		combo3.id
+	]
+
+	for (let index = 0; index < expectedCombinationIds.length; index += 1) {
+		if (actualCombinationIds[index] !== expectedCombinationIds[index]) {
+			logger.error("fraction addition template: unexpected combination order", {
+				expected: expectedCombinationIds,
+				actual: actualCombinationIds
+			})
+			throw errors.new("fraction addition template: invalid combination order")
 		}
-	)
+	}
+
+	const combinationEntries: Array<{
+		combination: PlanCombinations[number]
+		choice: ChoiceOption
+	}> = [
+		{ combination: combo0, choice: choice0 },
+		{ combination: combo1, choice: choice1 },
+		{ combination: combo2, choice: choice2 },
+		{ combination: combo3, choice: choice3 }
+	]
 
 	for (const entry of combinationEntries) {
 		if (entry.combination.path.length !== 1) {
@@ -508,20 +568,12 @@ export const generateFractionAdditionQuestion: TemplateModule<
 		}
 	}
 
-	const preambles = Object.fromEntries(
-		finalChoices.map<[string, FeedbackPreamble]>((choice, index) => {
-			const choiceId = PLAN_CHOICE_IDS[index]
-			if (choiceId === undefined) {
-				logger.error("missing choice identifier during feedback construction", {
-					index,
-					identifierCount: PLAN_CHOICE_IDS.length
-				})
-				throw errors.new("missing choice identifier for feedback")
-			}
-			const combinationId = `FB__RESPONSE_${choiceId}`
-			return [combinationId, buildPreambleForChoice(choice)]
-		})
-	) satisfies FeedbackPreambleMap<typeof feedbackPlan>
+	const preambles: FeedbackPreambleMap<typeof feedbackPlan> = {
+		FB__RESPONSE_CHOICE_0: buildPreambleForChoice(choice0),
+		FB__RESPONSE_CHOICE_1: buildPreambleForChoice(choice1),
+		FB__RESPONSE_CHOICE_2: buildPreambleForChoice(choice2),
+		FB__RESPONSE_CHOICE_3: buildPreambleForChoice(choice3)
+	}
 
 	const feedbackBundle: FeedbackBundle<typeof feedbackPlan, TemplateWidgets> = {
 		shared: sharedPedagogy,
@@ -606,16 +658,15 @@ export const generateFractionAdditionQuestion: TemplateModule<
 						identifier: choiceId,
 						content: [
 							{
-								type: "paragraph" as const,
+								type: "paragraph",
 								content: [
 									{
-										type: "math" as const,
+										type: "math",
 										mathml: formatFractionMathML(choice.fraction)
 									}
 								]
 							}
 						]
-						// REMOVED: The `feedback` field is no longer supported on choices.
 					}
 				})
 			}

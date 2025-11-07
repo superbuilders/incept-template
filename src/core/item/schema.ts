@@ -8,7 +8,7 @@ import {
 import { createBodyContentSchema } from "@/core/content/contextual-schemas"
 import { createFeedbackObjectSchema } from "@/core/feedback/authoring/schema"
 import { FeedbackPlanSchema } from "@/core/feedback/plan/schema"
-import type { FeedbackPlan } from "@/core/feedback/plan/types"
+import type { FeedbackPlanAny } from "@/core/feedback/plan/types"
 import { createAnyInteractionSchema } from "@/core/interactions/schema"
 import type {
 	AssessmentItem,
@@ -226,7 +226,7 @@ export function createDynamicAssessmentItemSchema<
 	widgetMapping: Record<string, E[number]>,
 	widgetTypeKeys: E,
 	widgetSchemas: Record<E[number], z.ZodType<unknown, unknown>>,
-	feedbackPlan: FeedbackPlan
+	feedbackPlan: FeedbackPlanAny
 ) {
 	for (const [slotName, widgetType] of Object.entries(widgetMapping)) {
 		const schema = widgetSchemas[widgetType]
@@ -266,7 +266,9 @@ export function createDynamicAssessmentItemSchema<
 	)
 
 	// Compose the full AssessmentItem schema with direct object property composition
-	const AssessmentItemSchemaBase: z.ZodType<AssessmentItem<E, FeedbackPlan>> = z
+	const AssessmentItemSchemaBase: z.ZodType<
+		AssessmentItem<E, FeedbackPlanAny>
+	> = z
 		.object({
 			identifier: z
 				.string()
@@ -300,7 +302,7 @@ export function createDynamicAssessmentItemSchema<
 		.strict()
 
 	const validateGapMatchConstraints = (
-		data: AssessmentItem<E, FeedbackPlan>,
+		data: AssessmentItem<E, FeedbackPlanAny>,
 		ctx: z.RefinementCtx
 	) => {
 		if (!data.interactions) return
@@ -388,7 +390,7 @@ export function createDynamicAssessmentItemSchema<
 	}
 
 	const validateGapPlacement = (
-		data: AssessmentItem<E, FeedbackPlan>,
+		data: AssessmentItem<E, FeedbackPlanAny>,
 		ctx: z.RefinementCtx
 	) => {
 		// biome-ignore lint: any needed for recursive traversal
@@ -432,7 +434,7 @@ export function createDynamicAssessmentItemSchema<
 	}
 
 	const AssessmentItemSchema = AssessmentItemSchemaBase.transform(
-		(data, ctx): AssessmentItem<E, FeedbackPlan> => {
+		(data, ctx): AssessmentItem<E, FeedbackPlanAny> => {
 			validateGapMatchConstraints(data, ctx)
 			validateGapPlacement(data, ctx)
 			return data

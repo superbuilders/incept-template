@@ -3,10 +3,7 @@ import * as logger from "@superbuilders/slog"
 import { z } from "zod"
 import { createFeedbackContentSchema } from "@/core/content/contextual-schemas"
 import type { FeedbackContent } from "@/core/content/types"
-import type {
-	FeedbackCombination,
-	FeedbackPlan
-} from "@/core/feedback/plan/types"
+import type { FeedbackPlanAny } from "@/core/feedback/plan/types"
 import type { AnyInteraction } from "@/core/interactions/types"
 import type { AssessmentItemShell } from "@/core/item/types"
 import { createMathmlComplianceSection } from "@/structured/prompts/shared/mathml"
@@ -33,8 +30,8 @@ export function createPerOutcomeNestedFeedbackPrompt<
 	>
 >(
 	assessmentShell: AssessmentItemShell<WidgetTypeTupleFrom<C>>,
-	_feedbackPlan: FeedbackPlan,
-	combination: FeedbackCombination,
+	_feedbackPlan: FeedbackPlanAny,
+	combination: FeedbackPlanAny["combinations"][number],
 	widgetCollection: C,
 	interactions: Record<string, AnyInteraction<WidgetTypeTupleFrom<C>>>
 ): {
@@ -50,10 +47,10 @@ export function createPerOutcomeNestedFeedbackPrompt<
 	const outcomePathText =
 		combination.path.length > 0
 			? combination.path
-					.map(
-						(seg, i) =>
-							`${i + 1}. Interaction '${seg.responseIdentifier}': Student chose '${seg.key}'`
-					)
+					.map((seg, index) => {
+						const stepNumber = index + 1
+						return `${stepNumber}. Interaction '${seg.responseIdentifier}': Student chose '${seg.key}'`
+					})
 					.join("\n")
 			: "Overall outcome (no interaction-specific path)"
 
