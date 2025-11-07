@@ -5,7 +5,7 @@
 	"type": "module",
 	"scripts": {
 		"dev": "bun --bun next dev",
-		"dev:inngest": "inngest-cli dev --queue-workers 4000 --poll-interval 1",
+		"dev:inngest": "bun --bun inngest-cli dev --queue-workers 4000 --poll-interval 1",
 		"build": "bun --bun next build",
 		"start": "bun --bun next start",
 		"lint": "biome lint",
