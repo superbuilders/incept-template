@@ -15,7 +15,7 @@ import type {
 import type {
 	EnumeratedFeedbackDimension,
 	FeedbackCombination,
-	StaticFeedbackPlan
+	FeedbackPlan
 } from "@/core/feedback/plan/types"
 import type {
 	ChoiceIdentifierTuple,
@@ -74,7 +74,7 @@ type PlanCombinationId = (typeof FEEDBACK_COMBINATIONS)[number]["id"]
 
 type PlanCombinations = typeof FEEDBACK_COMBINATIONS
 
-const feedbackPlan: StaticFeedbackPlan<PlanDimensions, PlanCombinations> = {
+const feedbackPlan: FeedbackPlan<PlanDimensions, PlanCombinations> = {
 	dimensions: FEEDBACK_DIMENSIONS,
 	combinations: FEEDBACK_COMBINATIONS
 }

@@ -14,7 +14,10 @@ export async function createTarGzReader(
 	const fileBlob = Bun.file(filePath)
 	const readResult = await errors.try(fileBlob.arrayBuffer())
 	if (readResult.error) {
-		logger.error("tar.gz read failed", { file: filePath, error: readResult.error })
+		logger.error("tar.gz read failed", {
+			file: filePath,
+			error: readResult.error
+		})
 		throw errors.wrap(readResult.error, "tar.gz file read")
 	}
 	const compressedBytes = new Uint8Array(readResult.data)

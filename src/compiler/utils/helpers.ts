@@ -148,8 +148,8 @@ export function normalizeIdPart(part: string): string {
 
 /**
  * Derives a deterministic, QTI-safe combo identifier from a path of response parts.
- * @param pathParts An array of strings, where each string is a response-value pair (e.g., "RESPONSE_1_A").
- * @returns The fully-formed combo identifier (e.g., "FB__RESPONSE_1_A__RESPONSE_2_CORRECT").
+ * @param pathParts An array of strings, where each string is a response-value pair (e.g., "RESP_1_A").
+ * @returns The fully-formed combo identifier (e.g., "FB__RESP_1_A__RESP_2_CORRECT").
  */
 export function deriveComboIdentifier(pathParts: string[]): string {
 	return `FB__${pathParts.join("__")}`

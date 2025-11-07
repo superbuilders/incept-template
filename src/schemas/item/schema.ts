@@ -24,7 +24,7 @@ const BaseResponseDeclarationSchema = z
 			.string()
 			.regex(
 				RESPONSE_IDENTIFIER_REGEX,
-				"invalid response identifier: must start with RESPONSE"
+				"invalid response identifier: must start with RESP"
 			)
 			.describe(
 				"Unique ID linking an interaction to this response declaration."

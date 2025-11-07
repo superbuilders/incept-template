@@ -18,7 +18,7 @@ import {
 	assertFeedbackCombinationIdentifier
 } from "@/schemas/identifiers/runtime"
 
-const SYNTHETIC_OVERALL_IDENTIFIER: ResponseIdentifier = "RESPONSE__OVERALL"
+const SYNTHETIC_OVERALL_IDENTIFIER: ResponseIdentifier = "RESP__OVERALL"
 
 const normalizeIdPart = (part: string): ChoiceIdentifier => {
 	const normalized = part.toUpperCase().replace(/[^A-Z0-9_]/g, "_")

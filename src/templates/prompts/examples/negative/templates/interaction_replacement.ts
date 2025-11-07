@@ -2,11 +2,64 @@ import type {
 	FeedbackBundle,
 	FeedbackSharedPedagogy
 } from "@/core/content/types"
-import type { FeedbackPlan } from "@/core/feedback/plan/types"
+import type {
+	EnumeratedFeedbackDimension,
+	FeedbackCombination,
+	FeedbackPlan
+} from "@/core/feedback/plan/types"
+import type {
+	ChoiceIdentifierTuple,
+	FeedbackCombinationIdentifier
+} from "@/core/identifiers/types"
 import type { AssessmentItemInput } from "@/core/item/types"
 import { createSeededRandom } from "@/templates/seeds"
 
 export type TemplateWidgets = readonly ["dotPlot"]
+
+type PlanChoiceIds = ChoiceIdentifierTuple<readonly ["A", "B", "C", "D"]>
+
+const PLAN_CHOICE_IDS: PlanChoiceIds = ["A", "B", "C", "D"]
+
+type PlanDimensions = readonly [
+	EnumeratedFeedbackDimension<"RESP", typeof PLAN_CHOICE_IDS>
+]
+
+const FEEDBACK_DIMENSIONS: PlanDimensions = [
+	{
+		responseIdentifier: "RESP",
+		kind: "enumerated",
+		keys: PLAN_CHOICE_IDS
+	}
+]
+
+const FEEDBACK_COMBINATIONS = [
+	{
+		id: "FB__RESP_A",
+		path: [{ responseIdentifier: "RESP", key: "A" }]
+	},
+	{
+		id: "FB__RESP_B",
+		path: [{ responseIdentifier: "RESP", key: "B" }]
+	},
+	{
+		id: "FB__RESP_C",
+		path: [{ responseIdentifier: "RESP", key: "C" }]
+	},
+	{
+		id: "FB__RESP_D",
+		path: [{ responseIdentifier: "RESP", key: "D" }]
+	}
+] satisfies readonly FeedbackCombination<
+	FeedbackCombinationIdentifier,
+	PlanDimensions
+>[]
+
+type PlanCombinations = typeof FEEDBACK_COMBINATIONS
+
+const feedbackPlan: FeedbackPlan<PlanDimensions, PlanCombinations> = {
+	dimensions: FEEDBACK_DIMENSIONS,
+	combinations: FEEDBACK_COMBINATIONS
+}
 
 export default function generateTemplate(
 	seed: bigint
@@ -128,25 +181,10 @@ export default function generateTemplate(
 		(a, b) => a - b
 	)
 
-	const choiceIdentifiers: string[] = optionNumbers.map((_, i) => `CHOICE_${i}`)
+	const choiceIdentifiers = PLAN_CHOICE_IDS
 	const correctIndex = optionNumbers.indexOf(correctCount)
 	const correctChoiceIdentifier =
 		correctIndex >= 0 ? choiceIdentifiers[correctIndex] : choiceIdentifiers[0]
-
-	// Feedback plan (combo) with one enumerated dimension
-	const feedbackPlan = {
-		dimensions: [
-			{
-				responseIdentifier: "RESPONSE",
-				kind: "enumerated",
-				keys: [...choiceIdentifiers]
-			}
-		],
-		combinations: choiceIdentifiers.map((choiceId) => ({
-			id: `FB__RESPONSE_${choiceId}`,
-			path: [{ responseIdentifier: "RESPONSE", key: choiceId }]
-		}))
-	} satisfies FeedbackPlan
 
 	const sharedPedagogy: FeedbackSharedPedagogy<TemplateWidgets> = {
 		steps: [
@@ -208,39 +246,46 @@ export default function generateTemplate(
 		}
 	}
 
-	const preambles = Object.fromEntries(
-		choiceIdentifiers.map((choiceId, idx) => {
-			const chosenNumber = optionNumbers[idx]
-			if (chosenNumber === correctCount) {
-				return [
-					`FB__RESPONSE_${choiceId}`,
+	const valueForKey = (key: PlanChoiceIds[number]): number => {
+		const index = choiceIdentifiers.indexOf(key)
+		return optionNumbers[index] ?? optionNumbers[0]
+	}
+
+	const buildPreamble = (key: PlanChoiceIds[number]) => {
+		const chosenNumber = valueForKey(key)
+		if (key === correctChoiceIdentifier) {
+			return {
+				correctness: "correct",
+				summary: [
 					{
-						correctness: "correct",
-						summary: [
-							{
-								type: "text",
-								content: `You matched ${askedValue} to the ${correctCount} dot${correctCount === 1 ? "" : "s"} above it.`
-							}
-						]
+						type: "text",
+						content: `You matched ${askedValue} to the ${correctCount} dot${correctCount === 1 ? "" : "s"} above it.`
 					}
-				] as const
+				]
 			}
-			const diff = Math.abs(chosenNumber - correctCount)
-			const direction = chosenNumber < correctCount ? "too low" : "too high"
-			return [
-				`FB__RESPONSE_${choiceId}`,
+		}
+		const diff = Math.abs(chosenNumber - correctCount)
+		const direction = chosenNumber < correctCount ? "too low" : "too high"
+		return {
+			correctness: "incorrect",
+			summary: [
 				{
-					correctness: "incorrect",
-					summary: [
-						{
-							type: "text",
-							content: `You selected ${chosenNumber}, which is ${direction}. You were off by ${diff}. At ${askedValue}, the column has ${correctCount} dot${correctCount === 1 ? "" : "s"}.`
-						}
-					]
+					type: "text",
+					content: `You selected ${chosenNumber}, which is ${direction}. You were off by ${diff}. At ${askedValue}, the column has ${correctCount} dot${correctCount === 1 ? "" : "s"}.`
 				}
-			] as const
-		})
-	)
+			]
+		}
+	}
+
+	const preambles: FeedbackBundle<
+		typeof feedbackPlan,
+		TemplateWidgets
+	>["preambles"] = {
+		FB__RESP_A: buildPreamble("A"),
+		FB__RESP_B: buildPreamble("B"),
+		FB__RESP_C: buildPreamble("C"),
+		FB__RESP_D: buildPreamble("D")
+	}
 
 	const feedbackBundle: FeedbackBundle<typeof feedbackPlan, TemplateWidgets> = {
 		shared: sharedPedagogy,
@@ -295,7 +340,7 @@ export default function generateTemplate(
 		interactions: {
 			choice_interaction: {
 				type: "choiceInteraction",
-				responseIdentifier: "RESPONSE",
+				responseIdentifier: "RESP",
 				shuffle: true,
 				minChoices: 1,
 				maxChoices: 1,
@@ -305,21 +350,24 @@ export default function generateTemplate(
 						content: "Select the count shown by the dots."
 					}
 				],
-				choices: optionNumbers.map((n, i) => ({
-					identifier: choiceIdentifiers[i],
-					content: [
-						{
-							type: "paragraph",
-							content: [{ type: "text", content: String(n) }]
-						}
-					]
-				}))
+				choices: choiceIdentifiers.map((choiceId, index) => {
+					const value = optionNumbers[index] ?? optionNumbers[0]
+					return {
+						identifier: choiceId,
+						content: [
+							{
+								type: "paragraph",
+								content: [{ type: "text", content: String(value) }]
+							}
+						]
+					}
+				})
 			}
 		},
 
 		responseDeclarations: [
 			{
-				identifier: "RESPONSE",
+				identifier: "RESP",
 				cardinality: "single",
 				baseType: "identifier",
 				correct: correctChoiceIdentifier

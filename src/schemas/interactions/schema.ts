@@ -46,7 +46,7 @@ export function createAnyInteractionSchema<const E extends readonly string[]>(
 				.string()
 				.regex(
 					RESPONSE_IDENTIFIER_REGEX,
-					"invalid response identifier: must start with RESPONSE"
+					"invalid response identifier: must start with RESP"
 				)
 				.describe(
 					"Links this interaction to its response declaration for scoring."
@@ -109,7 +109,7 @@ export function createAnyInteractionSchema<const E extends readonly string[]>(
 				.string()
 				.regex(
 					RESPONSE_IDENTIFIER_REGEX,
-					"invalid response identifier: must start with RESPONSE"
+					"invalid response identifier: must start with RESP"
 				)
 				.describe(
 					"Links this interaction to its response declaration for scoring."
@@ -138,7 +138,7 @@ export function createAnyInteractionSchema<const E extends readonly string[]>(
 				.string()
 				.regex(
 					RESPONSE_IDENTIFIER_REGEX,
-					"invalid response identifier: must start with RESPONSE"
+					"invalid response identifier: must start with RESP"
 				)
 				.describe(
 					"Links this interaction to its response declaration for scoring."
@@ -163,7 +163,7 @@ export function createAnyInteractionSchema<const E extends readonly string[]>(
 				.string()
 				.regex(
 					RESPONSE_IDENTIFIER_REGEX,
-					"invalid response identifier: must start with RESPONSE"
+					"invalid response identifier: must start with RESP"
 				)
 				.describe(
 					"Links this interaction to its response declaration for scoring."
@@ -224,7 +224,7 @@ export function createAnyInteractionSchema<const E extends readonly string[]>(
 				.string()
 				.regex(
 					RESPONSE_IDENTIFIER_REGEX,
-					"invalid response identifier: must start with RESPONSE"
+					"invalid response identifier: must start with RESP"
 				)
 				.describe(
 					"Links this interaction to its response declaration for scoring."

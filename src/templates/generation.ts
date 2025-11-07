@@ -27,7 +27,7 @@ export async function runGenerationAttempt({
 		]
 	}
 
-    const codeContent = await ai.text(params)
+	const codeContent = await ai.text(params)
 	if (!codeContent) {
 		logger.error("openai response missing content")
 		throw errors.new("generation attempt: empty openai response")

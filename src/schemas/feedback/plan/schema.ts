@@ -12,7 +12,7 @@ export const FeedbackDimensionSchema = z
 					.string()
 					.regex(
 						RESPONSE_IDENTIFIER_REGEX,
-						"invalid response identifier: must start with RESPONSE"
+						"invalid response identifier: must start with RESP"
 					),
 				kind: z.literal("enumerated"),
 				keys: z.array(z.string()).min(1)
@@ -24,7 +24,7 @@ export const FeedbackDimensionSchema = z
 					.string()
 					.regex(
 						RESPONSE_IDENTIFIER_REGEX,
-						"invalid response identifier: must start with RESPONSE"
+						"invalid response identifier: must start with RESP"
 					),
 				kind: z.literal("binary")
 			})

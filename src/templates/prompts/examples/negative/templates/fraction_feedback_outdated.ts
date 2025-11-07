@@ -2,24 +2,63 @@ import type {
 	FeedbackBundle,
 	FeedbackSharedPedagogy
 } from "@/core/content/types"
-import type { FeedbackPlan } from "@/core/feedback/plan/types"
+import type {
+	EnumeratedFeedbackDimension,
+	FeedbackCombination,
+	FeedbackPlan
+} from "@/core/feedback/plan/types"
+import type {
+	ChoiceIdentifierTuple,
+	FeedbackCombinationIdentifier
+} from "@/core/identifiers/types"
 import type { AssessmentItemInput } from "@/core/item/types"
 
 type TemplateWidgets = readonly []
 
-const feedbackPlan = {
-	dimensions: [
-		{
-			responseIdentifier: "RESPONSE",
-			kind: "enumerated",
-			keys: ["A", "B", "C", "D"]
-		}
-	],
-	combinations: ["A", "B", "C", "D"].map((key) => ({
-		id: `FB__RESPONSE_${key}`,
-		path: [{ responseIdentifier: "RESPONSE", key }]
-	}))
-} satisfies FeedbackPlan
+type PlanChoiceIds = ChoiceIdentifierTuple<readonly ["A", "B", "C", "D"]>
+
+const PLAN_CHOICE_IDS: PlanChoiceIds = ["A", "B", "C", "D"]
+
+type PlanDimensions = readonly [
+	EnumeratedFeedbackDimension<"RESP", typeof PLAN_CHOICE_IDS>
+]
+
+const FEEDBACK_DIMENSIONS: PlanDimensions = [
+	{
+		responseIdentifier: "RESP",
+		kind: "enumerated",
+		keys: PLAN_CHOICE_IDS
+	}
+]
+
+const FEEDBACK_COMBINATIONS = [
+	{
+		id: "FB__RESP_A",
+		path: [{ responseIdentifier: "RESP", key: "A" }]
+	},
+	{
+		id: "FB__RESP_B",
+		path: [{ responseIdentifier: "RESP", key: "B" }]
+	},
+	{
+		id: "FB__RESP_C",
+		path: [{ responseIdentifier: "RESP", key: "C" }]
+	},
+	{
+		id: "FB__RESP_D",
+		path: [{ responseIdentifier: "RESP", key: "D" }]
+	}
+] satisfies readonly FeedbackCombination<
+	FeedbackCombinationIdentifier,
+	PlanDimensions
+>[]
+
+type PlanCombinations = typeof FEEDBACK_COMBINATIONS
+
+const feedbackPlan: FeedbackPlan<PlanDimensions, PlanCombinations> = {
+	dimensions: FEEDBACK_DIMENSIONS,
+	combinations: FEEDBACK_COMBINATIONS
+}
 
 const sharedPedagogy: FeedbackSharedPedagogy<TemplateWidgets> = {
 	steps: [
@@ -69,7 +108,7 @@ const sharedPedagogy: FeedbackSharedPedagogy<TemplateWidgets> = {
 const feedbackBundle: FeedbackBundle<typeof feedbackPlan, TemplateWidgets> = {
 	shared: sharedPedagogy,
 	preambles: {
-		FB__RESPONSE_A: {
+		FB__RESP_A: {
 			correctness: "correct",
 			summary: [
 				{
@@ -79,7 +118,7 @@ const feedbackBundle: FeedbackBundle<typeof feedbackPlan, TemplateWidgets> = {
 				}
 			]
 		},
-		FB__RESPONSE_B: {
+		FB__RESP_B: {
 			correctness: "incorrect",
 			summary: [
 				{
@@ -89,7 +128,7 @@ const feedbackBundle: FeedbackBundle<typeof feedbackPlan, TemplateWidgets> = {
 				}
 			]
 		},
-		FB__RESPONSE_C: {
+		FB__RESP_C: {
 			correctness: "incorrect",
 			summary: [
 				{
@@ -99,7 +138,7 @@ const feedbackBundle: FeedbackBundle<typeof feedbackPlan, TemplateWidgets> = {
 				}
 			]
 		},
-		FB__RESPONSE_D: {
+		FB__RESP_D: {
 			correctness: "incorrect",
 			summary: [
 				{
@@ -120,7 +159,7 @@ const assessmentItem: AssessmentItemInput<
 	title: "Add Two Fractions (Outdated Feedback Template)",
 	responseDeclarations: [
 		{
-			identifier: "RESPONSE",
+			identifier: "RESP",
 			cardinality: "single",
 			baseType: "identifier",
 			correct: "A"
@@ -145,9 +184,9 @@ const assessmentItem: AssessmentItemInput<
 	],
 	widgets: null,
 	interactions: {
-		RESPONSE: {
+		RESP: {
 			type: "choiceInteraction",
-			responseIdentifier: "RESPONSE",
+			responseIdentifier: "RESP",
 			shuffle: true,
 			minChoices: 1,
 			maxChoices: 1,

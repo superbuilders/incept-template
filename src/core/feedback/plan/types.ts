@@ -80,14 +80,6 @@ export interface FeedbackPlan<
 	readonly combinations: Combinations
 }
 
-export type StaticFeedbackPlan<
-	Dimensions extends readonly FeedbackDimension[],
-	Combinations extends readonly FeedbackCombination<
-		FeedbackCombinationIdentifier,
-		Dimensions
-	>[]
-> = FeedbackPlan<Dimensions, Combinations> & FeedbackPlanAny
-
 export type FeedbackPlanAny = {
 	readonly dimensions: readonly FeedbackDimension[]
 	readonly combinations: ReadonlyArray<{

@@ -4,9 +4,9 @@
  * It's kept separate to avoid circular dependencies.
  */
 
-// Response identifier pattern: RESPONSE or RESPONSE_<suffix>
+// Response identifier pattern: RESP or RESP_<suffix>
 // Enforces consistent naming for response declarations and interactions
-export const RESPONSE_IDENTIFIER_REGEX = /^RESPONSE(?:_[A-Za-z0-9_]+)?$/
+export const RESPONSE_IDENTIFIER_REGEX = /^RESP(?:_[A-Za-z0-9_]+)?$/
 
 // Outcome identifier pattern: strictly FEEDBACK__OVERALL
 // Per-interaction feedback outcomes are now forbidden.
