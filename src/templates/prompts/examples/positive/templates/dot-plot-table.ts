@@ -501,7 +501,7 @@ export default function generateTemplate(
 			[widgetId]: {
 				type: "dotPlot" as const,
 				width: 420,
-				height: 320,
+				height: 250,
 				axis: {
 					min: axisMin,
 					max: axisMax,
