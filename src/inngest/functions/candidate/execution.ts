@@ -217,7 +217,7 @@ async function performTemplateCandidateExecution({
 		attempt,
 		candidateRecord.source
 	)
-	const sourcePath = path.join(tempDir, "candidate.mjs")
+	const sourcePath = path.join(tempDir, "candidate.ts")
 	const writeResult = await errors.try(writeFile(sourcePath, rewrittenSource))
 	if (writeResult.error) {
 		return fail("failed to write candidate source", {
