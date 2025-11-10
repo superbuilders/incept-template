@@ -4,8 +4,6 @@
 // shared seed utilities, and widget typing helpers.
 // -----------------------------------------------------------------------------
 
-import * as errors from "@superbuilders/errors"
-import * as logger from "@superbuilders/slog"
 import type {
 	FeedbackBundle,
 	FeedbackPreamble,
@@ -124,11 +122,7 @@ export const generateFractionAdditionQuestion: TemplateModule<
 
 	const simplifyFraction = (frac: Fraction): Fraction => {
 		if (frac.denominator === 0) {
-			logger.error("fraction denominator zero detected", {
-				numerator: frac.numerator,
-				denominator: frac.denominator
-			})
-			throw errors.new("fraction denominator cannot be zero")
+			throw new Error("fraction denominator cannot be zero")
 		}
 		const denominatorSign = frac.denominator < 0 ? -1 : 1
 		const normalizedNumerator = frac.numerator * denominatorSign
@@ -286,25 +280,17 @@ export const generateFractionAdditionQuestion: TemplateModule<
 		)
 
 	if (finalChoices.length !== PLAN_CHOICE_IDS.length) {
-		logger.error("fraction addition template: unexpected choice count", {
-			finalChoiceCount: finalChoices.length,
-			expected: PLAN_CHOICE_IDS.length
-		})
-		throw errors.new("fraction addition template: unable to enumerate choices")
+		throw new Error("fraction addition template: unable to enumerate choices")
 	}
 
 	const [choice0, choice1, choice2, choice3] = finalChoices
 	if (!choice0 || !choice1 || !choice2 || !choice3) {
-		logger.error("fraction addition template: missing choice after slicing")
-		throw errors.new("fraction addition template: missing choice entry")
+		throw new Error("fraction addition template: missing choice entry")
 	}
 
 	const [combo0, combo1, combo2, combo3] = feedbackPlan.combinations
 	if (!combo0 || !combo1 || !combo2 || !combo3) {
-		logger.error(
-			"fraction addition template: feedback plan missing combinations"
-		)
-		throw errors.new("fraction addition template: invalid feedback plan")
+		throw new Error("fraction addition template: invalid feedback plan")
 	}
 
 	const expectedCombinationIds: readonly PlanCombinationId[] = [
@@ -323,11 +309,7 @@ export const generateFractionAdditionQuestion: TemplateModule<
 
 	for (let index = 0; index < expectedCombinationIds.length; index += 1) {
 		if (actualCombinationIds[index] !== expectedCombinationIds[index]) {
-			logger.error("fraction addition template: unexpected combination order", {
-				expected: expectedCombinationIds,
-				actual: actualCombinationIds
-			})
-			throw errors.new("fraction addition template: invalid combination order")
+			throw new Error("fraction addition template: invalid combination order")
 		}
 	}
 
@@ -343,11 +325,7 @@ export const generateFractionAdditionQuestion: TemplateModule<
 
 	for (const entry of combinationEntries) {
 		if (entry.combination.path.length !== 1) {
-			logger.error("fraction addition template: unexpected path length", {
-				combinationId: entry.combination.id,
-				pathLength: entry.combination.path.length
-			})
-			throw errors.new("fraction addition template: invalid combination path")
+			throw new Error("fraction addition template: invalid combination path")
 		}
 	}
 
@@ -356,11 +334,7 @@ export const generateFractionAdditionQuestion: TemplateModule<
 		combinationEntries[0]
 	const firstPathSegment = correctEntry.combination.path[0]
 	if (firstPathSegment === undefined) {
-		logger.error(
-			"fraction addition template: missing path segment for correct combination",
-			{ combinationId: correctEntry.combination.id }
-		)
-		throw errors.new("fraction addition template: invalid correct combination")
+		throw new Error("fraction addition template: invalid correct combination")
 	}
 	const correctChoiceIdentifier = firstPathSegment.key
 
@@ -560,8 +534,7 @@ export const generateFractionAdditionQuestion: TemplateModule<
 					]
 				}
 			default:
-				logger.error("unsupported choice type for feedback preamble")
-				throw errors.new("unsupported choice type for feedback preamble")
+				throw new Error("unsupported choice type for feedback preamble")
 		}
 	}
 
@@ -645,11 +618,7 @@ export const generateFractionAdditionQuestion: TemplateModule<
 				choices: finalChoices.map((choice, index) => {
 					const choiceId = PLAN_CHOICE_IDS[index]
 					if (choiceId === undefined) {
-						logger.error("missing choice identifier during template assembly", {
-							index,
-							identifierCount: PLAN_CHOICE_IDS.length
-						})
-						throw errors.new("missing choice identifier")
+						throw new Error("missing choice identifier")
 					}
 					return {
 						identifier: choiceId,

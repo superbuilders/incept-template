@@ -105,6 +105,12 @@ export default function generateTemplate(
 		type: "math" as const,
 		mathml: `<mn>${n}</mn>`
 	})
+	const expectDefined = <T>(value: T | undefined, message: string): T => {
+		if (value === undefined) {
+			throw new Error(message)
+		}
+		return value
+	}
 
 	// Seeded narrative elements
 	const names = [
@@ -172,7 +178,13 @@ export default function generateTemplate(
 	const askedIndices = Array.from(askedIndexSet).sort((a, b) => a - b)
 	const askedValues = askedIndices.map((i) => tableValues[i])
 
-	const countAt = (value: number): number => countsByTick[value] ?? 0
+	const countAt = (value: number): number => {
+		const count = countsByTick[value]
+		if (count === undefined) {
+			throw new Error(`Missing count for value ${value}`)
+		}
+		return count
+	}
 
 	// Dropdown option pool: 0..5 plus one extra near (maxCount + 1), capped to 9
 	const baseOptions = [0, 1, 2, 3, 4, 5]
@@ -196,11 +208,25 @@ export default function generateTemplate(
 		readonly ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]
 	>
 	type ChoiceId = (typeof CHOICE_LETTERS)[number]
+	if (optionNumbers.length > CHOICE_LETTERS.length) {
+		throw new Error(
+			`Option count ${optionNumbers.length} exceeds available choice identifiers`
+		)
+	}
 
-	const choiceIdForIndex = (idx: number): ChoiceId => CHOICE_LETTERS[idx] ?? "A"
+	const choiceIdForIndex = (idx: number): ChoiceId => {
+		const letter = CHOICE_LETTERS[idx]
+		if (!letter) {
+			throw new Error(`No choice identifier for index ${idx}`)
+		}
+		return letter
+	}
 	const identifierForCount = (n: number): ChoiceId => {
 		const idx = optionNumbers.indexOf(n)
-		return choiceIdForIndex(idx >= 0 ? idx : 0)
+		if (idx === -1) {
+			throw new Error(`No option identifier for count ${n}`)
+		}
+		return choiceIdForIndex(idx)
 	}
 
 	// Widget configuration
@@ -210,7 +236,7 @@ export default function generateTemplate(
 	const dotRadius = 4 + random.nextInt(0, 2)
 	const widgetData = ticks.map((v) => ({
 		value: v,
-		count: countsByTick[v] ?? 0
+		count: countAt(v)
 	}))
 
 	const DROPDOWN_IDS = ["dropdown_1", "dropdown_2", "dropdown_3"] as const
@@ -226,7 +252,10 @@ export default function generateTemplate(
 	for (let i = 0; i < tableValues.length; i += 1) {
 		const posInAsked = askedIndices.indexOf(i)
 		if (posInAsked >= 0) {
-			const iid = DROPDOWN_IDS[posInAsked] ?? DROPDOWN_IDS[0]
+			const iid = expectDefined(
+				DROPDOWN_IDS[posInAsked],
+				`Missing dropdown identifier for position ${posInAsked}`
+			)
 			rowTopCells.push([{ type: "inlineInteractionRef", interactionId: iid }])
 		} else {
 			rowTopCells.push([text(String(countAt(tableValues[i])))])
@@ -267,10 +296,15 @@ export default function generateTemplate(
 	}
 
 	// Correct identifiers for each dropdown
+	const [valueA, valueB, valueC] = askedValues
+	if (valueA === undefined || valueB === undefined || valueC === undefined) {
+		throw new Error("Expected exactly three asked values for dropdown prompts")
+	}
+
 	const correctIds: [ChoiceId, ChoiceId, ChoiceId] = [
-		identifierForCount(countAt(askedValues[0])),
-		identifierForCount(countAt(askedValues[1])),
-		identifierForCount(countAt(askedValues[2]))
+		identifierForCount(countAt(valueA)),
+		identifierForCount(countAt(valueB)),
+		identifierForCount(countAt(valueC))
 	]
 
 	// Response declarations
@@ -298,9 +332,9 @@ export default function generateTemplate(
 	// Feedback shared pedagogy (three actionable steps, no final answers here)
 	const totalDotsForSolution = widgetData.reduce((sum, d) => sum + d.count, 0)
 	const triple = [
-		{ value: askedValues[0], count: countAt(askedValues[0]) },
-		{ value: askedValues[1], count: countAt(askedValues[1]) },
-		{ value: askedValues[2], count: countAt(askedValues[2]) }
+		{ value: valueA, count: countAt(valueA) },
+		{ value: valueB, count: countAt(valueB) },
+		{ value: valueC, count: countAt(valueC) }
 	]
 
 	const shared = {

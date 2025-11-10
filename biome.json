@@ -23,6 +23,7 @@
 			"**",
 			"!**/node_modules",
 			"!**/src/components/ui",
+			"!**/src/templates",
 			"!!**/.next",
 			"!!**/.vercel"
 		],
