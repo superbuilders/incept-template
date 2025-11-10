@@ -226,7 +226,9 @@ async function performTemplateCandidateExecution({
 	}
 
 	const moduleUrl = pathToFileURL(sourcePath).href
-	const importResult = await errors.try(import(moduleUrl))
+	const importResult = await errors.try(
+		import(/* webpackIgnore: true */ moduleUrl)
+	)
 	if (importResult.error) {
 		return fail("failed to import candidate module", {
 			error: importResult.error.toString()
