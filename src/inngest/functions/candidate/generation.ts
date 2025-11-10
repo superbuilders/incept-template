@@ -24,7 +24,7 @@ type GeneratedResult = {
 type ExistingResult = {
 	status: "already-exists"
 	attempt: number
-	validatedAt: Date | null
+	validatedAtIso: string | null
 }
 
 type CandidateGenerationResult = GeneratedResult | ExistingResult
@@ -66,10 +66,13 @@ async function performCandidateGeneration({
 		.then((rows) => rows[0])
 
 	if (existingCandidate) {
+		const validatedAtIso = existingCandidate.validatedAt
+			? existingCandidate.validatedAt.toISOString()
+			: null
 		return {
 			status: "already-exists",
 			attempt,
-			validatedAt: existingCandidate.validatedAt
+			validatedAtIso
 		}
 	}
 
@@ -203,7 +206,9 @@ export const generateTemplateCandidate = inngest.createFunction(
 		logger.info("generating template candidate", { templateId, attempt })
 
 		const generationResult = await errors.try(
-			performCandidateGeneration({ logger, templateId, attempt })
+			step.run("perform-candidate-generation", () =>
+				performCandidateGeneration({ logger, templateId, attempt })
+			)
 		)
 
 		if (generationResult.error) {
@@ -238,17 +243,14 @@ export const generateTemplateCandidate = inngest.createFunction(
 		}
 
 		if (generationResult.data.status === "already-exists") {
-			let validatedAtIso: string | null = null
-			if (generationResult.data.validatedAt) {
-				validatedAtIso = generationResult.data.validatedAt.toISOString()
-			}
+			const validatedAtIso = generationResult.data.validatedAtIso
 			logger.info("candidate already exists for attempt", {
 				templateId,
 				attempt,
 				validatedAt: validatedAtIso
 			})
 
-			if (!generationResult.data.validatedAt) {
+			if (!generationResult.data.validatedAtIso) {
 				await step.sendEvent("request-existing-candidate-validation", {
 					id: `${baseEventId}-candidate-validation-request-${generationResult.data.attempt}`,
 					name: "template/candidate.validation.requested",

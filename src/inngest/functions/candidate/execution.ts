@@ -19,6 +19,10 @@ type CandidateRecord = {
 
 type ModuleWithDefault = { default: unknown }
 
+type CandidateExecutionOutcome =
+	| { status: "failed"; reason: string; extra?: Record<string, unknown> }
+	| { status: "succeeded"; executionId: string }
+
 const ALIAS_EXTENSIONS = [
 	"",
 	".ts",
@@ -120,6 +124,161 @@ function disposeStack(
 	}
 }
 
+async function performTemplateCandidateExecution({
+	logger,
+	templateId,
+	attempt,
+	seed
+}: {
+	logger: Logger
+	templateId: string
+	attempt: number
+	seed: string
+}): Promise<CandidateExecutionOutcome> {
+	const cleanupStack = new DisposableStack()
+
+	const fail = (
+		reason: string,
+		extra?: Record<string, unknown>
+	): CandidateExecutionOutcome => {
+		logger.error("template candidate execution failed", {
+			templateId,
+			attempt,
+			seed,
+			reason,
+			...extra
+		})
+		disposeStack(logger, templateId, attempt, cleanupStack, "failure")
+		return { status: "failed" as const, reason, extra }
+	}
+
+	const parsedSeedResult = errors.trySync(() => BigInt(seed))
+	if (parsedSeedResult.error) {
+		return fail(`seed must be a base-10 integer string, received: ${seed}`)
+	}
+	const normalizedSeed = parsedSeedResult.data
+	if (normalizedSeed < BigInt(0)) {
+		return fail("seed must be non-negative")
+	}
+
+	const candidateRecord = await fetchCandidateRecord(templateId, attempt)
+	if (!candidateRecord) {
+		return fail("template candidate not found")
+	}
+
+	let validatedAtIso: string | null = null
+	if (candidateRecord.validatedAt) {
+		validatedAtIso = candidateRecord.validatedAt.toISOString()
+	}
+	logger.debug("fetched template candidate record", {
+		templateId: candidateRecord.templateId,
+		attempt: candidateRecord.attempt,
+		sourceLength: candidateRecord.source.length,
+		validatedAt: validatedAtIso
+	})
+
+	if (!candidateRecord.validatedAt) {
+		return fail("template candidate has not been validated")
+	}
+
+	const existingExecution = await db
+		.select({ id: templateCandidateExecutions.id })
+		.from(templateCandidateExecutions)
+		.where(
+			and(
+				eq(templateCandidateExecutions.templateId, templateId),
+				eq(templateCandidateExecutions.attempt, attempt),
+				eq(templateCandidateExecutions.seed, normalizedSeed)
+			)
+		)
+		.limit(1)
+
+	if (existingExecution.length > 0) {
+		return fail("template candidate execution already exists", {
+			existingExecutionId: existingExecution[0].id
+		})
+	}
+
+	const tempDir = await mkdtemp(path.join(tmpdir(), "template-execution-"))
+	cleanupStack.defer(() => rmSync(tempDir, { recursive: true, force: true }))
+
+	const requiredTypeModulesResult = errors.trySync(() =>
+		ensureRequiredTypeModulesAvailable(logger, templateId, attempt)
+	)
+	if (requiredTypeModulesResult.error) {
+		return fail("required type module missing", {
+			error: requiredTypeModulesResult.error
+		})
+	}
+
+	const rewrittenSource = rewriteAliasImports(
+		logger,
+		templateId,
+		attempt,
+		candidateRecord.source
+	)
+	const sourcePath = path.join(tempDir, "candidate.mjs")
+	const writeResult = await errors.try(writeFile(sourcePath, rewrittenSource))
+	if (writeResult.error) {
+		return fail("failed to write candidate source", {
+			error: writeResult.error
+		})
+	}
+
+	const moduleUrl = pathToFileURL(sourcePath).href
+	const importResult = await errors.try(import(moduleUrl))
+	if (importResult.error) {
+		return fail("failed to import candidate module", {
+			error: importResult.error.toString()
+		})
+	}
+	const importedModule = importResult.data
+	if (!hasDefaultExport(importedModule)) {
+		return fail("candidate module missing default export")
+	}
+	const candidateFactory = importedModule.default
+	if (typeof candidateFactory !== "function") {
+		logger.debug("candidate module default export must be a function")
+		return fail(
+			`candidate module default export must be a function, received ${typeof candidateFactory}`
+		)
+	}
+
+	const generatedBodyResult = await errors.try(candidateFactory(normalizedSeed))
+	if (generatedBodyResult.error) {
+		return fail("candidate execution threw", {
+			error: generatedBodyResult.error.toString()
+		})
+	}
+	const generatedBody = generatedBodyResult.data
+
+	const persistResult = await errors.try(
+		persistExecution(templateId, attempt, normalizedSeed, generatedBody)
+	)
+	if (persistResult.error) {
+		return fail(persistResult.error.toString(), {
+			error: persistResult.error.toString()
+		})
+	}
+
+	const persistedRow = persistResult.data[0]
+	if (!persistedRow || !persistedRow.id) {
+		return fail("template candidate execution ID missing after persistence")
+	}
+	const executionId = persistedRow.id
+
+	disposeStack(logger, templateId, attempt, cleanupStack, "success")
+
+	logger.info("template candidate execution completed", {
+		templateId,
+		attempt,
+		seed,
+		executionId
+	})
+
+	return { status: "succeeded" as const, executionId }
+}
+
 export const executeTemplateCandidate = inngest.createFunction(
 	{
 		id: "template-candidate-execution",
@@ -137,44 +296,44 @@ export const executeTemplateCandidate = inngest.createFunction(
 			seed
 		})
 
-		const cleanupStack = new DisposableStack()
-
-		const fail = async (
-			reason: string,
-			extra?: Record<string, unknown>
-		): Promise<{ status: "failed"; reason: string }> => {
-			logger.error("template candidate execution failed", {
+		const executionResult = await errors.try(
+			step.run("perform-template-candidate-execution", () =>
+				performTemplateCandidateExecution({
+					logger,
+					templateId,
+					attempt,
+					seed
+				})
+			)
+		)
+		if (executionResult.error) {
+			logger.error("template candidate execution encountered error", {
 				templateId,
 				attempt,
 				seed,
-				reason,
-				...extra
+				error: executionResult.error
 			})
+			throw errors.wrap(executionResult.error, "template candidate execution")
+		}
+
+		const outcome = executionResult.data
+
+		if (outcome.status === "failed") {
 			const failureEventResult = await errors.try(
 				step.sendEvent("template-candidate-execution-failed", {
 					id: `${baseEventId}-candidate-execution-failed-${attempt}-${seed}`,
 					name: "template/candidate.execution.failed",
-					data: { templateId, attempt, seed, reason }
+					data: { templateId, attempt, seed, reason: outcome.reason }
 				})
 			)
 			if (failureEventResult.error) {
-				const disposalResult = errors.trySync(() => cleanupStack.dispose())
-				if (disposalResult.error) {
-					logger.error("template candidate cleanup failed", {
-						templateId,
-						attempt,
-						context: "failure",
-						error: disposalResult.error
-					})
-					throw errors.wrap(disposalResult.error, "template candidate cleanup")
-				}
 				logger.error(
 					"template candidate execution failure event emission failed",
 					{
 						templateId,
 						attempt,
 						seed,
-						reason,
+						reason: outcome.reason,
 						error: failureEventResult.error
 					}
 				)
@@ -184,145 +343,19 @@ export const executeTemplateCandidate = inngest.createFunction(
 				)
 			}
 
-			disposeStack(logger, templateId, attempt, cleanupStack, "failure")
-			return { status: "failed" as const, reason }
+			return { status: "failed" as const, reason: outcome.reason }
 		}
-
-		const parsedSeedResult = errors.trySync(() => BigInt(seed))
-		if (parsedSeedResult.error) {
-			return fail(`seed must be a base-10 integer string, received: ${seed}`)
-		}
-		const normalizedSeed = parsedSeedResult.data
-		if (normalizedSeed < BigInt(0)) {
-			return fail("seed must be non-negative")
-		}
-
-		const candidateRecord = await fetchCandidateRecord(templateId, attempt)
-		if (!candidateRecord) {
-			return fail("template candidate not found")
-		}
-
-		let validatedAtIso: string | null = null
-		if (candidateRecord.validatedAt) {
-			validatedAtIso = candidateRecord.validatedAt.toISOString()
-		}
-		logger.debug("fetched template candidate record", {
-			templateId: candidateRecord.templateId,
-			attempt: candidateRecord.attempt,
-			sourceLength: candidateRecord.source.length,
-			validatedAt: validatedAtIso
-		})
-
-		if (!candidateRecord.validatedAt) {
-			return fail("template candidate has not been validated")
-		}
-
-		const existingExecution = await db
-			.select({ id: templateCandidateExecutions.id })
-			.from(templateCandidateExecutions)
-			.where(
-				and(
-					eq(templateCandidateExecutions.templateId, templateId),
-					eq(templateCandidateExecutions.attempt, attempt),
-					eq(templateCandidateExecutions.seed, normalizedSeed)
-				)
-			)
-			.limit(1)
-
-		if (existingExecution.length > 0) {
-			return fail("template candidate execution already exists", {
-				existingExecutionId: existingExecution[0].id
-			})
-		}
-
-		const tempDir = await mkdtemp(path.join(tmpdir(), "template-execution-"))
-		cleanupStack.defer(() => rmSync(tempDir, { recursive: true, force: true }))
-
-		const requiredTypeModulesResult = errors.trySync(() =>
-			ensureRequiredTypeModulesAvailable(logger, templateId, attempt)
-		)
-		if (requiredTypeModulesResult.error) {
-			return fail("required type module missing", {
-				error: requiredTypeModulesResult.error
-			})
-		}
-
-		const rewrittenSource = rewriteAliasImports(
-			logger,
-			templateId,
-			attempt,
-			candidateRecord.source
-		)
-		const sourcePath = path.join(tempDir, "candidate.mjs")
-		const writeResult = await errors.try(writeFile(sourcePath, rewrittenSource))
-		if (writeResult.error) {
-			return fail("failed to write candidate source", {
-				error: writeResult.error
-			})
-		}
-
-		const moduleUrl = pathToFileURL(sourcePath).href
-		const importResult = await errors.try(import(moduleUrl))
-		if (importResult.error) {
-			return fail("failed to import candidate module", {
-				error: importResult.error.toString()
-			})
-		}
-		const importedModule = importResult.data
-		if (!hasDefaultExport(importedModule)) {
-			return fail("candidate module missing default export")
-		}
-		const candidateFactory = importedModule.default
-		if (typeof candidateFactory !== "function") {
-			logger.debug("candidate module default export must be a function")
-			return fail(
-				`candidate module default export must be a function, received ${typeof candidateFactory}`
-			)
-		}
-
-		const generatedBodyResult = await errors.try(
-			candidateFactory(normalizedSeed)
-		)
-		if (generatedBodyResult.error) {
-			return fail("candidate execution threw", {
-				error: generatedBodyResult.error.toString()
-			})
-		}
-		const generatedBody = generatedBodyResult.data
-
-		cleanupStack.defer(() =>
-			disposeStack(logger, templateId, attempt, cleanupStack, "success")
-		)
-
-		const persistResult = await errors.try(
-			persistExecution(templateId, attempt, normalizedSeed, generatedBody)
-		)
-		if (persistResult.error) {
-			return fail(persistResult.error.toString(), {
-				error: persistResult.error.toString()
-			})
-		}
-
-		const persistedRow = persistResult.data[0]
-		if (!persistedRow || !persistedRow.id) {
-			return fail("template candidate execution ID missing after persistence")
-		}
-		const executionId = persistedRow.id
-
-		disposeStack(logger, templateId, attempt, cleanupStack, "success")
-
-		logger.info("template candidate execution completed", {
-			templateId,
-			attempt,
-			seed,
-			executionId
-		})
 
 		const completionEventResult = await errors.try(
 			step.sendEvent("template-candidate-execution-completed", {
 				id: `${baseEventId}-candidate-execution-completed-${attempt}-${seed}`,
 				name: "template/candidate.execution.completed",
-				data: { templateId, attempt, seed, executionId }
+				data: {
+					templateId,
+					attempt,
+					seed,
+					executionId: outcome.executionId
+				}
 			})
 		)
 		if (completionEventResult.error) {
@@ -330,7 +363,7 @@ export const executeTemplateCandidate = inngest.createFunction(
 				templateId,
 				attempt,
 				seed,
-				executionId,
+				executionId: outcome.executionId,
 				error: completionEventResult.error
 			})
 			throw errors.wrap(
@@ -339,7 +372,10 @@ export const executeTemplateCandidate = inngest.createFunction(
 			)
 		}
 
-		return { status: "execution-succeeded" as const, executionId }
+		return {
+			status: "execution-succeeded" as const,
+			executionId: outcome.executionId
+		}
 	}
 )
 

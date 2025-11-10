@@ -67,15 +67,8 @@ export function composeRetryPrompt(
 		TYPE_ASSERTION_BANS_SECTION,
 		createRetryDiagnosticsSection(diagnostics),
 		createSourceContextSection(sourceContext),
-		createPositiveExampleSection(["fraction-addition"]),
-		createNegativeExampleSection([
-			"shuffled_twice",
-			"prompt_spacing",
-			"readonly_choice_ids",
-			"interaction_replacement",
-			"fraction_feedback_outdated",
-			"feedback_plan_generic"
-		])
+		createPositiveExampleSection(),
+		createNegativeExampleSection()
 	].filter((section): section is string => Boolean(section))
 
 	const widgetHelperSections = createWidgetHelperSections(

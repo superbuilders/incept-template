@@ -115,12 +115,14 @@ export const scaffoldTemplateFunction = inngest.createFunction(
 		})
 
 		const scaffoldResult = await errors.try(
-			performTemplateScaffold({
-				logger,
-				templateId,
-				exampleAssessmentItemBody,
-				metadata
-			})
+			step.run("perform-template-scaffold", () =>
+				performTemplateScaffold({
+					logger,
+					templateId,
+					exampleAssessmentItemBody,
+					metadata
+				})
+			)
 		)
 		if (scaffoldResult.error) {
 			const reason = scaffoldResult.error.toString()

@@ -22,6 +22,10 @@ type CandidateEvaluation = {
 	diagnostics: TypeScriptDiagnostic[]
 }
 
+type CandidateValidationOutcome =
+	| { status: "valid"; attempt: number }
+	| { status: "invalid"; attempt: number; diagnosticsCount: number }
+
 async function performCandidateEvaluation({
 	logger,
 	templateId,
@@ -105,6 +109,99 @@ async function collectDiagnostics(
 	return diagnostics
 }
 
+async function performTemplateCandidateValidation({
+	logger,
+	templateId,
+	attempt
+}: {
+	logger: Logger
+	templateId: string
+	attempt: number
+}): Promise<CandidateValidationOutcome> {
+	const evaluationResult = await errors.try(
+		performCandidateEvaluation({
+			logger,
+			templateId,
+			attempt
+		})
+	)
+	if (evaluationResult.error) {
+		logger.error("template candidate validation encountered error", {
+			templateId,
+			attempt,
+			error: evaluationResult.error
+		})
+		throw errors.wrap(evaluationResult.error, "candidate validation")
+	}
+
+	const { diagnostics } = evaluationResult.data
+
+	if (diagnostics.length === 0) {
+		await db
+			.update(templateCandidates)
+			.set({ validatedAt: new Date() })
+			.where(
+				and(
+					eq(templateCandidates.templateId, templateId),
+					eq(templateCandidates.attempt, attempt)
+				)
+			)
+
+		logger.info("candidate validation succeeded", {
+			templateId,
+			attempt
+		})
+
+		return { status: "valid", attempt }
+	}
+
+	logger.warn("candidate validation failed", {
+		templateId,
+		attempt,
+		diagnosticsCount: diagnostics.length
+	})
+
+	await db
+		.update(templateCandidates)
+		.set({ validatedAt: null })
+		.where(
+			and(
+				eq(templateCandidates.templateId, templateId),
+				eq(templateCandidates.attempt, attempt)
+			)
+		)
+
+	const insertDiagnosticsResult = await errors.try(
+		db.insert(candidateDiagnostics).values(
+			diagnostics.map((diagnostic) => ({
+				templateId,
+				attempt,
+				message: diagnostic.message,
+				line: diagnostic.line,
+				column: diagnostic.column,
+				tsCode: diagnostic.tsCode
+			}))
+		)
+	)
+	if (insertDiagnosticsResult.error) {
+		logger.error("failed to persist candidate diagnostics", {
+			templateId,
+			attempt,
+			error: insertDiagnosticsResult.error
+		})
+		throw errors.wrap(
+			insertDiagnosticsResult.error,
+			"persist candidate diagnostics"
+		)
+	}
+
+	return {
+		status: "invalid",
+		attempt,
+		diagnosticsCount: diagnostics.length
+	}
+}
+
 export const validateTemplateCandidate = inngest.createFunction(
 	{
 		id: "template-candidate-validation",
@@ -118,93 +215,48 @@ export const validateTemplateCandidate = inngest.createFunction(
 		const baseEventId = event.id
 		logger.info("validating template candidate", { templateId, attempt })
 
-		const evaluationResult = await errors.try(
-			performCandidateEvaluation({
-				logger,
-				templateId,
-				attempt
-			})
+		const validationResult = await errors.try(
+			step.run("perform-template-candidate-validation", () =>
+				performTemplateCandidateValidation({
+					logger,
+					templateId,
+					attempt
+				})
+			)
 		)
-		if (evaluationResult.error) {
+		if (validationResult.error) {
 			logger.error("template candidate validation encountered error", {
 				templateId,
 				attempt,
-				error: evaluationResult.error
+				error: validationResult.error
 			})
-			throw errors.wrap(evaluationResult.error, "candidate validation")
+			throw errors.wrap(validationResult.error, "candidate validation")
 		}
 
-		const { diagnostics } = evaluationResult.data
+		const outcome = validationResult.data
 
-		if (diagnostics.length === 0) {
-			await db
-				.update(templateCandidates)
-				.set({ validatedAt: new Date() })
-				.where(
-					and(
-						eq(templateCandidates.templateId, templateId),
-						eq(templateCandidates.attempt, attempt)
-					)
-				)
-
-			logger.info("candidate validation succeeded", {
-				templateId,
-				attempt
-			})
-
+		if (outcome.status === "valid") {
 			await step.sendEvent("candidate-validation-completed", {
-				id: `${baseEventId}-candidate-validation-succeeded-${attempt}`,
+				id: `${baseEventId}-candidate-validation-succeeded-${outcome.attempt}`,
 				name: "template/candidate.validation.completed",
-				data: { templateId, attempt, diagnosticsCount: 0 }
+				data: {
+					templateId,
+					attempt: outcome.attempt,
+					diagnosticsCount: 0
+				}
 			})
 
 			return { status: "validation-succeeded" as const }
 		}
 
-		logger.warn("candidate validation failed", {
-			templateId,
-			attempt,
-			diagnosticsCount: diagnostics.length
-		})
-
-		await db
-			.update(templateCandidates)
-			.set({ validatedAt: null })
-			.where(
-				and(
-					eq(templateCandidates.templateId, templateId),
-					eq(templateCandidates.attempt, attempt)
-				)
-			)
-
-		const insertDiagnosticsResult = await errors.try(
-			db.insert(candidateDiagnostics).values(
-				diagnostics.map((diagnostic) => ({
-					templateId,
-					attempt,
-					message: diagnostic.message,
-					line: diagnostic.line,
-					column: diagnostic.column,
-					tsCode: diagnostic.tsCode
-				}))
-			)
-		)
-		if (insertDiagnosticsResult.error) {
-			logger.error("failed to persist candidate diagnostics", {
-				templateId,
-				attempt,
-				error: insertDiagnosticsResult.error
-			})
-			throw errors.wrap(
-				insertDiagnosticsResult.error,
-				"persist candidate diagnostics"
-			)
-		}
-
 		await step.sendEvent("candidate-validation-completed", {
-			id: `${baseEventId}-candidate-validation-diagnostics-${attempt}`,
+			id: `${baseEventId}-candidate-validation-diagnostics-${outcome.attempt}`,
 			name: "template/candidate.validation.completed",
-			data: { templateId, attempt, diagnosticsCount: diagnostics.length }
+			data: {
+				templateId,
+				attempt: outcome.attempt,
+				diagnosticsCount: outcome.diagnosticsCount
+			}
 		})
 
 		return { status: "validation-succeeded" as const }
