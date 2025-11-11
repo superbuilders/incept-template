@@ -1,33 +1,25 @@
 // biome-ignore-all lint/suspicious/noConsole: batch script relies on console output
 
+import { randomUUID } from "node:crypto"
 import { readdir, readFile, stat } from "node:fs/promises"
 import path from "node:path"
 import process from "node:process"
 
 import * as errors from "@superbuilders/errors"
 import * as logger from "@superbuilders/slog"
-import { z } from "zod"
 
 import { inngest } from "@/inngest/client"
 
-const JSON_VALUE_SCHEMA = z.json()
-type JsonValue = z.infer<typeof JSON_VALUE_SCHEMA>
-type JsonObject = Record<string, JsonValue>
-
-const TEMPLATE_EVENT_FILE_SCHEMA = z.object({
-	templateId: z.uuid(),
-	exampleAssessmentItemBody: JSON_VALUE_SCHEMA,
-	metadata: JSON_VALUE_SCHEMA.optional()
-})
-
-type TemplateEventFile = z.infer<typeof TEMPLATE_EVENT_FILE_SCHEMA>
+type JsonPrimitive = string | number | boolean | null
+type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue }
+type JsonObject = { [key: string]: JsonValue }
 
 type CliOptions = {
 	directory: string
 	dryRun: boolean
 }
 
-type ScriptMetadata = {
+type ScriptMetadata = JsonObject & {
 	script: string
 	runAt: string
 	sourceDirectory: string
@@ -36,6 +28,8 @@ type ScriptMetadata = {
 }
 
 const SCRIPT_METADATA_KEY = "__dispatchedByScript"
+
+type AssessmentItem = JsonValue
 
 function usage(scriptLabel: string): string {
 	return [
@@ -79,46 +73,18 @@ function parseCliArguments(scriptLabel: string): CliOptions {
 	return { directory, dryRun }
 }
 
-function isJsonObject(value: JsonValue | undefined): value is JsonObject {
-	return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
-function mergeMetadata(
-	original: JsonValue | undefined,
+function buildMetadata(
+	_item: AssessmentItem,
 	scriptInfo: ScriptMetadata
 ): JsonObject {
-	if (isJsonObject(original)) {
-		return { ...original, [SCRIPT_METADATA_KEY]: scriptInfo }
-	}
-
-	if (typeof original === "undefined" || original === null) {
-		return { [SCRIPT_METADATA_KEY]: scriptInfo }
-	}
-
 	return {
-		originalMetadata: original,
 		[SCRIPT_METADATA_KEY]: scriptInfo
 	}
 }
 
-async function loadTemplateEventFile(
-	filePath: string
-): Promise<TemplateEventFile> {
+async function loadAssessmentItem(filePath: string): Promise<AssessmentItem> {
 	const raw = await readFile(filePath, "utf8")
-	const parsed = JSON.parse(raw)
-	const result = TEMPLATE_EVENT_FILE_SCHEMA.safeParse(parsed)
-	if (!result.success) {
-		const issues = result.error.issues.map((issue) => issue.message).join("; ")
-		const relativePath = path.relative(process.cwd(), filePath)
-		logger.error("invalid template event JSON", {
-			filePath: relativePath,
-			issues
-		})
-		throw errors.new(
-			`invalid template event JSON: ${issues || "see schema requirements"}`
-		)
-	}
-	return result.data
+	return JSON.parse(raw)
 }
 
 async function ensureDirectoryExists(directory: string): Promise<void> {
@@ -181,7 +147,7 @@ async function main(): Promise<void> {
 		const relativeFilePath = path.relative(process.cwd(), filePath)
 		console.log(`info: processing "${relativeFilePath}"`)
 
-		const loadResult = await errors.try(loadTemplateEventFile(filePath))
+		const loadResult = await errors.try(loadAssessmentItem(filePath))
 		if (loadResult.error) {
 			const message = loadResult.error.toString()
 			console.error(
@@ -190,7 +156,7 @@ async function main(): Promise<void> {
 			)
 			continue
 		}
-		const fileContents = loadResult.data
+		const assessmentItem = loadResult.data
 
 		const scriptInfo: ScriptMetadata = {
 			script: scriptLabel,
@@ -200,20 +166,21 @@ async function main(): Promise<void> {
 			sourceFileRelative: relativeFilePath
 		}
 
-		const metadata = mergeMetadata(fileContents.metadata, scriptInfo)
+		const metadata = buildMetadata(assessmentItem, scriptInfo)
+		const templateId = randomUUID()
 
 		const eventPayload = {
 			name: "template/template.generate.full" as const,
 			data: {
-				templateId: fileContents.templateId,
-				exampleAssessmentItemBody: fileContents.exampleAssessmentItemBody,
+				templateId,
+				exampleAssessmentItemBody: assessmentItem,
 				metadata
 			}
 		}
 
 		if (dryRun) {
 			console.log(
-				`dry-run: would dispatch event for template "${fileContents.templateId}" from "${relativeFilePath}":`
+				`dry-run: would dispatch event for template "${templateId}" from "${relativeFilePath}":`
 			)
 			console.log(JSON.stringify(eventPayload, null, 2))
 			dispatchedCount += 1
@@ -224,7 +191,7 @@ async function main(): Promise<void> {
 		if (dispatchResult.error) {
 			const message = dispatchResult.error.toString()
 			logger.error("failed to dispatch template full generation event", {
-				templateId: fileContents.templateId,
+				templateId,
 				sourceFile: relativeFilePath,
 				error: message
 			})
@@ -236,7 +203,7 @@ async function main(): Promise<void> {
 		}
 
 		console.log(
-			`info: dispatched event for template "${fileContents.templateId}" from "${relativeFilePath}"`
+			`info: dispatched event for template "${templateId}" from "${relativeFilePath}"`
 		)
 		dispatchedCount += 1
 	}
