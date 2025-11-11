@@ -115,7 +115,7 @@ export const templateCandidateExecutions = generatorSchema.table(
 				templateCandidates.templateId,
 				templateCandidates.attempt
 			]
-		}),
+		}).onDelete("cascade"),
 		check(
 			"template_candidate_executions_seed_digits",
 			sql`${table.seed} ~ '^[0-9]+$'`
@@ -149,7 +149,7 @@ export const candidateDiagnostics = generatorSchema.table(
 				templateCandidates.templateId,
 				templateCandidates.attempt
 			]
-		}),
+		}).onDelete("cascade"),
 		check(
 			"template_candidate_diagnostics_line_positive",
 			sql`${table.line} >= 1`
