@@ -239,7 +239,7 @@ export const validateTemplateCandidate = inngest.createFunction(
 			outcome.status === "valid" ? "succeeded" : "diagnostics"
 
 		const diagnosticsCount =
-			outcome.status === "valid" ? outcome.attempt : outcome.diagnosticsCount
+			outcome.status === "valid" ? 0 : outcome.diagnosticsCount
 
 		await step.sendEvent("candidate-validation-completed", {
 			id: `${baseEventId}-candidate-validation-${eventIdOutcome}-${outcome.attempt}`,
