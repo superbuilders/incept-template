@@ -235,27 +235,19 @@ export const validateTemplateCandidate = inngest.createFunction(
 
 		const outcome = validationResult.data
 
-		if (outcome.status === "valid") {
-			await step.sendEvent("candidate-validation-completed", {
-				id: `${baseEventId}-candidate-validation-succeeded-${outcome.attempt}`,
-				name: "template/candidate.validation.completed",
-				data: {
-					templateId,
-					attempt: outcome.attempt,
-					diagnosticsCount: 0
-				}
-			})
+		const eventIdOutcome =
+			outcome.status === "valid" ? "succeeded" : "diagnostics"
 
-			return { status: "validation-succeeded" as const }
-		}
+		const diagnosticsCount =
+			outcome.status === "valid" ? 0 : outcome.diagnosticsCount
 
 		await step.sendEvent("candidate-validation-completed", {
-			id: `${baseEventId}-candidate-validation-diagnostics-${outcome.attempt}`,
+			id: `${baseEventId}-candidate-validation-${eventIdOutcome}-${outcome.attempt}`,
 			name: "template/candidate.validation.completed",
 			data: {
 				templateId,
 				attempt: outcome.attempt,
-				diagnosticsCount: outcome.diagnosticsCount
+				diagnosticsCount
 			}
 		})
 
