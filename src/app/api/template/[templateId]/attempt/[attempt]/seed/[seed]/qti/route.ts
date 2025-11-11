@@ -1,14 +1,17 @@
 import * as errors from "@superbuilders/errors"
 import * as logger from "@superbuilders/slog"
 import { NextResponse } from "next/server"
-import { widgetCollection } from "@/app/api/executions/shared"
+import { widgetCollection } from "@/app/api/template/execution-shared"
 import {
-	ensureExecutionForSeed,
+	AttemptSchema,
 	SeedSchema,
-	TemplateExecutionFailedError,
 	TemplateIdSchema,
 	TemplateNotValidatedError
-} from "@/app/api/templates/shared"
+} from "@/app/api/template/shared"
+import {
+	ensureExecutionForAttemptSeed,
+	TemplateExecutionFailedError
+} from "../execution"
 import { compile } from "@/compiler/compiler"
 import type { FeedbackPlanAny } from "@/core/feedback/plan"
 import type { AssessmentItemInput } from "@/core/item"
@@ -16,6 +19,7 @@ import type { WidgetTypeTupleFrom } from "@/widgets/collections/types"
 
 type RouteParams = {
 	templateId: string
+	attempt: string
 	seed: string
 }
 
@@ -24,19 +28,36 @@ export async function GET(
 	context: { params: Promise<RouteParams> }
 ) {
 	const params = await context.params
-	const templateIdResult = TemplateIdSchema.safeParse(params.templateId.trim())
+
+	const templateIdResult = TemplateIdSchema.safeParse(
+		params.templateId.trim()
+	)
 	if (!templateIdResult.success) {
-		logger.error("template seed qti route received invalid template id", {
+		logger.error("template attempt qti route received invalid template id", {
 			templateId: params.templateId
 		})
 		return NextResponse.json({ error: "invalid template id" }, { status: 400 })
 	}
 	const templateId = templateIdResult.data
 
+	const attemptResult = AttemptSchema.safeParse(params.attempt)
+	if (!attemptResult.success) {
+		logger.error("template attempt qti route received invalid attempt", {
+			templateId,
+			attempt: params.attempt
+		})
+		return NextResponse.json(
+			{ error: "attempt must be a non-negative integer" },
+			{ status: 400 }
+		)
+	}
+	const attempt = attemptResult.data
+
 	const seedResult = SeedSchema.safeParse(params.seed.trim())
 	if (!seedResult.success) {
-		logger.error("template seed qti route received invalid seed", {
+		logger.error("template attempt qti route received invalid seed", {
 			templateId,
+			attempt,
 			seed: params.seed
 		})
 		return NextResponse.json(
@@ -47,7 +68,12 @@ export async function GET(
 	const seed = seedResult.data
 
 	const executionResult = await errors.try(
-		ensureExecutionForSeed({ templateId, seed })
+		ensureExecutionForAttemptSeed({
+			logger,
+			templateId,
+			attempt,
+			seed
+		})
 	)
 
 	if (executionResult.error) {
@@ -59,8 +85,9 @@ export async function GET(
 			)
 		}
 		if (failure instanceof TemplateExecutionFailedError) {
-			logger.error("template seed qti execution failed", {
+			logger.error("template attempt qti execution failed", {
 				templateId,
+				attempt,
 				seed,
 				reason: failure.reason,
 				extra: failure.extra
@@ -70,9 +97,9 @@ export async function GET(
 				{ status: 500 }
 			)
 		}
-
-		logger.error("template seed qti route encountered unexpected error", {
+		logger.error("template attempt qti route encountered unexpected error", {
 			templateId,
+			attempt,
 			seed,
 			error: failure
 		})
@@ -92,8 +119,9 @@ export async function GET(
 
 	const xmlResult = await errors.try(compile(body, widgetCollection))
 	if (xmlResult.error) {
-		logger.error("template seed qti compilation failed", {
+		logger.error("template attempt qti compilation failed", {
 			templateId,
+			attempt,
 			seed,
 			executionId: record.id,
 			error: xmlResult.error

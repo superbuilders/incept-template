@@ -59,45 +59,6 @@ const templateGenerationFailedSchema = z.object({
 	reason: z.string().min(1)
 })
 
-const templateExecutionRequestedSchema = z.object({
-	templateId: z.uuid(),
-	seed: z.string().regex(/^\d+$/, "seed must be a non-negative integer string")
-})
-
-const templateExecutionCompletedSchema = z.object({
-	templateId: z.uuid(),
-	attempt: z.number().int().min(0),
-	seed: z.string().regex(/^\d+$/, "seed must be a non-negative integer string"),
-	executionId: z.uuid()
-})
-
-const templateExecutionFailedSchema = z.object({
-	templateId: z.uuid(),
-	attempt: z.number().int().min(0),
-	seed: z.string().regex(/^\d+$/, "seed must be a non-negative integer string"),
-	reason: z.string().min(1)
-})
-
-const templateCandidateExecutionRequestedSchema = z.object({
-	templateId: z.uuid(),
-	attempt: z.number().int().min(0),
-	seed: z.string().regex(/^\d+$/, "seed must be a non-negative integer string")
-})
-
-const templateCandidateExecutionCompletedSchema = z.object({
-	templateId: z.uuid(),
-	attempt: z.number().int().min(0),
-	seed: z.string().regex(/^\d+$/, "seed must be a non-negative integer string"),
-	executionId: z.uuid()
-})
-
-const templateCandidateExecutionFailedSchema = z.object({
-	templateId: z.uuid(),
-	attempt: z.number().int().min(0),
-	seed: z.string().regex(/^\d+$/, "seed must be a non-negative integer string"),
-	reason: z.string().min(1)
-})
-
 const questionBatchRequestedSchema = z.object({
 	jobId: z.uuid(),
 	templateId: z.uuid(),
@@ -123,9 +84,6 @@ const schema = {
 	"template/template.generation.requested": templateGenerationRequestedSchema,
 	"template/template.generation.completed": templateGenerationCompletedSchema,
 	"template/template.generation.failed": templateGenerationFailedSchema,
-	"template/template.execution.requested": templateExecutionRequestedSchema,
-	"template/template.execution.completed": templateExecutionCompletedSchema,
-	"template/template.execution.failed": templateExecutionFailedSchema,
 	"template/candidate.generation.requested":
 		templateCandidateGenerationRequestedSchema,
 	"template/candidate.generation.failed":
@@ -134,11 +92,6 @@ const schema = {
 		templateCandidateValidationRequestedSchema,
 	"template/candidate.validation.completed":
 		templateCandidateValidationCompletedSchema,
-	"template/candidate.execution.requested":
-		templateCandidateExecutionRequestedSchema,
-	"template/candidate.execution.completed":
-		templateCandidateExecutionCompletedSchema,
-	"template/candidate.execution.failed": templateCandidateExecutionFailedSchema,
 	"template/question.batch.requested": questionBatchRequestedSchema,
 	"template/question.batch.completed": questionBatchCompletedSchema,
 	"template/question.batch.failed": questionBatchFailedSchema,

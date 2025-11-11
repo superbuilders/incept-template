@@ -4,11 +4,13 @@ import { tmpdir } from "node:os"
 import * as path from "node:path"
 import { pathToFileURL } from "node:url"
 import * as errors from "@superbuilders/errors"
+import type { Logger } from "@superbuilders/slog"
 import { and, eq } from "drizzle-orm"
-import type { Logger } from "inngest"
+import type { ExecutionRecord } from "@/app/api/template/execution-shared"
+import { fetchExecutionRecord } from "@/app/api/template/execution-shared"
+import { TemplateNotValidatedError } from "@/app/api/template/shared"
 import { db } from "@/db"
 import { templateCandidateExecutions, templateCandidates } from "@/db/schema"
-import { inngest } from "@/inngest/client"
 
 type CandidateRecord = {
 	templateId: string
@@ -17,11 +19,36 @@ type CandidateRecord = {
 	validatedAt: Date | null
 }
 
+async function fetchExecutionById(
+	logger: Logger,
+	executionId: string
+): Promise<ExecutionRecord> {
+	const record = await fetchExecutionRecord(executionId)
+	if (!record) {
+		logger.error("template seed execution record missing", {
+			executionId
+		})
+		throw new TemplateExecutionFailedError("execution record missing", {
+			executionId
+		})
+	}
+	return record
+}
+
 type ModuleWithDefault = { default: unknown }
 
 type CandidateExecutionOutcome =
 	| { status: "failed"; reason: string; extra?: Record<string, unknown> }
 	| { status: "succeeded"; executionId: string }
+
+export class TemplateExecutionFailedError extends Error {
+	constructor(
+		public readonly reason: string,
+		public readonly extra: Record<string, unknown> | undefined
+	) {
+		super(reason)
+	}
+}
 
 const ALIAS_EXTENSIONS = [
 	"",
@@ -34,8 +61,11 @@ const ALIAS_EXTENSIONS = [
 	".cjs",
 	".json"
 ]
+
 const ALIAS_IMPORT_REGEX = /(['"`])@\/([^'"`]+)\1/g
+
 const RAW_ALIAS_TARGETS = [path.resolve(process.cwd(), "src")]
+
 const SLASH_ALIAS_TARGETS = RAW_ALIAS_TARGETS.filter(
 	(candidate, index, array) =>
 		existsSync(candidate) && array.indexOf(candidate) === index
@@ -77,6 +107,7 @@ async function fetchCandidateRecord(
 	if (rows.length === 0) {
 		return undefined
 	}
+
 	return rows[0]
 }
 
@@ -281,106 +312,6 @@ export async function performTemplateCandidateExecution({
 	return { status: "succeeded" as const, executionId }
 }
 
-export const executeTemplateCandidate = inngest.createFunction(
-	{
-		id: "template-candidate-execution",
-		name: "Template Candidate Execution",
-		idempotency: "event",
-		concurrency: [{ scope: "fn", key: "event.data.templateId", limit: 1 }]
-	},
-	{ event: "template/candidate.execution.requested" },
-	async ({ event, step, logger }) => {
-		const { templateId, attempt, seed } = event.data
-		const baseEventId = event.id
-		logger.info("template candidate execution requested", {
-			templateId,
-			attempt,
-			seed
-		})
-
-		const executionResult = await errors.try(
-			step.run("perform-template-candidate-execution", () =>
-				performTemplateCandidateExecution({
-					logger,
-					templateId,
-					attempt,
-					seed
-				})
-			)
-		)
-		if (executionResult.error) {
-			logger.error("template candidate execution encountered error", {
-				templateId,
-				attempt,
-				seed,
-				error: executionResult.error
-			})
-			throw errors.wrap(executionResult.error, "template candidate execution")
-		}
-
-		const outcome = executionResult.data
-
-		if (outcome.status === "failed") {
-			const failureEventResult = await errors.try(
-				step.sendEvent("template-candidate-execution-failed", {
-					id: `${baseEventId}-candidate-execution-failed-${attempt}-${seed}`,
-					name: "template/candidate.execution.failed",
-					data: { templateId, attempt, seed, reason: outcome.reason }
-				})
-			)
-			if (failureEventResult.error) {
-				logger.error(
-					"template candidate execution failure event emission failed",
-					{
-						templateId,
-						attempt,
-						seed,
-						reason: outcome.reason,
-						error: failureEventResult.error
-					}
-				)
-				throw errors.wrap(
-					failureEventResult.error,
-					`template candidate execution failure event template=${templateId} attempt=${attempt}`
-				)
-			}
-
-			return { status: "failed" as const, reason: outcome.reason }
-		}
-
-		const completionEventResult = await errors.try(
-			step.sendEvent("template-candidate-execution-completed", {
-				id: `${baseEventId}-candidate-execution-completed-${attempt}-${seed}`,
-				name: "template/candidate.execution.completed",
-				data: {
-					templateId,
-					attempt,
-					seed,
-					executionId: outcome.executionId
-				}
-			})
-		)
-		if (completionEventResult.error) {
-			logger.error("template candidate execution completion event failed", {
-				templateId,
-				attempt,
-				seed,
-				executionId: outcome.executionId,
-				error: completionEventResult.error
-			})
-			throw errors.wrap(
-				completionEventResult.error,
-				`template candidate execution completion event template=${templateId} attempt=${attempt}`
-			)
-		}
-
-		return {
-			status: "execution-succeeded" as const,
-			executionId: outcome.executionId
-		}
-	}
-)
-
 function resolveAliasSpecifier(
 	logger: Logger,
 	templateId: string,
@@ -483,4 +414,105 @@ function ensureRequiredTypeModulesAvailable(
 			throw resolutionResult.error
 		}
 	}
+}
+
+export async function ensureExecutionForAttemptSeed({
+	logger,
+	templateId,
+	attempt,
+	seed
+}: {
+	logger: Logger
+	templateId: string
+	attempt: number
+	seed: string
+}): Promise<ExecutionRecord> {
+	const candidateRecord = await db
+		.select({ validatedAt: templateCandidates.validatedAt })
+		.from(templateCandidates)
+		.where(
+			and(
+				eq(templateCandidates.templateId, templateId),
+				eq(templateCandidates.attempt, attempt)
+			)
+		)
+		.limit(1)
+		.then((rows) => rows[0])
+
+	if (!candidateRecord || !candidateRecord.validatedAt) {
+		logger.error("template attempt not validated", {
+			templateId,
+			attempt
+		})
+		throw new TemplateNotValidatedError(templateId)
+	}
+
+	const normalizedSeed = BigInt(seed)
+
+	const cachedExecution = await db
+		.select({
+			id: templateCandidateExecutions.id,
+			templateId: templateCandidateExecutions.templateId,
+			attempt: templateCandidateExecutions.attempt,
+			seed: templateCandidateExecutions.seed,
+			body: templateCandidateExecutions.body,
+			createdAt: templateCandidateExecutions.createdAt
+		})
+		.from(templateCandidateExecutions)
+		.where(
+			and(
+				eq(templateCandidateExecutions.templateId, templateId),
+				eq(templateCandidateExecutions.attempt, attempt),
+				eq(templateCandidateExecutions.seed, normalizedSeed)
+			)
+		)
+		.limit(1)
+
+	if (cachedExecution.length > 0) {
+		logger.debug("template seed execution cache hit", {
+			templateId,
+			attempt,
+			seed: normalizedSeed.toString(),
+			executionId: cachedExecution[0].id
+		})
+		return cachedExecution[0]
+	}
+
+	const executionResult = await performTemplateCandidateExecution({
+		logger,
+		templateId,
+		attempt,
+		seed
+	})
+
+	if (executionResult.status === "failed") {
+		const existingId = executionResult.extra?.existingExecutionId
+		if (
+			executionResult.reason ===
+				"template candidate execution already exists" &&
+			typeof existingId === "string"
+		) {
+			logger.info("template seed execution reused existing record", {
+				templateId,
+				attempt,
+				seed,
+				executionId: existingId
+			})
+			return fetchExecutionById(logger, existingId)
+		}
+
+		logger.error("template seed execution failed", {
+			templateId,
+			attempt,
+			seed,
+			reason: executionResult.reason,
+			extra: executionResult.extra
+		})
+		throw new TemplateExecutionFailedError(
+			executionResult.reason,
+			executionResult.extra
+		)
+	}
+
+	return fetchExecutionById(logger, executionResult.executionId)
 }
