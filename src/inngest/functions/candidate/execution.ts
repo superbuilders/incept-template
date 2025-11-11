@@ -124,7 +124,7 @@ function disposeStack(
 	}
 }
 
-async function performTemplateCandidateExecution({
+export async function performTemplateCandidateExecution({
 	logger,
 	templateId,
 	attempt,
