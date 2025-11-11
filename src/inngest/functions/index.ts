@@ -1,3 +1,4 @@
+import { generateAssessmentItem } from "@/inngest/functions/assessment/generation"
 import { generateTemplateCandidate } from "@/inngest/functions/candidate/generation"
 import { validateTemplateCandidate } from "@/inngest/functions/candidate/validation"
 import { helloWorldFunction } from "@/inngest/functions/hello-world"
@@ -11,5 +12,6 @@ export const functions = [
 	helloWorldFunction,
 	startTemplateGeneration,
 	generateTemplateCandidate,
-	validateTemplateCandidate
+	validateTemplateCandidate,
+	generateAssessmentItem
 ]

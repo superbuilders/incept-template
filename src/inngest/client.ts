@@ -83,6 +83,46 @@ const questionBatchFailedSchema = z.object({
 	reason: z.string().min(1)
 })
 
+const assessmentItemGenerationRequestedSchema = z.object({
+	jobId: z.uuid(),
+	widgetCollection: z.enum([
+		"all",
+		"science",
+		"simple-visual",
+		"fourth-grade-math",
+		"teks-math-4",
+		"math-core"
+	]),
+	envelope: z.object({
+		primaryContent: z.string().min(1),
+		supplementaryContent: z.array(z.string()),
+		multimodalImageUrls: z.array(z.string().url()),
+		multimodalImagePayloads: z.array(
+			z.object({
+				dataBase64: z.string(),
+				mimeType: z.enum(["image/png", "image/jpeg", "image/webp", "image/gif"])
+			})
+		),
+		pdfPayloads: z.array(
+			z.object({
+				name: z.string(),
+				dataBase64: z.string()
+			})
+		)
+	})
+})
+
+const assessmentItemGenerationCompletedSchema = z.object({
+	jobId: z.uuid(),
+	itemBody: z.json(),
+	qtiXml: z.string()
+})
+
+const assessmentItemGenerationFailedSchema = z.object({
+	jobId: z.uuid(),
+	reason: z.string().min(1)
+})
+
 const schema = {
 	"template/template.scaffold.requested": templateScaffoldRequestedSchema,
 	"template/template.scaffold.completed": templateScaffoldCompletedSchema,
@@ -102,6 +142,11 @@ const schema = {
 	"template/question.batch.requested": questionBatchRequestedSchema,
 	"template/question.batch.completed": questionBatchCompletedSchema,
 	"template/question.batch.failed": questionBatchFailedSchema,
+	"assessment/item.generation.requested":
+		assessmentItemGenerationRequestedSchema,
+	"assessment/item.generation.completed":
+		assessmentItemGenerationCompletedSchema,
+	"assessment/item.generation.failed": assessmentItemGenerationFailedSchema,
 	"template/hello": helloWorldSchema
 }
 
