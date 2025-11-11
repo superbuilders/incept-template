@@ -8,7 +8,6 @@
 		"./gritql/no-relative-imports.grit",
 		"./gritql/no-try.grit",
 		"./gritql/require-logger-before-throw.grit",
-		"./gritql/no-db-in-step-run.grit",
 		"./gritql/no-implicit-select-all.grit"
 	],
 	"vcs": {

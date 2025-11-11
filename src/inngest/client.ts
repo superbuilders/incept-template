@@ -18,6 +18,12 @@ const templateScaffoldFailedSchema = z.object({
 	reason: z.string().min(1)
 })
 
+const templateGenerateFullSchema = z.object({
+	templateId: z.uuid(),
+	exampleAssessmentItemBody: z.json(),
+	metadata: z.json().optional()
+})
+
 const helloWorldSchema = z.object({
 	message: z.string().min(1)
 })
@@ -81,6 +87,7 @@ const schema = {
 	"template/template.scaffold.requested": templateScaffoldRequestedSchema,
 	"template/template.scaffold.completed": templateScaffoldCompletedSchema,
 	"template/template.scaffold.failed": templateScaffoldFailedSchema,
+	"template/template.generate.full": templateGenerateFullSchema,
 	"template/template.generation.requested": templateGenerationRequestedSchema,
 	"template/template.generation.completed": templateGenerationCompletedSchema,
 	"template/template.generation.failed": templateGenerationFailedSchema,
