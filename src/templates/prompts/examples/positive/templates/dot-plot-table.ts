@@ -330,7 +330,6 @@ export default function generateTemplate(
 	]
 
 	// Feedback shared pedagogy (three actionable steps, no final answers here)
-	const totalDotsForSolution = widgetData.reduce((sum, d) => sum + d.count, 0)
 	const triple = [
 		{ value: valueA, count: countAt(valueA) },
 		{ value: valueB, count: countAt(valueB) },
@@ -352,7 +351,7 @@ export default function generateTemplate(
 						type: "paragraph" as const,
 						content: [
 							text(
-								"In a dot plot, each dot is one data point. Count only the dots stacked directly above a single label before moving to the next."
+								`Use the dot plot to isolate one label at a time - each stacked dot is one person counted for that exact number of ${chosenSubject.plural}.`
 							)
 						]
 					}
@@ -360,36 +359,66 @@ export default function generateTemplate(
 			},
 			{
 				type: "step" as const,
-				title: [text("Trace the requested labels")],
+				title: [text("Count the dots above each label")],
 				content: [
 					{
 						type: "paragraph" as const,
 						content: [
-							text("Place your finger at "),
+							text("At "),
 							mathNum(triple[0].value),
-							text(", then at "),
+							text(" you see "),
+							mathNum(triple[0].count),
+							text(" dot"),
+							text(triple[0].count === 1 ? "" : "s"),
+							text(".")
+						]
+					},
+					{
+						type: "paragraph" as const,
+						content: [
+							text("At "),
 							mathNum(triple[1].value),
-							text(", and finally at "),
+							text(" the column holds "),
+							mathNum(triple[1].count),
+							text(" dot"),
+							text(triple[1].count === 1 ? "" : "s"),
+							text(".")
+						]
+					},
+					{
+						type: "paragraph" as const,
+						content: [
+							text("At "),
 							mathNum(triple[2].value),
-							text(". For each, tally the dots in that exact column.")
+							text(" the stack shows "),
+							mathNum(triple[2].count),
+							text(" dot"),
+							text(triple[2].count === 1 ? "" : "s"),
+							text(".")
 						]
 					}
 				]
 			},
 			{
 				type: "step" as const,
-				title: [text("Sanity-check with the total")],
+				title: [text("Record the matching counts")],
 				content: [
 					{
 						type: "paragraph" as const,
 						content: [
-							text("All your entries together should make sense with the "),
-							mathNum(totalDotsForSolution),
-							text(" data point"),
-							text(totalDotsForSolution === 1 ? "" : "s"),
-							text(
-								" shown overall. Avoid borrowing dots from neighboring labels."
-							)
+							text("Enter "),
+							mathNum(triple[0].count),
+							text(" for the highlighted cell at "),
+							mathNum(triple[0].value),
+							text(", "),
+							mathNum(triple[1].count),
+							text(" at "),
+							mathNum(triple[1].value),
+							text(", and "),
+							mathNum(triple[2].count),
+							text(" at "),
+							mathNum(triple[2].value),
+							text(" so the table mirrors each column's count.")
 						]
 					}
 				]
