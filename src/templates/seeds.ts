@@ -1,8 +1,5 @@
-import * as errors from "@superbuilders/errors"
-import * as logger from "@superbuilders/slog"
-
-const UINT32_MAX = 0xffffffff
-const UINT32_MAX_PLUS_ONE = UINT32_MAX + 1
+const UINT64_MAX = (1n << 64n) - 1n
+const DOUBLE_PRECISION_RANGE = 2 ** 53
 
 export type SeededRandom = {
 	next: () => number
@@ -13,45 +10,36 @@ export type SeededRandom = {
 /**
  * Very small deterministic RNG (LCG) seeded from a bigint. Provides helpers for
  * common integer and boolean draws without relying on global Math.random.
+ * Callers should pass non-negative integer seed values.
  */
 export function createSeededRandom(seed: bigint): SeededRandom {
-	if (seed < 0n) {
-		logger.error("seed must be nonnegative", { seed: seed.toString() })
-		throw errors.new("seed must be nonnegative")
+	// SplitMix64-style 64-bit state evolution keeps behaviour stable across large seeds.
+	let state = BigInt.asUintN(64, seed)
+
+	const nextUint64 = () => {
+		state = (state + 0x9e3779b97f4a7c15n) & UINT64_MAX
+		let z = state
+		z = (z ^ (z >> 30n)) * 0xbf58476d1ce4e5b9n
+		z &= UINT64_MAX
+		z = (z ^ (z >> 27n)) * 0x94d049bb133111ebn
+		z &= UINT64_MAX
+		z ^= z >> 31n
+		return z & UINT64_MAX
 	}
 
-	// Reduce big seed to 32-bit state while keeping determinism for large inputs.
-	let state = Number(seed & BigInt(UINT32_MAX)) >>> 0
-
 	const next = () => {
-		state = (state * 1664525 + 1013904223) >>> 0
-		return state / UINT32_MAX_PLUS_ONE
+		const value = nextUint64() >> 11n // retain top 53 bits for double precision
+		return Number(value) / DOUBLE_PRECISION_RANGE
 	}
 
 	const nextInt = (min: number, maxInclusive: number): number => {
-		if (!Number.isFinite(min) || !Number.isFinite(maxInclusive)) {
-			logger.error("nextInt bounds must be finite numbers", {
-				min,
-				maxInclusive
-			})
-			throw errors.new("nextInt bounds must be finite numbers")
+		const lower = Math.trunc(min)
+		const upper = Math.trunc(maxInclusive)
+		const span = upper - lower + 1
+		if (!Number.isFinite(span) || span <= 0) {
+			return lower
 		}
-		if (Math.floor(min) !== min || Math.floor(maxInclusive) !== maxInclusive) {
-			logger.error("nextInt bounds must be integers", {
-				min,
-				maxInclusive
-			})
-			throw errors.new("nextInt bounds must be integers")
-		}
-		if (maxInclusive < min) {
-			logger.error("nextInt maxInclusive must be >= min", {
-				min,
-				maxInclusive
-			})
-			throw errors.new("nextInt maxInclusive must be >= min")
-		}
-		const span = maxInclusive - min + 1
-		return min + Math.floor(next() * span)
+		return lower + Math.floor(next() * span)
 	}
 
 	const nextBoolean = () => next() < 0.5
