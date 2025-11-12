@@ -30,6 +30,14 @@ export const FEEDBACK_GUIDANCE_SECTION = `### FEEDBACK_POLICY
 **Good preamble**
 “You chose **Internet** with **Groceries**. Internet keeps <mo>$</mo><mn>120</mn> in September, October, and November, so it is fixed—variable expenses are the rows whose amounts change.”
 
+**Correct branch example**
+“You selected <mo>$</mo><mn>31.47</mn>, and <mo>$</mo><mn>56.82</mn> − <mo>$</mo><mn>25.35</mn> also equals <mo>$</mo><mn>31.47</mn>, so you combined bills and coins with the required regrouping.”
+
+**Incorrect branch example**
+“You selected <mo>$</mo><mn>52.11</mn>. That keeps the cents subtraction at <mn>43</mn> − <mn>58</mn> without borrowing 1 dollar, so you never add the extra 100 cents that makes the top row larger.”
+
+For every branch—correct or incorrect—mirror this pattern. A correct branch still confirms what the learner selected and explains why the evidence supports it (e.g., “You chose $31.47, and $56.82 − $25.35 also equals $31.47…”). An incorrect branch must quote the learner’s value and the precise computation that refutes it.
+
 #### Steps: Three Actionable Moves
 
 - Provide **at least three high-impact steps** unless the schema demands more. Each step should advance the learner from misconception to mastery (e.g., *Match the denominators*, *Rewrite each fraction*, *Add and simplify*).

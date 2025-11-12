@@ -448,15 +448,19 @@ export default function generateTemplate(
 	const buildAllCorrect = () => ({
 		correctness: "correct" as const,
 		summary: [
-			text(
-				"You matched each requested label to the dots above it—your entries for "
-			),
+			text("You entered "),
+			mathNum(triple[0].count),
+			text(" for label "),
 			mathNum(triple[0].value),
 			text(", "),
+			mathNum(triple[1].count),
+			text(" for label "),
 			mathNum(triple[1].value),
 			text(", and "),
+			mathNum(triple[2].count),
+			text(" for label "),
 			mathNum(triple[2].value),
-			text(" align with the plot.")
+			text(" — exactly matching the dot counts in the plot.")
 		]
 	})
 
@@ -466,13 +470,15 @@ export default function generateTemplate(
 		return {
 			correctness: "incorrect" as const,
 			summary: [
-				text("One entry needs a recount: at "),
+				text("The entry you provided at label "),
 				mathNum(v),
-				text(" the column shows "),
+				text(" needs to be "),
 				mathNum(c),
-				text(" dot"),
-				text(c === 1 ? "" : "s"),
-				text(". Count only the dots directly above that label.")
+				text(", because that column shows "),
+				mathNum(c),
+				text(" "),
+				text(c === 1 ? "dot" : "dots"),
+				text(".")
 			]
 		}
 	}
@@ -485,15 +491,15 @@ export default function generateTemplate(
 		return {
 			correctness: "incorrect" as const,
 			summary: [
-				text("Two entries are off: "),
+				text("Two of your dropdowns need to be corrected: label "),
 				mathNum(v1),
-				text(" has "),
+				text(" should be "),
 				mathNum(c1),
-				text(", and "),
+				text(", and label "),
 				mathNum(v2),
-				text(" has "),
+				text(" should be "),
 				mathNum(c2),
-				text(". Recount each column separately.")
+				text(". Recount those columns and enter those dot counts.")
 			]
 		}
 	}
@@ -501,19 +507,19 @@ export default function generateTemplate(
 	const tripleIncorrect = () => ({
 		correctness: "incorrect" as const,
 		summary: [
-			text("Recount all three entries: "),
+			text("Recount all three highlighted labels: "),
 			mathNum(triple[0].value),
-			text(" → "),
+			text(" needs "),
 			mathNum(triple[0].count),
 			text(", "),
 			mathNum(triple[1].value),
-			text(" → "),
+			text(" needs "),
 			mathNum(triple[1].count),
 			text(", "),
 			mathNum(triple[2].value),
-			text(" → "),
+			text(" needs "),
 			mathNum(triple[2].count),
-			text(". Each dot represents one data point above its label.")
+			text(", matching the dots in each column.")
 		]
 	})
 

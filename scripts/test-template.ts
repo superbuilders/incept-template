@@ -72,7 +72,31 @@ function ensureTemplateFactory(
 }
 
 async function main() {
-	const [, , templateId] = process.argv
+	const args = process.argv.slice(2)
+	let templateId: string | undefined
+	let seed = 0n
+
+	for (const arg of args) {
+		if (arg.startsWith("--seed=")) {
+			const raw = arg.slice("--seed=".length)
+			if (!raw) {
+				logger.error("missing seed value")
+				process.exit(1)
+			}
+			const parsedSeed = errors.trySync(() => BigInt(raw))
+			if (parsedSeed.error) {
+				logger.error("invalid seed value", {
+					value: raw,
+					error: parsedSeed.error
+				})
+				process.exit(1)
+			}
+			seed = parsedSeed.data
+		} else if (!templateId) {
+			templateId = arg
+		}
+	}
+
 	const availableTemplates = getAvailableTemplates()
 
 	if (!templateId) {
@@ -109,58 +133,30 @@ async function main() {
 		templateId
 	)
 
-	logger.info("starting template poc test", { templateId })
-
-	const exampleSeeds = [
-		123n,
-		456n,
-		789n,
-		101112n,
-		131415n,
-		161718n,
-		192021n,
-		222324n,
-		252627n
-	]
-
-	for (const seed of exampleSeeds) {
-		logger.info("generating example from seed", { seed: seed.toString() })
-
-		const itemInputResult = errors.trySync(() => generateQuestion(seed))
-		if (itemInputResult.error) {
-			logger.error("template function failed", {
-				seed: seed.toString(),
-				error: itemInputResult.error
-			})
-			throw errors.wrap(itemInputResult.error, "template generation")
-		}
-		const assessmentItemInput = itemInputResult.data
-		logger.info("generated assessmentiteminput", {
+	const itemInputResult = errors.trySync(() => generateQuestion(seed))
+	if (itemInputResult.error) {
+		logger.error("template function failed", {
+			templateId,
 			seed: seed.toString(),
-			identifier: assessmentItemInput.identifier,
-			title: assessmentItemInput.title
+			error: itemInputResult.error
 		})
-
-		const compileResult = await errors.try(
-			compile(assessmentItemInput, allWidgetsCollection)
-		)
-		if (compileResult.error) {
-			logger.error("qti compilation failed", {
-				seed: seed.toString(),
-				error: compileResult.error
-			})
-			throw errors.wrap(compileResult.error, "compilation")
-		}
-		const qtiXml = compileResult.data
-		logger.info("successfully compiled qti xml", { seed: seed.toString() })
-		logger.info("generated qti xml", {
-			seed: seed.toString(),
-			xml: qtiXml,
-			separator: "========================================"
-		})
+		throw errors.wrap(itemInputResult.error, "template generation")
 	}
+	const assessmentItemInput = itemInputResult.data
 
-	logger.info("template poc succeeded for all seeds")
+	const compileResult = await errors.try(
+		compile(assessmentItemInput, allWidgetsCollection)
+	)
+	if (compileResult.error) {
+		logger.error("qti compilation failed", {
+			templateId,
+			seed: seed.toString(),
+			error: compileResult.error
+		})
+		throw errors.wrap(compileResult.error, "compilation")
+	}
+	const qtiXml = compileResult.data
+	process.stdout.write(`${qtiXml}\n`)
 }
 
 // Execute the main function and handle potential errors at the top level.

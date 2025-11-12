@@ -330,14 +330,14 @@ export default function generateTemplate(
 						content: [
 							text("Coins: "),
 							mathRaw(
-								`<mn>${countDimes}</mn><mo>×</mo><mn>0.10</mn><mo>=</mo><mn>${(countDimes / 10).toFixed(
-									2
+								`<mn>${countDimes}</mn><mo>×</mo><mo>$</mo><mn>0.10</mn><mo>=</mo><mo>$</mo><mn>${formatCents(
+									countDimes * 10
 								)}</mn>`
 							),
 							text(" and "),
 							mathRaw(
-								`<mn>${countPennies}</mn><mo>×</mo><mn>0.01</mn><mo>=</mo><mn>${(countPennies / 100).toFixed(
-									2
+								`<mn>${countPennies}</mn><mo>×</mo><mo>$</mo><mn>0.01</mn><mo>=</mo><mo>$</mo><mn>${formatCents(
+									countPennies
 								)}</mn>`
 							),
 							text(".")
@@ -397,14 +397,16 @@ export default function generateTemplate(
 									mathRaw(
 										`<mn>100</mn><mo>+</mo><mn>${totalCentPart}</mn><mo>−</mo><mn>${priceCentPart}</mn><mo>=</mo><mn>${centsAfter}</mn>`
 									),
-									text(".")
+									text(" → "),
+									mathDollar(centsAfter)
 								]
 							: [
 									text("Cents: "),
 									mathRaw(
 										`<mn>${totalCentPart}</mn><mo>−</mo><mn>${priceCentPart}</mn><mo>=</mo><mn>${centsAfter}</mn>`
 									),
-									text(".")
+									text(" → "),
+									mathDollar(centsAfter)
 								]
 					},
 					{
@@ -415,14 +417,16 @@ export default function generateTemplate(
 									mathRaw(
 										`<mn>${totalDollars}</mn><mo>−</mo><mn>1</mn><mo>−</mo><mn>${priceDollars}</mn><mo>=</mo><mn>${dollarsAfter}</mn>`
 									),
-									text(".")
+									text(" → "),
+									mathDollar(dollarsAfter * 100)
 								]
 							: [
 									text("Dollars: "),
 									mathRaw(
 										`<mn>${totalDollars}</mn><mo>−</mo><mn>${priceDollars}</mn><mo>=</mo><mn>${dollarsAfter}</mn>`
 									),
-									text(".")
+									text(" → "),
+									mathDollar(dollarsAfter * 100)
 								]
 					}
 				]
@@ -444,15 +448,19 @@ export default function generateTemplate(
 	const preambleFor = (key: (typeof PLAN_CHOICE_IDS)[number]) => {
 		const spec = choiceMapByLetter[key]
 		const chosen = spec ?? finalChoices[0]
+		const chosenAmount = describeChoice(chosen)
+		const centDifference = Math.abs(totalCentPart - priceCentPart)
 		if (key === correctChoiceIdentifier) {
 			return {
 				correctness: "correct" as const,
 				summary: [
-					text("You matched "),
-					mathMoneyExpr(totalCents, priceCents),
-					text(" to "),
+					text("You selected "),
 					mathDollar(remainCents),
-					text(", aligning dollars and cents properly.")
+					text(", and "),
+					mathMoneyExpr(totalCents, priceCents),
+					text(" also equals "),
+					mathDollar(remainCents),
+					text(", so you combined bills and coins with the required regrouping.")
 				]
 			}
 		}
@@ -460,11 +468,15 @@ export default function generateTemplate(
 			return {
 				correctness: "incorrect" as const,
 				summary: [
-					text("Your selection "),
-					describeChoice(chosen),
-					text(" omits the coins worth "),
+					text("You selected "),
+					chosenAmount,
+					text(", which subtracts only the bills "),
+					mathMoneyExpr(billsCents, priceCents),
+					text(" and ignores the coins worth "),
 					mathDollar(coinsCents),
-					text(" from the starting amount.")
+					text(". Include both the bills and the "),
+					mathDollar(coinsCents),
+					text(" in the starting total before subtracting.")
 				]
 			}
 		}
@@ -472,13 +484,17 @@ export default function generateTemplate(
 			return {
 				correctness: "incorrect" as const,
 				summary: [
-					text("The cents in "),
-					describeChoice(chosen),
-					text(" treat "),
+					text("You selected "),
+					chosenAmount,
+					text(", which keeps the cents subtraction as "),
 					mathRaw(`<mn>${totalCentPart}</mn>`),
-					text("−"),
+					text(" − "),
 					mathRaw(`<mn>${priceCentPart}</mn>`),
-					text(" without regrouping when the top cents are smaller.")
+					text(". Because "),
+					mathRaw(`<mn>${totalCentPart}</mn>`),
+					text(" is less than "),
+					mathRaw(`<mn>${priceCentPart}</mn>`),
+					text(", you must borrow 1 dollar (100 cents) before subtracting the cents.")
 				]
 			}
 		}
@@ -486,9 +502,13 @@ export default function generateTemplate(
 			return {
 				correctness: "incorrect" as const,
 				summary: [
-					text("This amount uses the absolute difference of the cents "),
-					mathRaw(`<mn>${Math.abs(totalCentPart - priceCentPart)}</mn>`),
-					text(" instead of borrowing 1 dollar when needed.")
+					text("You selected "),
+					chosenAmount,
+					text(", which takes the absolute difference of the cents "),
+					mathRaw(
+						`<mo>|</mo><mn>${totalCentPart}</mn><mo>−</mo><mn>${priceCentPart}</mn><mo>|</mo><mo>=</mo><mn>${centDifference}</mn><mtext> cents</mtext>`
+					),
+					text(", instead of borrowing 1 dollar to make the top cents larger before subtracting.")
 				]
 			}
 		}
@@ -496,24 +516,31 @@ export default function generateTemplate(
 			return {
 				correctness: "incorrect" as const,
 				summary: [
-					text("The value "),
-					describeChoice(chosen),
-					text(" swaps coin values—treating each dime as "),
+					text("You selected "),
+					chosenAmount,
+					text(", which treats each dime as "),
 					mathRaw(`<mn>0.01</mn>`),
 					text(" and each penny as "),
 					mathRaw(`<mn>0.10</mn>`),
-					text(", which inflates the starting total.")
+					text(", inflating the starting total instead of using dime = 0.10 and penny = 0.01.")
 				]
 			}
 		}
+		const difference = chosen.amountCents - remainCents
+		const diffAbs = Math.abs(difference)
+		const moreOrLess = difference > 0 ? "more" : "less"
 		return {
 			correctness: "incorrect" as const,
 			summary: [
-				text("This amount "),
-				describeChoice(chosen),
-				text(" does not follow from "),
+				text("You selected "),
+				chosenAmount,
+				text(", which is "),
+				mathDollar(diffAbs),
+				text(` ${moreOrLess} than the result of `),
 				mathMoneyExpr(totalCents, priceCents),
-				text(". Recompute with regrouping when the cents on top are smaller.")
+				text(
+					". Recheck the regrouping so the cents subtraction matches the dot-plot subtraction."
+				)
 			]
 		}
 	}

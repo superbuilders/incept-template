@@ -310,14 +310,6 @@ export default function generateTemplate(
 		.filter((e) => e.isFullyCorrect)
 		.map((e) => shapeDisplay(e.shape))
 
-	const incorrectDetails = entries
-		.filter((e) => !e.isFullyCorrect)
-		.map((e) => {
-			const count = trueSymmetryCount(e.shape)
-			const desc = incorrectLineDescriptor(e.shape)
-			return `${shapeDisplay(e.shape)} (true lines ${count}; ${desc})`
-		})
-
 	const firstWidgetId = entries[0] ? entries[0].widgetId : "symdiag_0"
 
 	const shared = {
@@ -452,36 +444,35 @@ export default function generateTemplate(
 			return entry
 		})
 
-		const selectedNames = selectedEntries.map((entry) =>
-			cap(shapeDisplay(entry.shape))
-		)
-		const selectedIssues = selectedEntries
-			.filter((entry) => !entry.isFullyCorrect)
-			.map((entry) => cap(incorrectLineDescriptor(entry.shape)))
+		const selectedNames = selectedEntries.map((entry) => cap(shapeDisplay(entry.shape)))
+
+		const entryExplanations = selectedEntries.map((entry) => {
+			const name = cap(shapeDisplay(entry.shape))
+			if (entry.isFullyCorrect) {
+				return `${name} shows only the true symmetry lines.`
+			}
+			const issue = incorrectLineDescriptor(entry.shape)
+			return `${name} is incorrect because ${issue}.`
+		})
 
 		const isCorrectCombination =
 			choiceIds.length === correctChoiceIdentifiers.length &&
 			choiceIds.every((choiceId) => correctChoiceSet.has(choiceId))
 
-		const issueSnippets =
-			selectedIssues.length > 0 ? selectedIssues : incorrectDetails.map(cap)
-
 		const summary = isCorrectCombination
 			? [
 					text(
-						"Your two selections match the diagrams that show exactly the true symmetry lines: "
-					),
-					text(joinWithAnd(correctShapeNames.map(cap))),
-					text(".")
+						`You selected ${joinWithAnd(selectedNames)}, and each diagram shows exactly the true symmetry lines.`
+					)
 				]
 			: [
-					text("You selected "),
-					text(joinWithAnd(selectedNames)),
-					text(", but the accurate diagrams are "),
-					text(joinWithAnd(correctShapeNames.map(cap))),
-					text(". Review the dashed lines—issues include "),
-					text(joinWithAnd(issueSnippets)),
-					text(".")
+					text(
+						`You selected ${joinWithAnd(selectedNames)}. ${entryExplanations.join(
+							" "
+						)} Choose ${joinWithAnd(
+							correctShapeNames.map(cap)
+						)} to match the true symmetry lines.`
+					)
 				]
 
 		return {

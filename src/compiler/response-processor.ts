@@ -569,7 +569,7 @@ export function compileResponseProcessing<E extends readonly string[]>(
 	const processingRules: string[] = []
 	const { feedbackPlan } = item
 
-	logger.info("compiling response processing", {
+	logger.debug("compiling response processing", {
 		itemIdentifier: item.identifier,
 		dimensionCount: feedbackPlan.dimensions.length
 	})

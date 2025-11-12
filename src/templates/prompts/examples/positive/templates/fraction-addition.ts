@@ -445,15 +445,15 @@ export const generateFractionAdditionQuestion: TemplateModule<
 				return {
 					correctness: "correct",
 					summary: [
-						{ type: "text", content: "Great work—your choice " },
+						{ type: "text", content: "You chose " },
 						{ type: "math", mathml: formatFractionMathML(correctAnswer) },
-						{ type: "text", content: " shows you aligned " },
+						{ type: "text", content: ", aligning " },
 						{ type: "math", mathml: formatFractionMathML(f1) },
 						{ type: "text", content: " and " },
 						{ type: "math", mathml: formatFractionMathML(f2) },
 						{
 							type: "text",
-							content: " to a shared denominator and simplified correctly."
+							content: " to a shared denominator and simplifying to lowest terms."
 						}
 					]
 				}
@@ -550,9 +550,6 @@ export const generateFractionAdditionQuestion: TemplateModule<
 		preambles
 	}
 
-	// --- 3d. Construct the Final AssessmentItemInput Object ---
-	// --- 3d. Construct the Final AssessmentItemInput Object ---
-	// TODO: Update this template to use feedbackPlan + map structure
 	const assessmentItem = {
 		identifier: `fraction-addition-seed-${seed.toString()}`,
 		title: `Fraction Addition: ${f1.numerator}/${f1.denominator} + ${f2.numerator}/${f2.denominator}`,
@@ -653,9 +650,5 @@ export const generateFractionAdditionQuestion: TemplateModule<
 
 	return assessmentItem
 }
-
-// -----------------------------------------------------------------------------
-// 4. EXPORT
-// -----------------------------------------------------------------------------
 
 export default generateFractionAdditionQuestion
