@@ -345,7 +345,7 @@ export default function generateTemplate(
 			},
 			{
 				type: "step" as const,
-				title: [text("Know each shape’s true symmetry count")],
+				title: [text("List each shape’s symmetry count")],
 				content: entries.map((e) => {
 					const count = trueSymmetryCount(e.shape)
 					return {
@@ -363,7 +363,7 @@ export default function generateTemplate(
 			},
 			{
 				type: "step" as const,
-				title: [text("Match diagrams to the true set exactly")],
+				title: [text("Filter to the exact symmetry matches")],
 				content: [
 					{
 						type: "paragraph" as const,
@@ -371,16 +371,6 @@ export default function generateTemplate(
 							text(
 								"Select only the diagrams whose dashed lines match the true set exactly—no extra incorrect lines and none missing."
 							)
-						]
-					},
-					{
-						type: "paragraph" as const,
-						content: [
-							text("For this instance, the fully accurate diagrams are the "),
-							text(joinWithAnd(correctShapeNames.map(cap))),
-							text(". Others show issues such as "),
-							text(joinWithAnd(incorrectDetails.map((s) => cap(s)))),
-							text(".")
 						]
 					}
 				]
