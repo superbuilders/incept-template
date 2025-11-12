@@ -13,6 +13,7 @@ import { typeCheckSource } from "@/templates/type-checker"
 import type { TypeScriptDiagnostic } from "@/templates/types"
 import {
 	validateNoNonNullAssertions,
+	validateNoThrowStatements,
 	validateNoTypeAssertions,
 	validateTemplateWidgets
 } from "@/templates/widget-validation"
@@ -104,6 +105,11 @@ async function collectDiagnostics(
 	const typeAssertionDiagnostic = validateNoTypeAssertions(source)
 	if (typeAssertionDiagnostic) {
 		diagnostics.push(typeAssertionDiagnostic)
+	}
+
+	const throwDiagnostic = validateNoThrowStatements(source)
+	if (throwDiagnostic) {
+		diagnostics.push(throwDiagnostic)
 	}
 
 	return diagnostics

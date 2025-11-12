@@ -9,6 +9,7 @@ import { typeCheckSource } from "@/templates/type-checker"
 import type { TypeScriptDiagnostic } from "@/templates/types"
 import {
 	validateNoNonNullAssertions,
+	validateNoThrowStatements,
 	validateNoTypeAssertions,
 	validateTemplateWidgets
 } from "@/templates/widget-validation"
@@ -155,6 +156,15 @@ export async function generateTemplate(
 					message: typeAssertionDiagnostic.message
 				})
 				lastDiagnostics = [typeAssertionDiagnostic]
+				continue
+			}
+
+			const throwDiagnostic = validateNoThrowStatements(code)
+			if (throwDiagnostic) {
+				logger.warn("throw statement detected", {
+					message: throwDiagnostic.message
+				})
+				lastDiagnostics = [throwDiagnostic]
 				continue
 			}
 			logger.info("typecheck succeeded", { iteration })

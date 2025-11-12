@@ -186,3 +186,38 @@ export function validateNoTypeAssertions(
 		"Avoid type assertions (`as`). Use runtime guards or `satisfies` instead."
 	)
 }
+
+export function validateNoThrowStatements(
+	source: string
+): TypeScriptDiagnostic | null {
+	const sourceFile = ts.createSourceFile(
+		"template.ts",
+		source,
+		ts.ScriptTarget.ESNext,
+		true,
+		ts.ScriptKind.TS
+	)
+
+	let violation: ts.ThrowStatement | ts.Node | undefined
+
+	const visit = (node: ts.Node): void => {
+		if (violation) return
+
+		if (ts.isThrowStatement(node)) {
+			violation = node
+			return
+		}
+
+		node.forEachChild(visit)
+	}
+
+	visit(sourceFile)
+
+	if (!violation) return null
+
+	return createDiagnostic(
+		sourceFile,
+		violation,
+		"Templates must not throw or reject; guard invariants and return deterministic data instead."
+	)
+}
