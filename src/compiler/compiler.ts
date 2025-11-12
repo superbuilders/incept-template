@@ -8,7 +8,8 @@ import {
 import { compileInteraction } from "@/compiler/interaction-compiler"
 import {
 	compileResponseDeclarations,
-	compileResponseProcessing
+	compileResponseProcessing,
+	deriveCombinationEncodings
 } from "@/compiler/response-processor"
 import { encodeDataUri } from "@/compiler/utils/helpers"
 import {
@@ -947,10 +948,17 @@ export async function compile<
 		})
 		.join("\n")
 
-	const responseDeclarations = compileResponseDeclarations(
-		enforcedItem.responseDeclarations
+	const combinationEncodings = deriveCombinationEncodings(
+		normalizedItem.feedbackPlan
 	)
-	const responseProcessing = compileResponseProcessing(normalizedItem)
+	const responseDeclarations = compileResponseDeclarations(
+		enforcedItem.responseDeclarations,
+		combinationEncodings
+	)
+	const responseProcessing = compileResponseProcessing(
+		normalizedItem,
+		combinationEncodings
+	)
 
 	// MODIFIED: Assemble the final XML with dynamic declarations and blocks.
 	let finalXml = `<?xml version="1.0" encoding="UTF-8"?>
