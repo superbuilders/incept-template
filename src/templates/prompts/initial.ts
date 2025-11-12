@@ -4,6 +4,7 @@ import {
 	createPositiveExampleSection
 } from "@/templates/prompts/sections/examples"
 import { FEEDBACK_GUIDANCE_SECTION } from "@/templates/prompts/sections/feedback-guidance"
+import { FEEDBACK_DIMENSION_SELECTION_SECTION } from "@/templates/prompts/sections/feedback-dimension-selection"
 import { FEEDBACK_PLAN_GUARDRAILS_SECTION } from "@/templates/prompts/sections/feedback-plan-guardrails"
 import { IDENTIFIER_GUIDANCE_SECTION } from "@/templates/prompts/sections/identifier-guidance"
 import { LITERAL_BANS_SECTION } from "@/templates/prompts/sections/literal-bans"
@@ -53,6 +54,7 @@ export function composeInitialPrompt(
 		createFeedbackContentTypesSection(),
 		createFeedbackAuthoringTypesSection(),
 		IDENTIFIER_GUIDANCE_SECTION,
+		FEEDBACK_DIMENSION_SELECTION_SECTION,
 		FEEDBACK_PLAN_GUARDRAILS_SECTION,
 		FEEDBACK_GUIDANCE_SECTION,
 		LITERAL_BANS_SECTION,

@@ -1,4 +1,10 @@
 import { z } from "zod"
+import type {
+	BinaryFeedbackDimension,
+	CombinationFeedbackDimension,
+	EnumeratedFeedbackDimension,
+	FeedbackCombination
+} from "@/core/feedback/plan"
 import {
 	ChoiceIdentifierSchema,
 	FeedbackCombinationIdentifierSchema,
@@ -19,6 +25,36 @@ export const FeedbackDimensionSchema = z
 				responseIdentifier: ResponseIdentifierSchema,
 				kind: z.literal("binary")
 			})
+			.strict(),
+		z
+			.object({
+				responseIdentifier: ResponseIdentifierSchema,
+				kind: z.literal("combination"),
+				minSelections: z.number().int().min(0),
+				maxSelections: z.number().int().min(0),
+				choices: z.array(ChoiceIdentifierSchema).min(1),
+				keys: z.array(z.string()).min(1)
+			})
+			.strict()
+			.superRefine(({ choices, minSelections, maxSelections }, ctx) => {
+				if (minSelections > maxSelections) {
+					ctx.addIssue({
+						code: "custom",
+						message:
+							"Combination dimension requires minSelections <= maxSelections.",
+						path: ["minSelections", "maxSelections"]
+					})
+				}
+				const maxValid = choices.length
+				if (minSelections > maxValid || maxSelections > maxValid) {
+					ctx.addIssue({
+						code: "custom",
+						message:
+							"Combination dimension selections must satisfy 0 <= minSelections <= maxSelections <= choices.length.",
+						path: ["minSelections", "maxSelections"]
+					})
+				}
+			})
 			.strict()
 	])
 	.describe(
@@ -33,11 +69,7 @@ export const FeedbackCombinationSchema = z
 				z
 					.object({
 						responseIdentifier: ResponseIdentifierSchema,
-						key: z.union([
-							z.literal("CORRECT"),
-							z.literal("INCORRECT"),
-							ChoiceIdentifierSchema
-						])
+						key: z.string()
 					})
 					.strict()
 			)
@@ -83,3 +115,59 @@ export const FeedbackPlanSchema = z
 		}
 	})
 	.describe("The explicit contract for feedback evaluation.")
+
+type SchemaFeedbackDimension = z.infer<typeof FeedbackDimensionSchema>
+type SchemaFeedbackCombination = z.infer<typeof FeedbackCombinationSchema>
+
+type ToReadonly<T> = T extends (infer U)[]
+	? readonly ToReadonly<U>[]
+	: T extends object
+		? { readonly [K in keyof T]: ToReadonly<T[K]> }
+		: T
+
+type SchemaDimensionReadonly = ToReadonly<SchemaFeedbackDimension>
+type SchemaCombinationReadonly = ToReadonly<SchemaFeedbackCombination>
+
+type EnumeratedSchemaCoverage = EnumeratedFeedbackDimension<
+	"RESP",
+	readonly ["A", "B"]
+> extends SchemaDimensionReadonly
+	? true
+	: never
+type BinarySchemaCoverage =
+	BinaryFeedbackDimension<"RESP"> extends SchemaDimensionReadonly ? true : never
+type CombinationSchemaCoverage = CombinationFeedbackDimension<
+	"RESP",
+	0,
+	1,
+	readonly ["A", "B"],
+	readonly ["A"]
+> extends SchemaDimensionReadonly
+	? true
+	: never
+
+type SampleCombinationDimensions = readonly [
+	CombinationFeedbackDimension<
+		"RESP",
+		0,
+		1,
+		readonly ["A", "B"],
+		readonly ["A"]
+	>
+]
+
+type CombinationPathSchemaCoverage = FeedbackCombination<
+	"FB__RESP_A",
+	SampleCombinationDimensions
+> extends SchemaCombinationReadonly
+	? true
+	: never
+
+const _enumeratedSchemaCoverage: EnumeratedSchemaCoverage = true
+const _binarySchemaCoverage: BinarySchemaCoverage = true
+const _combinationSchemaCoverage: CombinationSchemaCoverage = true
+const _combinationPathSchemaCoverage: CombinationPathSchemaCoverage = true
+void _enumeratedSchemaCoverage
+void _binarySchemaCoverage
+void _combinationSchemaCoverage
+void _combinationPathSchemaCoverage

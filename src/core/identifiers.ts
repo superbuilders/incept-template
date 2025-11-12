@@ -56,28 +56,16 @@ type LowerAlpha =
 
 type Digit = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
 
-type ChoiceIdentifierRest<S extends string = ""> =
-	S extends `${UpperAlpha | Digit | "_"}${infer Tail}`
-		? `${UpperAlpha | Digit | "_"}${ChoiceIdentifierRest<Tail>}`
-		: ""
-
 type SlotIdentifierRest<S extends string = ""> =
 	S extends `${LowerAlpha | Digit | "_"}${infer Tail}`
 		? `${LowerAlpha | Digit | "_"}${SlotIdentifierRest<Tail>}`
 		: ""
 
-type FeedbackCombinationRest<S extends string = ""> =
-	S extends `__${infer Segment}${infer Tail}`
-		? Segment extends ChoiceIdentifier
-			? `__${Segment}${FeedbackCombinationRest<Tail>}`
-			: ""
-		: ""
-
-export type ChoiceIdentifier = `${UpperAlpha}${ChoiceIdentifierRest}`
+export type ChoiceIdentifier = `${UpperAlpha}${string}`
 
 export type ResponseIdentifier = `RESP${"" | `_${ChoiceIdentifier}`}`
 
-export type FeedbackCombinationIdentifier = `FB__${ChoiceIdentifier}${FeedbackCombinationRest}`
+export type FeedbackCombinationIdentifier = `FB__${string}`
 
 export type SlotIdentifier = `${LowerAlpha}${SlotIdentifierRest}`
 

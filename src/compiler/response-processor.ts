@@ -239,47 +239,74 @@ function generateComboModeProcessing<E extends readonly string[]>(
 		const restDims = dims.slice(1)
 		const responseId = escapeXmlAttribute(currentDim.responseIdentifier)
 
-		if (currentDim.kind === "enumerated") {
-			const conditions = currentDim.keys
-				.map((key, index): string => {
-					const tag = index === 0 ? "qti-response-if" : "qti-response-else-if"
-					const choiceId = escapeXmlAttribute(key)
-					const newPathSegments = [
-						...pathSegments,
-						{ responseIdentifier: currentDim.responseIdentifier, key }
-					]
-					const innerContent = buildConditionTree(restDims, newPathSegments)
+        switch (currentDim.kind) {
+            case "enumerated": {
+                const conditions = currentDim.keys
+                    .map((key, index): string => {
+                        const tag = index === 0 ? "qti-response-if" : "qti-response-else-if"
+                        const choiceId = escapeXmlAttribute(key)
+                        const newPathSegments = [
+                            ...pathSegments,
+                            { responseIdentifier: currentDim.responseIdentifier, key }
+                        ]
+                        const innerContent = buildConditionTree(restDims, newPathSegments)
 
-					return `
+                        return `
         <${tag}>
             <qti-match>
                 <qti-variable identifier="${responseId}"/>
                 <qti-base-value base-type="identifier">${choiceId}</qti-base-value>
             </qti-match>${innerContent}
         </${tag}>`
-				})
-				.join("")
-			return `
+                    })
+                    .join("")
+                return `
     <qti-response-condition>${conditions}
     </qti-response-condition>`
-		}
+            }
+            case "combination": {
+                const conditions = currentDim.keys
+                    .map((key, index) => {
+                        const tag = index === 0 ? "qti-response-if" : "qti-response-else-if"
+                        const escapedKey = escapeXmlAttribute(key)
+                        const newPathSegments = [
+                            ...pathSegments,
+                            { responseIdentifier: currentDim.responseIdentifier, key }
+                        ]
+                        const innerContent = buildConditionTree(restDims, newPathSegments)
 
-		const correctPath = [
-			...pathSegments,
-			{ responseIdentifier: currentDim.responseIdentifier, key: "CORRECT" }
-		]
-		const incorrectPath = [
-			...pathSegments,
-			{ responseIdentifier: currentDim.responseIdentifier, key: "INCORRECT" }
-		]
-		const correctBranch = buildConditionTree(restDims, correctPath)
-		const incorrectBranch = buildConditionTree(restDims, incorrectPath)
-		const correctComparison = buildCorrectComparison(
-			item,
-			currentDim.responseIdentifier
-		)
+                        return `
+        <${tag}>
+            <qti-match>
+                <qti-equal>
+                    <qti-variable identifier="${responseId}"/>
+                    <qti-base-value base-type="directedPair">${escapedKey.replace(/__/gu, " ")}</qti-base-value>
+                </qti-equal>
+            </qti-match>${innerContent}
+        </${tag}>`
+                    })
+                    .join("")
+                return `
+    <qti-response-condition>${conditions}
+    </qti-response-condition>`
+            }
+            case "binary": {
+                const correctPath = [
+                    ...pathSegments,
+                    { responseIdentifier: currentDim.responseIdentifier, key: "CORRECT" }
+                ]
+                const incorrectPath = [
+                    ...pathSegments,
+                    { responseIdentifier: currentDim.responseIdentifier, key: "INCORRECT" }
+                ]
+                const correctBranch = buildConditionTree(restDims, correctPath)
+                const incorrectBranch = buildConditionTree(restDims, incorrectPath)
+                const correctComparison = buildCorrectComparison(
+                    item,
+                    currentDim.responseIdentifier
+                )
 
-		return `
+            return `
     <qti-response-condition>
         <qti-response-if>
             ${correctComparison}${correctBranch}
@@ -287,7 +314,16 @@ function generateComboModeProcessing<E extends readonly string[]>(
         <qti-response-else>${incorrectBranch}
         </qti-response-else>
     </qti-response-condition>`
-	}
+            }
+            default:
+                logger.error("unsupported feedback dimension kind", {
+                    kind: (currentDim as FeedbackDimension).kind
+                })
+                throw errors.new(
+                    `unsupported feedback dimension kind '${(currentDim as FeedbackDimension).kind}' during response processing`
+                )
+        }
+    }
 
 	return buildConditionTree(dimensions, [])
 }

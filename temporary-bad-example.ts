@@ -1,0 +1,385 @@
+import * as errors from "@superbuilders/errors"
+import * as logger from "@superbuilders/slog"
+import type { FeedbackCombination, FeedbackPlan } from "@/core/feedback/plan"
+import type { FeedbackCombinationIdentifier } from "@/core/identifiers"
+import type { AssessmentItemInput } from "@/core/item"
+import { createSeededRandom } from "@/templates/seeds"
+
+export type TemplateWidgets = readonly ["symmetryDiagram"]
+
+type PlanDimensions = readonly [{ responseIdentifier: "RESP"; kind: "binary" }]
+
+const FEEDBACK_DIMENSIONS: PlanDimensions = [
+	{ responseIdentifier: "RESP", kind: "binary" }
+]
+
+const FEEDBACK_COMBINATIONS = [
+	{
+		id: "FB__A",
+		path: [{ responseIdentifier: "RESP", key: "CORRECT" }]
+	},
+	{
+		id: "FB__B",
+		path: [{ responseIdentifier: "RESP", key: "INCORRECT" }]
+	}
+] as const satisfies readonly FeedbackCombination<
+	FeedbackCombinationIdentifier,
+	PlanDimensions
+>[]
+
+const feedbackPlan = {
+	dimensions: FEEDBACK_DIMENSIONS,
+	combinations: FEEDBACK_COMBINATIONS
+} satisfies FeedbackPlan
+
+type TemplateFeedbackPlan = typeof feedbackPlan
+
+export default function generateTemplate(
+	seed: bigint
+): AssessmentItemInput<TemplateWidgets, TemplateFeedbackPlan> {
+	const random = createSeededRandom(seed)
+
+	// Helpers
+	const text = (content: string) => ({ type: "text" as const, content })
+	const mathNum = (n: number) => ({
+		type: "math" as const,
+		mathml: `<mn>${n}</mn>`
+	})
+	const cap = (s: string) =>
+		s.length === 0 ? s : s[0].toUpperCase() + s.slice(1)
+	const joinWithAnd = (items: string[]) => {
+		if (items.length === 0) return ""
+		if (items.length === 1) return items[0]
+		if (items.length === 2) return `${items[0]} and ${items[1]}`
+		return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`
+	}
+
+	type SymmetryShape =
+		| "isoscelesTrapezoid"
+		| "regularTriangle"
+		| "isoscelesTriangle"
+		| "rectangle"
+		| "heart"
+		| "square"
+		| "rhombus"
+		| "fourPointStar"
+
+	const ALL_SHAPES: SymmetryShape[] = [
+		"isoscelesTrapezoid",
+		"regularTriangle",
+		"isoscelesTriangle",
+		"rectangle",
+		"heart",
+		"square",
+		"rhombus",
+		"fourPointStar"
+	]
+
+	const shapeDisplay = (shape: SymmetryShape): string => {
+		switch (shape) {
+			case "isoscelesTrapezoid":
+				return "isosceles trapezoid"
+			case "regularTriangle":
+				return "equilateral triangle"
+			case "isoscelesTriangle":
+				return "isosceles triangle"
+			case "rectangle":
+				return "rectangle"
+			case "heart":
+				return "heart"
+			case "square":
+				return "square"
+			case "rhombus":
+				return "rhombus"
+			case "fourPointStar":
+				return "four-point star"
+		}
+	}
+
+	const trueSymmetryCount = (shape: SymmetryShape): number => {
+		switch (shape) {
+			case "isoscelesTrapezoid":
+				return 1
+			case "regularTriangle":
+				return 3
+			case "isoscelesTriangle":
+				return 1
+			case "rectangle":
+				return 2
+			case "heart":
+				return 1
+			case "square":
+				return 4
+			case "rhombus":
+				return 2
+			case "fourPointStar":
+				return 2
+		}
+	}
+
+	const incorrectLineDescriptor = (shape: SymmetryShape): string => {
+		switch (shape) {
+			case "rectangle":
+				return "diagonals are shown, which do not mirror opposite edges"
+			case "isoscelesTrapezoid":
+				return "a horizontal midline is shown, which fails to mirror the slanted sides"
+			case "regularTriangle":
+				return "a horizontal line is shown that is not a true median"
+			case "isoscelesTriangle":
+				return "a slanted line from a base vertex is shown; only the vertical line works"
+			case "heart":
+				return "a horizontal line is shown; only a vertical line produces matching halves"
+			case "square":
+				return "off-center vertical and horizontal lines are shown"
+			case "rhombus":
+				return "a non-axis slanted line through the center is shown"
+			case "fourPointStar":
+				return "a slightly rotated line through the center is shown"
+		}
+	}
+
+	// Seed-driven selection of 5 distinct shapes using deterministic ranking
+	type Ranked<T> = { value: T; key: number }
+	const ranked: Ranked<SymmetryShape>[] = ALL_SHAPES.map((s) => ({
+		value: s,
+		key: random.next()
+	}))
+	ranked.sort((a, b) => a.key - b.key)
+	const chosenShapes: SymmetryShape[] = ranked.slice(0, 5).map((r) => r.value)
+
+	// Choose exactly two indices that will be fully correct (no incorrect lines shown)
+	const correctIndexSet = new Set<number>()
+	while (correctIndexSet.size < 2) {
+		correctIndexSet.add(random.nextInt(0, chosenShapes.length - 1))
+	}
+	const correctIndices = Array.from(correctIndexSet).sort((a, b) => a - b)
+
+	type Entry = {
+		index: number
+		shape: SymmetryShape
+		widgetId: string
+		isFullyCorrect: boolean
+	}
+	const entries: Entry[] = chosenShapes.map((shape, idx) => ({
+		index: idx,
+		shape,
+		widgetId: `symdiag_${idx}`,
+		isFullyCorrect: correctIndices.includes(idx)
+	}))
+
+	const sizeBase = 360 + random.nextInt(0, 40)
+	const widgetWidth = sizeBase
+	const widgetHeight = sizeBase
+	const transparent = "#00000000"
+
+	const widgets = entries.reduce<
+		Record<
+			string,
+			{
+				type: "symmetryDiagram"
+				shape: SymmetryShape
+				width: number
+				height: number
+				shapeColor: string
+				drawCorrectLines: boolean
+				drawIncorrectLines: boolean
+			}
+		>
+	>((acc, e) => {
+		acc[e.widgetId] = {
+			type: "symmetryDiagram",
+			shape: e.shape,
+			width: widgetWidth,
+			height: widgetHeight,
+			shapeColor: transparent,
+			drawCorrectLines: true,
+			drawIncorrectLines: !e.isFullyCorrect
+		}
+		return acc
+	}, {})
+
+	const CHOICE_IDS = ["A", "B", "C", "D", "E"] as const
+	type ChoiceId = (typeof CHOICE_IDS)[number]
+
+	const choices = entries.map((e, idx) => ({
+		identifier: CHOICE_IDS[idx],
+		content: [
+			{
+				type: "widgetRef" as const,
+				widgetId: e.widgetId,
+				widgetType: "symmetryDiagram" as const
+			}
+		]
+	}))
+
+	const correctChoiceIdentifiers: ChoiceId[] = entries
+		.filter((e) => e.isFullyCorrect)
+		.map((e) => CHOICE_IDS[e.index])
+
+	if (correctChoiceIdentifiers.length !== 2) {
+		logger.error("symmetry template expected exactly two correct shapes", {
+			correctChoiceIdentifiersCount: correctChoiceIdentifiers.length
+		})
+		throw errors.new("expected exactly two fully-correct shapes")
+	}
+
+	const correctShapeNames = entries
+		.filter((e) => e.isFullyCorrect)
+		.map((e) => shapeDisplay(e.shape))
+
+	const incorrectDetails = entries
+		.filter((e) => !e.isFullyCorrect)
+		.map((e) => {
+			const count = trueSymmetryCount(e.shape)
+			const desc = incorrectLineDescriptor(e.shape)
+			return `${shapeDisplay(e.shape)} (true lines ${count}; ${desc})`
+		})
+
+	const firstWidgetId = entries[0] ? entries[0].widgetId : "symdiag_0"
+
+	const shared = {
+		steps: [
+			{
+				type: "step" as const,
+				title: [text("Apply the fold test for symmetry")],
+				content: [
+					{
+						type: "widgetRef" as const,
+						widgetId: firstWidgetId,
+						widgetType: "symmetryDiagram" as const
+					},
+					{
+						type: "paragraph" as const,
+						content: [
+							text("A symmetry line splits a figure into "),
+							mathNum(2),
+							text(
+								" mirror halves: folding on the dashed line makes every point overlap a counterpart."
+							)
+						]
+					}
+				]
+			},
+			{
+				type: "step" as const,
+				title: [text("Know each shape’s true symmetry count")],
+				content: entries.map((e) => {
+					const count = trueSymmetryCount(e.shape)
+					return {
+						type: "paragraph" as const,
+						content: [
+							text(`${cap(shapeDisplay(e.shape))}: `),
+							text("true lines "),
+							text("="),
+							text(" "),
+							mathNum(count),
+							text(".")
+						]
+					}
+				})
+			},
+			{
+				type: "step" as const,
+				title: [text("Match diagrams to the true set exactly")],
+				content: [
+					{
+						type: "paragraph" as const,
+						content: [
+							text(
+								"Select only the diagrams whose dashed lines match the true set exactly—no extra incorrect lines and none missing."
+							)
+						]
+					},
+					{
+						type: "paragraph" as const,
+						content: [
+							text("For this instance, the fully accurate diagrams are the "),
+							text(joinWithAnd(correctShapeNames.map(cap))),
+							text(". Others show issues such as "),
+							text(joinWithAnd(incorrectDetails.map((s) => cap(s)))),
+							text(".")
+						]
+					}
+				]
+			}
+		],
+		solution: {
+			type: "solution" as const,
+			content: [
+				text("Therefore, select the "),
+				text(joinWithAnd(correctShapeNames.map(cap))),
+				text(".")
+			]
+		}
+	}
+
+	const preambles = {
+		FB__A: {
+			correctness: "correct" as const,
+			summary: [
+				text(
+					"Your two selections match the diagrams that show exactly the true symmetry lines: "
+				),
+				text(joinWithAnd(correctShapeNames.map(cap))),
+				text(".")
+			]
+		},
+		FB__B: {
+			correctness: "incorrect" as const,
+			summary: [
+				text("The accurate diagrams are "),
+				text(joinWithAnd(correctShapeNames.map(cap))),
+				text(". At least one other figure shows a mismatch—for example, "),
+				text(joinWithAnd(incorrectDetails.map(cap))),
+				text(". Compare the dashed lines to the true counts shown above.")
+			]
+		}
+	}
+
+	const assessmentItem = {
+		identifier: `symmetry-lines-multiselect-${seed.toString()}`,
+		title: "Lines of symmetry: select all correct diagrams",
+		responseDeclarations: [
+			{
+				identifier: "RESP" as const,
+				cardinality: "multiple" as const,
+				baseType: "identifier" as const,
+				correct: correctChoiceIdentifiers
+			}
+		],
+		body: [
+			{
+				type: "paragraph" as const,
+				content: [
+					text(
+						"Which diagrams show all true lines of symmetry with no incorrect lines? Select exactly two."
+					)
+				]
+			},
+			{ type: "interactionRef" as const, interactionId: "choice_interaction" }
+		],
+		widgets,
+		interactions: {
+			choice_interaction: {
+				type: "choiceInteraction" as const,
+				responseIdentifier: "RESP" as const,
+				prompt: [
+					text(
+						"Choose the two figures whose dashed lines are exactly the true lines of symmetry."
+					)
+				],
+				choices,
+				shuffle: true as const,
+				minChoices: 2,
+				maxChoices: 2
+			}
+		},
+		feedbackPlan,
+		feedback: {
+			shared,
+			preambles
+		}
+	} satisfies AssessmentItemInput<TemplateWidgets, TemplateFeedbackPlan>
+
+	return assessmentItem
+}
