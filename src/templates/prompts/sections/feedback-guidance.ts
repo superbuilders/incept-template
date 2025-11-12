@@ -14,14 +14,25 @@ export const FEEDBACK_GUIDANCE_SECTION = `### FEEDBACK_POLICY
 - Treat the feedback as the canonical answer key delivered aloud. If a line does not measurably advance the solution, it does not belong.
 
 #### Preamble: Diagnose the Outcome
-- Call out the learner’s exact choice or computation using the values supplied by the feedback block parameters (e.g., “You chose the fraction whose numerator is <mn>5</mn>, but the correct numerator is <mn>7</mn>.”).
-- State why that selection is incorrect or correct by referencing the underlying principle (“Adding the denominators <mn>6</mn> and <mn>4</mn> changed each part’s size.”).
-- Surface the precise numbers or structures involved: name the swapped coins, quote the mismatched exponents, or restate the exact subtraction digits so the learner sees the concrete error.
-- Keep it focused: 1–2 sentences that set up the steps to come and never echo the verdict (“Correct!”, “Not quite!”).
+- Open every preamble with the learner’s exact selections (“You chose **Internet** and **Utilities** …”). No placeholders, no coy references to “one category.”
+- In the very next clause, restate the specific evidence that makes the selection right or wrong. Quote the key numbers, symbols, or structural facts from the item (e.g., “Internet stays <mo>$</mo><mn>120</mn> each month”).
+- Close with the rule that interprets that evidence (“…so it’s fixed and cannot be a variable expense”). One clear sentence is enough; do not relitigate the entire solution in the preamble.
+- Never echo verdict words (“Correct!”, “Not quite!”) or fluff (“Look again”). The preamble is a targeted reminder of what was chosen and why it succeeds or fails.
+
+**Preamble Checklist — fail any item and the feedback is rejected**
+1. **Exactly what the learner chose** (values drawn from the interaction parameters).
+2. **The concrete evidence** (the numbers, expressions, or structure pulled from those same parameters).
+3. **The rule-based conclusion** matching that evidence to correctness.
+
+**Bad preamble**
+“One category is fixed. Look again.”
+
+**Good preamble**
+“You chose **Internet** with **Groceries**. Internet keeps <mo>$</mo><mn>120</mn> in September, October, and November, so it is fixed—variable expenses are the rows whose amounts change.”
 
 #### Steps: Three Actionable Moves
 
-- Provide **exactly three high-impact steps** unless the schema demands more. Each step should advance the learner from misconception to mastery (e.g., *Match the denominators*, *Rewrite each fraction*, *Add and simplify*).
+- Provide **at least three high-impact steps** unless the schema demands more. Each step should advance the learner from misconception to mastery (e.g., *Match the denominators*, *Rewrite each fraction*, *Add and simplify*).
 - Step titles must be short, imperative phrases that describe the action, not the error (“Align the denominators” not “Why this is wrong”).
 - The steps section is strictly the straightest path to solve the problem—describe the required computations in sequence without detours, reflections, or study-skills filler.
 - ABSOLUTE BAN: if a step does not produce a necessary intermediate computation or transformation, it is prohibited. "Check your work," "Reflect on your answer," and similar filler instantly fail review.
@@ -65,7 +76,7 @@ export const FEEDBACK_GUIDANCE_SECTION = `### FEEDBACK_POLICY
 #### Quick Checklist Before Emitting Feedback
 
 1. **Preamble** names the exact misconception or confirms success without verdict words.
-2. **Three steps** each deliver one concrete action, with interleaved text and MathML, and keep the learner moving through the actual computations—zero filler tolerated.
+2. **At least three steps** each deliver one concrete action, with interleaved text and MathML, and keep the learner moving through the actual computations—zero filler tolerated.
 3. **Solution box** reveals the answer with MathML and an encouraging wrap-up.
 4. Tone is supportive, shuffle-safe, and references computed values.
 5. JSON validates against the schema and uses only approved content types.
