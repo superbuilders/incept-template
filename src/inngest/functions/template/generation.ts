@@ -1,11 +1,68 @@
 import * as errors from "@superbuilders/errors"
-import { desc, eq } from "drizzle-orm"
+import { asc, eq } from "drizzle-orm"
 import { db } from "@/db"
-import { templateCandidates, templates } from "@/db/schema"
+import type { TemplateRecord } from "@/db/schema"
+import {
+	questions,
+	templates,
+	typescriptDiagnostics,
+	typescriptRuns
+} from "@/db/schema"
 
 const MAX_ATTEMPTS = 10
 
 import { inngest } from "@/inngest/client"
+
+async function listTemplatesForQuestion(
+	templateId: string
+): Promise<TemplateRecord[]> {
+	return db
+		.select({
+			id: templates.id,
+			questionId: templates.questionId,
+			source: templates.source,
+			createdAt: templates.createdAt
+		})
+		.from(templates)
+		.where(eq(templates.questionId, templateId))
+		.orderBy(asc(templates.createdAt))
+}
+
+async function getTypeScriptRunId(templateId: string): Promise<string | null> {
+	const run = await db
+		.select({ id: typescriptRuns.id })
+		.from(typescriptRuns)
+		.where(eq(typescriptRuns.templateId, templateId))
+		.limit(1)
+		.then((rows) => rows[0])
+	return run?.id ?? null
+}
+
+async function hasSuccessfulTypeScriptRun(
+	templateId: string
+): Promise<boolean> {
+	const runId = await getTypeScriptRunId(templateId)
+	if (!runId) return false
+	const diagnostic = await db
+		.select({ id: typescriptDiagnostics.id })
+		.from(typescriptDiagnostics)
+		.where(eq(typescriptDiagnostics.runId, runId))
+		.limit(1)
+		.then((rows) => rows[0])
+	return !diagnostic
+}
+
+async function findLatestValidatedAttempt(
+	templatesForQuestion: TemplateRecord[]
+): Promise<number | null> {
+	for (let index = templatesForQuestion.length - 1; index >= 0; index -= 1) {
+		const template = templatesForQuestion[index]
+		if (await hasSuccessfulTypeScriptRun(template.id)) {
+			return index
+		}
+	}
+	return null
+}
 
 export const startTemplateGeneration = inngest.createFunction(
 	{
@@ -21,9 +78,9 @@ export const startTemplateGeneration = inngest.createFunction(
 		logger.info("starting template generation workflow", { templateId })
 
 		const templateResult = await db
-			.select({ id: templates.id })
-			.from(templates)
-			.where(eq(templates.id, templateId))
+			.select({ id: questions.id })
+			.from(questions)
+			.where(eq(questions.id, templateId))
 			.limit(1)
 
 		if (!templateResult[0]) {
@@ -54,28 +111,24 @@ export const startTemplateGeneration = inngest.createFunction(
 			return { status: "failed" as const, reason }
 		}
 
-		const latestCandidate = await db
-			.select({
-				attempt: templateCandidates.attempt,
-				validatedAt: templateCandidates.validatedAt
-			})
-			.from(templateCandidates)
-			.where(eq(templateCandidates.templateId, templateId))
-			.orderBy(desc(templateCandidates.attempt))
-			.limit(1)
-			.then((rows) => rows[0])
+		const templatesForQuestion = await listTemplatesForQuestion(templateId)
+		const latestValidatedAttempt =
+			await findLatestValidatedAttempt(templatesForQuestion)
 
-		if (latestCandidate?.validatedAt) {
+		if (latestValidatedAttempt !== null) {
 			logger.info(
 				"template generation already satisfied by validated candidate",
-				{ templateId, attempt: latestCandidate.attempt }
+				{
+					templateId,
+					attempt: latestValidatedAttempt
+				}
 			)
 
 			const completionEventResult = await errors.try(
 				step.sendEvent("template-generation-already-completed", {
 					id: `${baseEventId}-generation-already-completed`,
 					name: "template/template.generation.completed",
-					data: { templateId, attempt: latestCandidate.attempt }
+					data: { templateId, attempt: latestValidatedAttempt }
 				})
 			)
 			if (completionEventResult.error) {
@@ -83,7 +136,7 @@ export const startTemplateGeneration = inngest.createFunction(
 					"template generation completion event emission failed for validated candidate",
 					{
 						templateId,
-						attempt: latestCandidate.attempt,
+						attempt: latestValidatedAttempt,
 						error: completionEventResult.error
 					}
 				)
@@ -95,11 +148,11 @@ export const startTemplateGeneration = inngest.createFunction(
 
 			return {
 				status: "already-completed" as const,
-				attempt: latestCandidate.attempt
+				attempt: latestValidatedAttempt
 			}
 		}
 
-		let currentAttempt = latestCandidate ? latestCandidate.attempt + 1 : 0
+		let currentAttempt = templatesForQuestion.length
 
 		while (true) {
 			logger.info("dispatching candidate generation attempt", {

@@ -5,18 +5,67 @@ import * as path from "node:path"
 import { pathToFileURL } from "node:url"
 import * as errors from "@superbuilders/errors"
 import type { Logger } from "@superbuilders/slog"
-import { and, eq } from "drizzle-orm"
+import { and, asc, eq } from "drizzle-orm"
 import type { ExecutionRecord } from "@/app/api/template/execution-shared"
 import { fetchExecutionRecord } from "@/app/api/template/execution-shared"
 import { TemplateNotValidatedError } from "@/app/api/template/shared"
 import { db } from "@/db"
-import { templateCandidateExecutions, templateCandidates } from "@/db/schema"
+import type { TemplateRecord } from "@/db/schema"
+import {
+	templateCandidateExecutions,
+	templates,
+	typescriptDiagnostics,
+	typescriptRuns
+} from "@/db/schema"
 
 type CandidateRecord = {
 	templateId: string
-	attempt: number
+	questionId: string
 	source: string
-	validatedAt: Date | null
+}
+
+async function fetchTemplateByOrdinal(
+	questionId: string,
+	ordinal: number
+): Promise<TemplateRecord | null> {
+	if (ordinal < 0) return null
+	return db
+		.select({
+			id: templates.id,
+			questionId: templates.questionId,
+			source: templates.source,
+			createdAt: templates.createdAt
+		})
+		.from(templates)
+		.where(eq(templates.questionId, questionId))
+		.orderBy(asc(templates.createdAt))
+		.offset(ordinal)
+		.limit(1)
+		.then((rows) => rows[0] ?? null)
+}
+
+async function getTypeScriptRunId(templateId: string): Promise<string | null> {
+	const run = await db
+		.select({ id: typescriptRuns.id })
+		.from(typescriptRuns)
+		.where(eq(typescriptRuns.templateId, templateId))
+		.limit(1)
+		.then((rows) => rows[0])
+	return run?.id ?? null
+}
+
+async function hasSuccessfulTypeScriptRun(
+	templateId: string
+): Promise<boolean> {
+	const runId = await getTypeScriptRunId(templateId)
+	if (!runId) return false
+	const diagnostic = await db
+		.select({ id: typescriptDiagnostics.id })
+		.from(typescriptDiagnostics)
+		.where(eq(typescriptDiagnostics.runId, runId))
+		.limit(1)
+		.then((rows) => rows[0])
+	return !diagnostic
 }
 
 async function fetchExecutionById(
@@ -88,32 +137,17 @@ async function fetchCandidateRecord(
 	templateId: string,
 	attempt: number
 ): Promise<CandidateRecord | undefined> {
-	const rows = await db
-		.select({
-			templateId: templateCandidates.templateId,
-			attempt: templateCandidates.attempt,
-			source: templateCandidates.source,
-			validatedAt: templateCandidates.validatedAt
-		})
-		.from(templateCandidates)
-		.where(
-			and(
-				eq(templateCandidates.templateId, templateId),
-				eq(templateCandidates.attempt, attempt)
-			)
-		)
-		.limit(1)
-
-	if (rows.length === 0) {
-		return undefined
+	const template = await fetchTemplateByOrdinal(templateId, attempt)
+	if (!template) return undefined
+	return {
+		templateId: template.id,
+		questionId: template.questionId,
+		source: template.source
 	}
-
-	return rows[0]
 }
 
 async function persistExecution(
 	templateId: string,
-	attempt: number,
 	seed: bigint,
 	body: unknown
 ) {
@@ -121,14 +155,12 @@ async function persistExecution(
 		.insert(templateCandidateExecutions)
 		.values({
 			templateId,
-			attempt,
 			seed,
 			body
 		})
 		.onConflictDoUpdate({
 			target: [
 				templateCandidateExecutions.templateId,
-				templateCandidateExecutions.attempt,
 				templateCandidateExecutions.seed
 			],
 			set: { body }
@@ -166,6 +198,7 @@ export async function performTemplateCandidateExecution({
 	attempt: number
 	seed: string
 }): Promise<CandidateExecutionOutcome> {
+	const questionId = templateId
 	const cleanupStack = new DisposableStack()
 
 	const fail = (
@@ -173,13 +206,13 @@ export async function performTemplateCandidateExecution({
 		extra?: Record<string, unknown>
 	): CandidateExecutionOutcome => {
 		logger.error("template candidate execution failed", {
-			templateId,
+			templateId: questionId,
 			attempt,
 			seed,
 			reason,
 			...extra
 		})
-		disposeStack(logger, templateId, attempt, cleanupStack, "failure")
+		disposeStack(logger, questionId, attempt, cleanupStack, "failure")
 		return { status: "failed" as const, reason, extra }
 	}
 
@@ -192,23 +225,20 @@ export async function performTemplateCandidateExecution({
 		return fail("seed must be non-negative")
 	}
 
-	const candidateRecord = await fetchCandidateRecord(templateId, attempt)
+	const candidateRecord = await fetchCandidateRecord(questionId, attempt)
 	if (!candidateRecord) {
 		return fail("template candidate not found")
 	}
 
-	let validatedAtIso: string | null = null
-	if (candidateRecord.validatedAt) {
-		validatedAtIso = candidateRecord.validatedAt.toISOString()
-	}
+	const validated = await hasSuccessfulTypeScriptRun(candidateRecord.templateId)
 	logger.debug("fetched template candidate record", {
+		questionId,
 		templateId: candidateRecord.templateId,
-		attempt: candidateRecord.attempt,
 		sourceLength: candidateRecord.source.length,
-		validatedAt: validatedAtIso
+		validated
 	})
 
-	if (!candidateRecord.validatedAt) {
+	if (!validated) {
 		return fail("template candidate has not been validated")
 	}
 
@@ -217,8 +247,7 @@ export async function performTemplateCandidateExecution({
 		.from(templateCandidateExecutions)
 		.where(
 			and(
-				eq(templateCandidateExecutions.templateId, templateId),
-				eq(templateCandidateExecutions.attempt, attempt),
+				eq(templateCandidateExecutions.templateId, candidateRecord.templateId),
 				eq(templateCandidateExecutions.seed, normalizedSeed)
 			)
 		)
@@ -234,7 +263,7 @@ export async function performTemplateCandidateExecution({
 	cleanupStack.defer(() => rmSync(tempDir, { recursive: true, force: true }))
 
 	const requiredTypeModulesResult = errors.trySync(() =>
-		ensureRequiredTypeModulesAvailable(logger, templateId, attempt)
+		ensureRequiredTypeModulesAvailable(logger, questionId, attempt)
 	)
 	if (requiredTypeModulesResult.error) {
 		return fail("required type module missing", {
@@ -244,7 +273,7 @@ export async function performTemplateCandidateExecution({
 
 	const rewrittenSource = rewriteAliasImports(
 		logger,
-		templateId,
+		questionId,
 		attempt,
 		candidateRecord.source
 	)
@@ -286,7 +315,7 @@ export async function performTemplateCandidateExecution({
 	const generatedBody = generatedBodyResult.data
 
 	const persistResult = await errors.try(
-		persistExecution(templateId, attempt, normalizedSeed, generatedBody)
+		persistExecution(candidateRecord.templateId, normalizedSeed, generatedBody)
 	)
 	if (persistResult.error) {
 		return fail(persistResult.error.toString(), {
@@ -300,7 +329,7 @@ export async function performTemplateCandidateExecution({
 	}
 	const executionId = persistedRow.id
 
-	disposeStack(logger, templateId, attempt, cleanupStack, "success")
+	disposeStack(logger, questionId, attempt, cleanupStack, "success")
 
 	logger.info("template candidate execution completed", {
 		templateId,
@@ -427,19 +456,17 @@ export async function ensureExecutionForAttemptSeed({
 	attempt: number
 	seed: string
 }): Promise<ExecutionRecord> {
-	const candidateRecord = await db
-		.select({ validatedAt: templateCandidates.validatedAt })
-		.from(templateCandidates)
-		.where(
-			and(
-				eq(templateCandidates.templateId, templateId),
-				eq(templateCandidates.attempt, attempt)
-			)
-		)
-		.limit(1)
-		.then((rows) => rows[0])
+	const candidateRecord = await fetchCandidateRecord(templateId, attempt)
+	if (!candidateRecord) {
+		logger.error("template attempt not found", {
+			templateId,
+			attempt
+		})
+		throw new TemplateNotValidatedError(templateId)
+	}
 
-	if (!candidateRecord || !candidateRecord.validatedAt) {
+	const validated = await hasSuccessfulTypeScriptRun(candidateRecord.templateId)
+	if (!validated) {
 		logger.error("template attempt not validated", {
 			templateId,
 			attempt
@@ -453,16 +480,19 @@ export async function ensureExecutionForAttemptSeed({
 		.select({
 			id: templateCandidateExecutions.id,
 			templateId: templateCandidateExecutions.templateId,
-			attempt: templateCandidateExecutions.attempt,
+			questionId: templates.questionId,
 			seed: templateCandidateExecutions.seed,
 			body: templateCandidateExecutions.body,
 			createdAt: templateCandidateExecutions.createdAt
 		})
 		.from(templateCandidateExecutions)
+		.innerJoin(
+			templates,
+			eq(templates.id, templateCandidateExecutions.templateId)
+		)
 		.where(
 			and(
-				eq(templateCandidateExecutions.templateId, templateId),
-				eq(templateCandidateExecutions.attempt, attempt),
+				eq(templateCandidateExecutions.templateId, candidateRecord.templateId),
 				eq(templateCandidateExecutions.seed, normalizedSeed)
 			)
 		)
@@ -503,6 +533,7 @@ export async function ensureExecutionForAttemptSeed({
 
 		logger.error("template seed execution failed", {
 			templateId,
+			candidateTemplateId: candidateRecord.templateId,
 			attempt,
 			seed,
 			reason: executionResult.reason,

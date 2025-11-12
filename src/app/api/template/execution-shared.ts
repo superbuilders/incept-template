@@ -1,7 +1,7 @@
-import { and, eq } from "drizzle-orm"
+import { eq } from "drizzle-orm"
 import { z } from "zod"
 import { db } from "@/db"
-import { templateCandidateExecutions, templateCandidates } from "@/db/schema"
+import { templateCandidateExecutions, templates } from "@/db/schema"
 import { widgetCollections } from "@/widgets/collections"
 
 export const ExecutionIdSchema = z.uuid()
@@ -11,7 +11,7 @@ export const widgetCollection = widgetCollections.all
 export type ExecutionRecord = {
 	id: string
 	templateId: string
-	attempt: number
+	questionId: string
 	seed: bigint
 	body: unknown
 	createdAt: Date
@@ -24,21 +24,15 @@ export async function fetchExecutionRecord(
 		.select({
 			id: templateCandidateExecutions.id,
 			templateId: templateCandidateExecutions.templateId,
-			attempt: templateCandidateExecutions.attempt,
+			questionId: templates.questionId,
 			seed: templateCandidateExecutions.seed,
 			body: templateCandidateExecutions.body,
 			createdAt: templateCandidateExecutions.createdAt
 		})
 		.from(templateCandidateExecutions)
 		.innerJoin(
-			templateCandidates,
-			and(
-				eq(
-					templateCandidates.templateId,
-					templateCandidateExecutions.templateId
-				),
-				eq(templateCandidates.attempt, templateCandidateExecutions.attempt)
-			)
+			templates,
+			eq(templates.id, templateCandidateExecutions.templateId)
 		)
 		.where(eq(templateCandidateExecutions.id, executionId))
 		.limit(1)

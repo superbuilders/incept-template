@@ -7,7 +7,6 @@ import {
 	integer,
 	jsonb,
 	pgSchema,
-	primaryKey,
 	text,
 	timestamp,
 	uniqueIndex,
@@ -23,8 +22,8 @@ import {
  */
 export const generatorSchema = pgSchema("template")
 
-export const templates = generatorSchema.table(
-	"templates",
+export const questions = generatorSchema.table(
+	"questions",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
 		allowedWidgets: text("allowed_widgets").array().notNull(),
@@ -42,35 +41,74 @@ export const templates = generatorSchema.table(
 	]
 )
 
-export const templateCandidates = generatorSchema.table(
-	"template_candidates",
+export const templates = generatorSchema.table(
+	"templates",
 	{
-		templateId: uuid("template_id").notNull(),
-		attempt: integer("attempt").notNull(),
+		id: uuid("id").primaryKey().defaultRandom(),
+		questionId: uuid("question_id").notNull(),
 		source: text("source").notNull(),
-		validatedAt: timestamp("validated_at", { withTimezone: true }),
 		createdAt: timestamp("created_at", { withTimezone: true })
 			.notNull()
 			.defaultNow()
 	},
 	(table) => [
-		primaryKey({
-			name: "template_candidates_pk",
-			columns: [table.templateId, table.attempt]
-		}),
-		index("template_candidates_template_created_idx").on(
+		index("templates_question_created_idx").on(
+			table.questionId,
+			table.createdAt
+		),
+		foreignKey({
+			name: "templates_question_fk",
+			columns: [table.questionId],
+			foreignColumns: [questions.id]
+		})
+	]
+)
+
+export const typescriptRuns = generatorSchema.table(
+	"typescript_runs",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		templateId: uuid("template_id").notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.notNull()
+			.defaultNow()
+	},
+	(table) => [
+		index("typescript_runs_template_created_idx").on(
 			table.templateId,
 			table.createdAt
 		),
-		check(
-			"template_candidates_attempt_nonnegative",
-			sql`${table.attempt} >= 0`
-		),
+		uniqueIndex("typescript_runs_template_unique").on(table.templateId),
 		foreignKey({
-			name: "template_candidates_template_fk",
+			name: "typescript_runs_candidate_fk",
 			columns: [table.templateId],
 			foreignColumns: [templates.id]
-		})
+		}).onDelete("cascade")
+	]
+)
+
+export const annotatorRuns = generatorSchema.table(
+	"annotator_runs",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		templateId: uuid("template_id").notNull(),
+		notes: text("notes").notNull(),
+		imageUrl: text("image_url").notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.notNull()
+			.defaultNow()
+	},
+	(table) => [
+		index("annotator_runs_template_created_idx").on(
+			table.templateId,
+			table.createdAt
+		),
+		uniqueIndex("annotator_runs_template_unique").on(table.templateId),
+		foreignKey({
+			name: "annotator_runs_candidate_fk",
+			columns: [table.templateId],
+			foreignColumns: [templates.id]
+		}).onDelete("cascade")
 	]
 )
 
@@ -91,7 +129,6 @@ export const templateCandidateExecutions = generatorSchema.table(
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
 		templateId: uuid("template_id").notNull(),
-		attempt: integer("attempt").notNull(),
 		seed: bigintText("seed").notNull(),
 		body: jsonb("body").notNull(),
 		createdAt: timestamp("created_at", { withTimezone: true })
@@ -99,22 +136,15 @@ export const templateCandidateExecutions = generatorSchema.table(
 			.defaultNow()
 	},
 	(table) => [
-		index("template_candidate_executions_template_attempt_idx").on(
-			table.templateId,
-			table.attempt
-		),
+		index("template_candidate_executions_template_idx").on(table.templateId),
 		uniqueIndex("template_candidate_executions_seed_idx").on(
 			table.templateId,
-			table.attempt,
 			table.seed
 		),
 		foreignKey({
 			name: "template_candidate_executions_candidate_fk",
-			columns: [table.templateId, table.attempt],
-			foreignColumns: [
-				templateCandidates.templateId,
-				templateCandidates.attempt
-			]
+			columns: [table.templateId],
+			foreignColumns: [templates.id]
 		}).onDelete("cascade"),
 		check(
 			"template_candidate_executions_seed_digits",
@@ -123,12 +153,11 @@ export const templateCandidateExecutions = generatorSchema.table(
 	]
 )
 
-export const candidateDiagnostics = generatorSchema.table(
-	"template_candidate_diagnostics",
+export const typescriptDiagnostics = generatorSchema.table(
+	"typescript_diagnostics",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
-		templateId: uuid("template_id").notNull(),
-		attempt: integer("attempt").notNull(),
+		runId: uuid("run_id").notNull(),
 		message: text("message").notNull(),
 		line: integer("line").notNull(),
 		column: integer("column").notNull(),
@@ -138,35 +167,26 @@ export const candidateDiagnostics = generatorSchema.table(
 			.defaultNow()
 	},
 	(table) => [
-		index("template_candidate_diagnostics_template_attempt_idx").on(
-			table.templateId,
-			table.attempt
-		),
+		index("typescript_diagnostics_run_idx").on(table.runId),
 		foreignKey({
-			name: "template_candidate_diagnostics_candidate_fk",
-			columns: [table.templateId, table.attempt],
-			foreignColumns: [
-				templateCandidates.templateId,
-				templateCandidates.attempt
-			]
+			name: "typescript_diagnostics_run_fk",
+			columns: [table.runId],
+			foreignColumns: [typescriptRuns.id]
 		}).onDelete("cascade"),
+		check("typescript_diagnostics_line_positive", sql`${table.line} >= 1`),
+		check("typescript_diagnostics_column_positive", sql`${table.column} >= 1`),
 		check(
-			"template_candidate_diagnostics_line_positive",
-			sql`${table.line} >= 1`
-		),
-		check(
-			"template_candidate_diagnostics_column_positive",
-			sql`${table.column} >= 1`
-		),
-		check(
-			"template_candidate_diagnostics_ts_code_nonnegative",
+			"typescript_diagnostics_ts_code_nonnegative",
 			sql`${table.tsCode} >= 0`
 		)
 	]
 )
 
-export type TemplateCandidateExecutionRecord =
+export type TemplateExecutionRecord =
 	typeof templateCandidateExecutions.$inferSelect
+export type QuestionRecord = typeof questions.$inferSelect
 export type TemplateRecord = typeof templates.$inferSelect
-export type TemplateCandidateRecord = typeof templateCandidates.$inferSelect
-export type CandidateDiagnosticRecord = typeof candidateDiagnostics.$inferSelect
+export type TypeScriptRunRecord = typeof typescriptRuns.$inferSelect
+export type TypeScriptDiagnosticRecord =
+	typeof typescriptDiagnostics.$inferSelect
+export type AnnotatorRunRecord = typeof annotatorRuns.$inferSelect

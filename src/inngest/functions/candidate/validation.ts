@@ -1,12 +1,14 @@
 import * as errors from "@superbuilders/errors"
 import type { Logger as SlogLogger } from "@superbuilders/slog"
-import { and, eq } from "drizzle-orm"
+import { asc, eq, sql } from "drizzle-orm"
 import type { Logger } from "inngest"
 import { db } from "@/db"
+import type { TemplateRecord } from "@/db/schema"
 import {
-	candidateDiagnostics,
-	templateCandidates,
-	templates
+	questions,
+	templates,
+	typescriptDiagnostics,
+	typescriptRuns
 } from "@/db/schema"
 import { inngest } from "@/inngest/client"
 import { typeCheckSource } from "@/templates/type-checker"
@@ -19,68 +21,94 @@ import {
 } from "@/templates/widget-validation"
 
 type CandidateEvaluation = {
-	attempt: number
+	templateId: string
+	questionId: string
 	diagnostics: TypeScriptDiagnostic[]
 }
 
 type CandidateValidationOutcome =
-	| { status: "valid"; attempt: number }
-	| { status: "invalid"; attempt: number; diagnosticsCount: number }
+	| { status: "valid"; templateId: string }
+	| { status: "invalid"; templateId: string; diagnosticsCount: number }
 
-async function performCandidateEvaluation({
-	logger,
-	templateId,
-	attempt
-}: {
-	logger: Logger
-	templateId: string
-	attempt: number
-}): Promise<CandidateEvaluation> {
-	const candidateRecord = await db
+async function fetchTemplateByOrdinal(
+	questionId: string,
+	ordinal: number
+): Promise<{
+	template: TemplateRecord | null
+	allowedWidgets: string[]
+}> {
+	const templateRow = await db
 		.select({
-			source: templateCandidates.source,
-			allowedWidgets: templates.allowedWidgets,
-			attempt: templateCandidates.attempt
+			id: templates.id,
+			createdAt: templates.createdAt,
+			questionId: templates.questionId,
+			source: templates.source
 		})
-		.from(templateCandidates)
-		.innerJoin(templates, eq(templates.id, templateCandidates.templateId))
-		.where(
-			and(
-				eq(templateCandidates.templateId, templateId),
-				eq(templateCandidates.attempt, attempt)
-			)
-		)
+		.from(templates)
+		.where(eq(templates.questionId, questionId))
+		.orderBy(asc(templates.createdAt))
+		.offset(ordinal)
 		.limit(1)
 		.then((rows) => rows[0])
 
-	if (!candidateRecord) {
+	if (!templateRow) {
+		return { template: null, allowedWidgets: [] }
+	}
+
+	const questionRow = await db
+		.select({ allowedWidgets: questions.allowedWidgets })
+		.from(questions)
+		.where(eq(questions.id, templateRow.questionId))
+		.limit(1)
+		.then((rows) => rows[0])
+
+	return {
+		template: templateRow,
+		allowedWidgets: questionRow?.allowedWidgets ?? []
+	}
+}
+
+async function performCandidateEvaluation({
+	logger,
+	questionId,
+	attempt
+}: {
+	logger: Logger
+	questionId: string
+	attempt: number
+}): Promise<CandidateEvaluation> {
+	const { template, allowedWidgets } = await fetchTemplateByOrdinal(
+		questionId,
+		attempt
+	)
+
+	if (!template) {
 		logger.error("candidate not found during validation", {
-			templateId,
+			questionId,
 			attempt
 		})
 		throw errors.new(
-			`template candidate not found: template=${templateId} attempt=${attempt}`
+			`template candidate not found: question=${questionId} attempt=${attempt}`
 		)
 	}
 
-	if (!candidateRecord.source || candidateRecord.source.length === 0) {
+	if (!template.source || template.source.length === 0) {
 		logger.error("candidate has no source to validate", {
-			templateId,
-			attempt
+			questionId,
+			templateId: template.id
 		})
-		throw errors.new(
-			`candidate template=${templateId} attempt=${attempt} has empty source`
-		)
+		throw errors.new(`candidate template=${template.id} has empty source`)
 	}
 
 	const diagnostics = await collectDiagnostics(
 		logger,
-		candidateRecord.source,
-		candidateRecord.allowedWidgets
+		template.source,
+		allowedWidgets
 	)
 
 	return {
-		attempt: candidateRecord.attempt,
+		templateId: template.id,
+		questionId,
 		diagnostics
 	}
 }
@@ -115,95 +143,120 @@ async function collectDiagnostics(
 	return diagnostics
 }
 
-async function performTemplateCandidateValidation({
+async function recordTypeScriptRun({
 	logger,
 	templateId,
-	attempt
+	diagnostics
 }: {
 	logger: Logger
 	templateId: string
+	diagnostics: TypeScriptDiagnostic[]
+}): Promise<void> {
+	const result = await errors.try(
+		db.transaction(async (tx) => {
+			const runRows = await tx
+				.insert(typescriptRuns)
+				.values({ templateId })
+				.onConflictDoUpdate({
+					target: [typescriptRuns.templateId],
+					set: { createdAt: sql`now()` }
+				})
+				.returning({
+					id: typescriptRuns.id
+				})
+
+			const run = runRows[0]
+			if (!run) {
+				logger.error("typescript run upsert returned no row", {
+					templateId
+				})
+				throw errors.new("failed to record typescript run")
+			}
+
+			await tx
+				.delete(typescriptDiagnostics)
+				.where(eq(typescriptDiagnostics.runId, run.id))
+
+			if (diagnostics.length > 0) {
+				await tx.insert(typescriptDiagnostics).values(
+					diagnostics.map((diagnostic) => ({
+						runId: run.id,
+						message: diagnostic.message,
+						line: diagnostic.line,
+						column: diagnostic.column,
+						tsCode: diagnostic.tsCode
+					}))
+				)
+			}
+		})
+	)
+
+	if (result.error) {
+		logger.error("failed to record typescript run", {
+			templateId,
+			error: result.error
+		})
+		throw errors.wrap(result.error, "record typescript run")
+	}
+}
+
+async function performTemplateCandidateValidation({
+	logger,
+	questionId,
+	attempt
+}: {
+	logger: Logger
+	questionId: string
 	attempt: number
 }): Promise<CandidateValidationOutcome> {
 	const evaluationResult = await errors.try(
 		performCandidateEvaluation({
 			logger,
-			templateId,
+			questionId,
 			attempt
 		})
 	)
 	if (evaluationResult.error) {
 		logger.error("template candidate validation encountered error", {
-			templateId,
+			questionId,
 			attempt,
 			error: evaluationResult.error
 		})
 		throw errors.wrap(evaluationResult.error, "candidate validation")
 	}
 
-	const { diagnostics } = evaluationResult.data
+	const { diagnostics, templateId } = evaluationResult.data
+
+	const recordResult = await errors.try(
+		recordTypeScriptRun({ logger, templateId, diagnostics })
+	)
+	if (recordResult.error) {
+		logger.error("failed to persist typescript validation result", {
+			questionId,
+			templateId,
+			error: recordResult.error
+		})
+		throw recordResult.error
+	}
 
 	if (diagnostics.length === 0) {
-		await db
-			.update(templateCandidates)
-			.set({ validatedAt: new Date() })
-			.where(
-				and(
-					eq(templateCandidates.templateId, templateId),
-					eq(templateCandidates.attempt, attempt)
-				)
-			)
-
 		logger.info("candidate validation succeeded", {
-			templateId,
-			attempt
+			questionId,
+			templateId
 		})
 
-		return { status: "valid", attempt }
+		return { status: "valid", templateId }
 	}
 
 	logger.warn("candidate validation failed", {
+		questionId,
 		templateId,
-		attempt,
 		diagnosticsCount: diagnostics.length
 	})
 
-	await db
-		.update(templateCandidates)
-		.set({ validatedAt: null })
-		.where(
-			and(
-				eq(templateCandidates.templateId, templateId),
-				eq(templateCandidates.attempt, attempt)
-			)
-		)
-
-	const insertDiagnosticsResult = await errors.try(
-		db.insert(candidateDiagnostics).values(
-			diagnostics.map((diagnostic) => ({
-				templateId,
-				attempt,
-				message: diagnostic.message,
-				line: diagnostic.line,
-				column: diagnostic.column,
-				tsCode: diagnostic.tsCode
-			}))
-		)
-	)
-	if (insertDiagnosticsResult.error) {
-		logger.error("failed to persist candidate diagnostics", {
-			templateId,
-			attempt,
-			error: insertDiagnosticsResult.error
-		})
-		throw errors.wrap(
-			insertDiagnosticsResult.error,
-			"persist candidate diagnostics"
-		)
-	}
-
 	return {
 		status: "invalid",
-		attempt,
+		templateId,
 		diagnosticsCount: diagnostics.length
 	}
 }
@@ -217,22 +270,25 @@ export const validateTemplateCandidate = inngest.createFunction(
 	},
 	{ event: "template/candidate.validation.requested" },
 	async ({ event, step, logger }) => {
-		const { templateId, attempt } = event.data
+		const { templateId: questionId, attempt } = event.data
 		const baseEventId = event.id
-		logger.info("validating template candidate", { templateId, attempt })
+		logger.info("validating template candidate", {
+			questionId,
+			attempt
+		})
 
 		const validationResult = await errors.try(
 			step.run("perform-template-candidate-validation", () =>
 				performTemplateCandidateValidation({
 					logger,
-					templateId,
+					questionId,
 					attempt
 				})
 			)
 		)
 		if (validationResult.error) {
 			logger.error("template candidate validation encountered error", {
-				templateId,
+				questionId,
 				attempt,
 				error: validationResult.error
 			})
@@ -248,11 +304,11 @@ export const validateTemplateCandidate = inngest.createFunction(
 			outcome.status === "valid" ? 0 : outcome.diagnosticsCount
 
 		await step.sendEvent("candidate-validation-completed", {
-			id: `${baseEventId}-candidate-validation-${eventIdOutcome}-${outcome.attempt}`,
+			id: `${baseEventId}-candidate-validation-${eventIdOutcome}-${questionId}-${attempt}`,
 			name: "template/candidate.validation.completed",
 			data: {
-				templateId,
-				attempt: outcome.attempt,
+				templateId: questionId,
+				attempt,
 				diagnosticsCount
 			}
 		})

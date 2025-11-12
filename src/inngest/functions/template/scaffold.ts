@@ -3,7 +3,7 @@ import * as errors from "@superbuilders/errors"
 import { eq } from "drizzle-orm"
 import { type Logger, NonRetriableError } from "inngest"
 import { db } from "@/db"
-import { templates } from "@/db/schema"
+import { questions } from "@/db/schema"
 import { inngest } from "@/inngest/client"
 import { parseStructuredInput } from "@/templates/input"
 import { allWidgetSchemas } from "@/widgets/registry"
@@ -55,11 +55,11 @@ async function performTemplateScaffold({
 }): Promise<ScaffoldResult> {
 	const existingTemplate = await db
 		.select({
-			hash: templates.exampleAssessmentItemHash,
-			allowedWidgets: templates.allowedWidgets
+			hash: questions.exampleAssessmentItemHash,
+			allowedWidgets: questions.allowedWidgets
 		})
-		.from(templates)
-		.where(eq(templates.id, templateId))
+		.from(questions)
+		.where(eq(questions.id, templateId))
 		.limit(1)
 
 	if (existingTemplate.length > 0) {
@@ -87,7 +87,7 @@ async function performTemplateScaffold({
 		allowedWidgetsCount: normalizedWidgets.length
 	})
 
-	await db.insert(templates).values({
+	await db.insert(questions).values({
 		id: templateId,
 		allowedWidgets: Array.from(normalizedWidgets),
 		exampleAssessmentItemBody,

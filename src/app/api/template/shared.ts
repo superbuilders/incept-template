@@ -1,8 +1,8 @@
 import * as logger from "@superbuilders/slog"
-import { and, desc, eq, isNotNull } from "drizzle-orm"
+import { asc, eq } from "drizzle-orm"
 import { z } from "zod"
 import { db } from "@/db"
-import { templateCandidates } from "@/db/schema"
+import { templates, typescriptDiagnostics, typescriptRuns } from "@/db/schema"
 
 export const TemplateIdSchema = z.uuid()
 
@@ -18,26 +18,49 @@ export class TemplateNotValidatedError extends Error {
 	}
 }
 
+async function getTypeScriptRunId(templateId: string): Promise<string | null> {
+	const run = await db
+		.select({ id: typescriptRuns.id })
+		.from(typescriptRuns)
+		.where(eq(typescriptRuns.templateId, templateId))
+		.limit(1)
+		.then((rows) => rows[0])
+	return run?.id ?? null
+}
+
+async function hasSuccessfulTypeScriptRun(
+	templateId: string
+): Promise<boolean> {
+	const runId = await getTypeScriptRunId(templateId)
+	if (!runId) return false
+	const diagnostic = await db
+		.select({ id: typescriptDiagnostics.id })
+		.from(typescriptDiagnostics)
+		.where(eq(typescriptDiagnostics.runId, runId))
+		.limit(1)
+		.then((rows) => rows[0])
+	return !diagnostic
+}
+
 export async function fetchLatestValidatedAttempt(
 	templateId: string
 ): Promise<number | null> {
-	const rows = await db
-		.select({ attempt: templateCandidates.attempt })
-		.from(templateCandidates)
-		.where(
-			and(
-				eq(templateCandidates.templateId, templateId),
-				isNotNull(templateCandidates.validatedAt)
-			)
-		)
-		.orderBy(desc(templateCandidates.attempt))
-		.limit(1)
+	const templateRows = await db
+		.select({ id: templates.id })
+		.from(templates)
+		.where(eq(templates.questionId, templateId))
+		.orderBy(asc(templates.createdAt))
 
-	if (rows.length === 0) {
-		logger.warn("no validated template candidates", { templateId })
-		return null
+	for (let ordinal = templateRows.length - 1; ordinal >= 0; ordinal -= 1) {
+		const template = templateRows[ordinal]
+		if (await hasSuccessfulTypeScriptRun(template.id)) {
+			return ordinal
+		}
 	}
 
-	return rows[0].attempt
-}
+	if (templateRows.length > 0) {
+		logger.warn("no validated template candidates", { templateId })
+	}
 
+	return null
+}
