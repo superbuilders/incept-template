@@ -38,6 +38,18 @@ const PREAMBLE_EXAMPLES: readonly PreambleExample[] = [
 		reason: "Bad version replays the simplification as a proof; good version highlights the learner’s simplification move."
 	},
 	{
+		id: "pizza-proofy",
+		bad: "You selected 221, and 664 ÷ 3 gives 221 because 664 = 3 × 221 + 1 — only whole groups of 3 slices count as servings.",
+		good: "You chose 221 servings. You divided the 83 × 8 total slices into groups of 3 and kept only the whole-number quotient, so you counted just full servings.",
+		reason: "Bad version proves the division result; good version states the learner’s division step and rule."
+	},
+	{
+		id: "parents-proofy",
+		bad: "You selected p = 191 + 12 + 219 and p = 219 − (191 + 12). The subtraction form evaluates to p = 219 − (191 + 12) = 219 − 203 = 16, but the other adds the known groups to the total: p = 191 + 12 + 219 becomes 191 + 12 + 219 = 422, which double-counts people. Parents are the rest, so subtract the students and teachers from the total.",
+		good: "You chose p = 191 + 12 + 219 with p = 219 − (191 + 12). You added the known groups to the total in the first expression, so that method double-counts people before isolating parents.",
+		reason: "Bad version redoes the arithmetic and gives instructions; good version names the double-counting misconception."
+	},
+	{
 		id: "baseline-fixed-expense",
 		bad: "One category is fixed. Look again.",
 		good:
