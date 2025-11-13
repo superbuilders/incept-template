@@ -10,8 +10,7 @@ import { db } from "@/db"
 import {
 	templateExecutions,
 	templates,
-	typescriptDiagnostics,
-	typescriptRuns
+	typescriptDiagnostics
 } from "@/db/schema"
 import { env } from "@/env"
 import { ErrTemplateExecutionFailed, ErrTemplateNotValidated } from "@/errors"
@@ -74,25 +73,20 @@ async function fetchTemplateRecord(templateId: string) {
 	return row ?? undefined
 }
 
-async function getTypeScriptRunId(templateId: string): Promise<string | null> {
-	const run = await db
-		.select({ id: typescriptRuns.id })
-		.from(typescriptRuns)
-		.where(eq(typescriptRuns.templateId, templateId))
-		.limit(1)
-		.then((rows) => rows[0])
-	return run?.id ?? null
-}
-
 async function hasSuccessfulTypeScriptRun(
 	templateId: string
 ): Promise<boolean> {
-	const runId = await getTypeScriptRunId(templateId)
-	if (!runId) return false
+	const templateRow = await db
+		.select({ ranAt: templates.typescriptRanAt })
+		.from(templates)
+		.where(eq(templates.id, templateId))
+		.limit(1)
+		.then((rows) => rows[0])
+	if (!templateRow?.ranAt) return false
 	const diagnostic = await db
 		.select({ id: typescriptDiagnostics.id })
 		.from(typescriptDiagnostics)
-		.where(eq(typescriptDiagnostics.runId, runId))
+		.where(eq(typescriptDiagnostics.templateId, templateId))
 		.limit(1)
 		.then((rows) => rows[0])
 	return !diagnostic

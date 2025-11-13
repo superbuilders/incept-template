@@ -5,8 +5,7 @@ import type { TemplateRecord } from "@/db/schema"
 import {
 	exemplarQuestions,
 	templates,
-	typescriptDiagnostics,
-	typescriptRuns
+	typescriptDiagnostics
 } from "@/db/schema"
 
 const MAX_ATTEMPTS = 50
@@ -22,32 +21,28 @@ async function listTemplatesForQuestion(
 			questionId: templates.questionId,
 			source: templates.source,
 			gitCommitSha: templates.gitCommitSha,
-			createdAt: templates.createdAt
+			createdAt: templates.createdAt,
+			typescriptRanAt: templates.typescriptRanAt
 		})
 		.from(templates)
 		.where(eq(templates.questionId, templateId))
 		.orderBy(asc(templates.createdAt))
 }
 
-async function getTypeScriptRunId(templateId: string): Promise<string | null> {
-	const run = await db
-		.select({ id: typescriptRuns.id })
-		.from(typescriptRuns)
-		.where(eq(typescriptRuns.templateId, templateId))
-		.limit(1)
-		.then((rows) => rows[0])
-	return run?.id ?? null
-}
-
 async function hasSuccessfulTypeScriptRun(
 	templateId: string
 ): Promise<boolean> {
-	const runId = await getTypeScriptRunId(templateId)
-	if (!runId) return false
+	const templateRow = await db
+		.select({ ranAt: templates.typescriptRanAt })
+		.from(templates)
+		.where(eq(templates.id, templateId))
+		.limit(1)
+		.then((rows) => rows[0])
+	if (!templateRow?.ranAt) return false
 	const diagnostic = await db
 		.select({ id: typescriptDiagnostics.id })
 		.from(typescriptDiagnostics)
-		.where(eq(typescriptDiagnostics.runId, runId))
+		.where(eq(typescriptDiagnostics.templateId, templateId))
 		.limit(1)
 		.then((rows) => rows[0])
 	return !diagnostic

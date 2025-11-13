@@ -50,7 +50,8 @@ export const templates = generatorSchema.table(
 		gitCommitSha: text("git_commit_sha"), // when in prod make this not null
 		createdAt: timestamp("created_at", { withTimezone: true })
 			.notNull()
-			.defaultNow()
+			.defaultNow(),
+		typescriptRanAt: timestamp("typescript_ran_at", { withTimezone: true })
 	},
 	(table) => [
 		index("templates_exemplar_question_created_idx").on(
@@ -62,29 +63,6 @@ export const templates = generatorSchema.table(
 			columns: [table.questionId],
 			foreignColumns: [exemplarQuestions.id]
 		})
-	]
-)
-
-export const typescriptRuns = generatorSchema.table(
-	"typescript_runs",
-	{
-		id: uuid("id").primaryKey().defaultRandom(),
-		templateId: uuid("template_id").notNull(),
-		createdAt: timestamp("created_at", { withTimezone: true })
-			.notNull()
-			.defaultNow()
-	},
-	(table) => [
-		index("typescript_runs_template_created_idx").on(
-			table.templateId,
-			table.createdAt
-		),
-		uniqueIndex("typescript_runs_template_unique").on(table.templateId),
-		foreignKey({
-			name: "typescript_runs_candidate_fk",
-			columns: [table.templateId],
-			foreignColumns: [templates.id]
-		}).onDelete("cascade")
 	]
 )
 
@@ -156,7 +134,7 @@ export const typescriptDiagnostics = generatorSchema.table(
 	"typescript_diagnostics",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
-		runId: uuid("run_id").notNull(),
+		templateId: uuid("template_id").notNull(),
 		message: text("message").notNull(),
 		line: integer("line").notNull(),
 		column: integer("column").notNull(),
@@ -166,11 +144,11 @@ export const typescriptDiagnostics = generatorSchema.table(
 			.defaultNow()
 	},
 	(table) => [
-		index("typescript_diagnostics_run_idx").on(table.runId),
+		index("typescript_diagnostics_template_idx").on(table.templateId),
 		foreignKey({
-			name: "typescript_diagnostics_run_fk",
-			columns: [table.runId],
-			foreignColumns: [typescriptRuns.id]
+			name: "typescript_diagnostics_template_fk",
+			columns: [table.templateId],
+			foreignColumns: [templates.id]
 		}).onDelete("cascade"),
 		check("typescript_diagnostics_line_positive", sql`${table.line} >= 1`),
 		check("typescript_diagnostics_column_positive", sql`${table.column} >= 1`),
@@ -184,7 +162,6 @@ export const typescriptDiagnostics = generatorSchema.table(
 export type TemplateExecutionRecord = typeof templateExecutions.$inferSelect
 export type ExemplarQuestionRecord = typeof exemplarQuestions.$inferSelect
 export type TemplateRecord = typeof templates.$inferSelect
-export type TypeScriptRunRecord = typeof typescriptRuns.$inferSelect
 export type TypeScriptDiagnosticRecord =
 	typeof typescriptDiagnostics.$inferSelect
 export type AnnotatorRunRecord = typeof annotatorRuns.$inferSelect

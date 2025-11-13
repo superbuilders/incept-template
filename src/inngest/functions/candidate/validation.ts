@@ -7,8 +7,7 @@ import type { TemplateRecord } from "@/db/schema"
 import {
 	exemplarQuestions,
 	templates,
-	typescriptDiagnostics,
-	typescriptRuns
+	typescriptDiagnostics
 } from "@/db/schema"
 import { inngest } from "@/inngest/client"
 import { typeCheckSource } from "@/templates/type-checker"
@@ -43,7 +42,8 @@ async function fetchTemplateByOrdinal(
 			createdAt: templates.createdAt,
 			questionId: templates.questionId,
 			source: templates.source,
-			gitCommitSha: templates.gitCommitSha
+			gitCommitSha: templates.gitCommitSha,
+			typescriptRanAt: templates.typescriptRanAt
 		})
 		.from(templates)
 		.where(eq(templates.questionId, questionId))
@@ -155,20 +155,14 @@ async function recordTypeScriptRun({
 }): Promise<void> {
 	const result = await errors.try(
 		db.transaction(async (tx) => {
-			const runRows = await tx
-				.insert(typescriptRuns)
-				.values({ templateId })
-				.onConflictDoUpdate({
-					target: [typescriptRuns.templateId],
-					set: { createdAt: sql`now()` }
-				})
-				.returning({
-					id: typescriptRuns.id
-				})
+			const updateResult = await tx
+				.update(templates)
+				.set({ typescriptRanAt: sql`now()` })
+				.where(eq(templates.id, templateId))
+				.returning({ id: templates.id })
 
-			const run = runRows[0]
-			if (!run) {
-				logger.error("typescript run upsert returned no row", {
+			if (!updateResult[0]) {
+				logger.error("typescript run update affected no templates", {
 					templateId
 				})
 				throw errors.new("failed to record typescript run")
@@ -176,12 +170,12 @@ async function recordTypeScriptRun({
 
 			await tx
 				.delete(typescriptDiagnostics)
-				.where(eq(typescriptDiagnostics.runId, run.id))
+				.where(eq(typescriptDiagnostics.templateId, templateId))
 
 			if (diagnostics.length > 0) {
 				await tx.insert(typescriptDiagnostics).values(
 					diagnostics.map((diagnostic) => ({
-						runId: run.id,
+						templateId,
 						message: diagnostic.message,
 						line: diagnostic.line,
 						column: diagnostic.column,

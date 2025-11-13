@@ -6,8 +6,7 @@ import type { TemplateRecord } from "@/db/schema"
 import {
 	exemplarQuestions,
 	templates,
-	typescriptDiagnostics,
-	typescriptRuns
+	typescriptDiagnostics
 } from "@/db/schema"
 import { env } from "@/env"
 import { inngest } from "@/inngest/client"
@@ -45,7 +44,8 @@ async function fetchTemplateByOrdinal(
 			questionId: templates.questionId,
 			source: templates.source,
 			gitCommitSha: templates.gitCommitSha,
-			createdAt: templates.createdAt
+			createdAt: templates.createdAt,
+			typescriptRanAt: templates.typescriptRanAt
 		})
 		.from(templates)
 		.where(eq(templates.questionId, questionId))
@@ -55,22 +55,9 @@ async function fetchTemplateByOrdinal(
 		.then((rows) => rows[0] ?? null)
 }
 
-async function getTypeScriptRunId(templateId: string): Promise<string | null> {
-	const row = await db
-		.select({ id: typescriptRuns.id })
-		.from(typescriptRuns)
-		.where(eq(typescriptRuns.templateId, templateId))
-		.limit(1)
-		.then((rows) => rows[0])
-	return row?.id ?? null
-}
-
 async function getTypeScriptDiagnostics(
 	templateId: string
 ): Promise<TypeScriptDiagnostic[]> {
-	const runId = await getTypeScriptRunId(templateId)
-	if (!runId) return []
-
 	return db
 		.select({
 			message: typescriptDiagnostics.message,
@@ -79,17 +66,27 @@ async function getTypeScriptDiagnostics(
 			tsCode: typescriptDiagnostics.tsCode
 		})
 		.from(typescriptDiagnostics)
-		.where(eq(typescriptDiagnostics.runId, runId))
+		.where(eq(typescriptDiagnostics.templateId, templateId))
 		.orderBy(typescriptDiagnostics.createdAt)
 }
 
 async function hasSuccessfulTypeScriptRun(
 	templateId: string
 ): Promise<boolean> {
-	const runId = await getTypeScriptRunId(templateId)
-	if (!runId) return false
-	const diagnostics = await getTypeScriptDiagnostics(templateId)
-	return diagnostics.length === 0
+	const templateRow = await db
+		.select({ ranAt: templates.typescriptRanAt })
+		.from(templates)
+		.where(eq(templates.id, templateId))
+		.limit(1)
+		.then((rows) => rows[0])
+	if (!templateRow?.ranAt) return false
+	const diagnostic = await db
+		.select({ id: typescriptDiagnostics.id })
+		.from(typescriptDiagnostics)
+		.where(eq(typescriptDiagnostics.templateId, templateId))
+		.limit(1)
+		.then((rows) => rows[0])
+	return !diagnostic
 }
 
 async function performCandidateGeneration({
