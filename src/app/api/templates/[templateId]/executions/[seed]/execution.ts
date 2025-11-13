@@ -7,11 +7,7 @@ import * as errors from "@superbuilders/errors"
 import type { Logger } from "@superbuilders/slog"
 import { and, eq } from "drizzle-orm"
 import { db } from "@/db"
-import {
-	templateExecutions,
-	templates,
-	typescriptDiagnostics
-} from "@/db/schema"
+import { templateExecutions, templates } from "@/db/schema"
 import { env } from "@/env"
 import { ErrTemplateExecutionFailed, ErrTemplateNotValidated } from "@/errors"
 
@@ -77,19 +73,15 @@ async function hasSuccessfulTypeScriptRun(
 	templateId: string
 ): Promise<boolean> {
 	const templateRow = await db
-		.select({ ranAt: templates.typescriptRanAt })
+		.select({
+			validatedAt: templates.typescriptPassedWithZeroDiagnosticsAt
+		})
 		.from(templates)
 		.where(eq(templates.id, templateId))
 		.limit(1)
 		.then((rows) => rows[0])
-	if (!templateRow?.ranAt) return false
-	const diagnostic = await db
-		.select({ id: typescriptDiagnostics.id })
-		.from(typescriptDiagnostics)
-		.where(eq(typescriptDiagnostics.templateId, templateId))
-		.limit(1)
-		.then((rows) => rows[0])
-	return !diagnostic
+	if (!templateRow?.validatedAt) return false
+	return true
 }
 
 async function persistExecution(

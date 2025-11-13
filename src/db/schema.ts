@@ -52,7 +52,10 @@ export const templates = generatorSchema.table(
 		createdAt: timestamp("created_at", { withTimezone: true })
 			.notNull()
 			.defaultNow(),
-		typescriptRanAt: timestamp("typescript_ran_at", { withTimezone: true })
+		typescriptPassedWithZeroDiagnosticsAt: timestamp(
+			"typescript_passed_with_zero_diagnostics_at",
+			{ withTimezone: true }
+		)
 	},
 	(table) => [
 		index("templates_exemplar_question_created_idx").on(

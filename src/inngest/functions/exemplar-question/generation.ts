@@ -2,11 +2,7 @@ import * as errors from "@superbuilders/errors"
 import { asc, eq } from "drizzle-orm"
 import { db } from "@/db"
 import type { TemplateRecord } from "@/db/schema"
-import {
-	exemplarQuestions,
-	templates,
-	typescriptDiagnostics
-} from "@/db/schema"
+import { exemplarQuestions, templates } from "@/db/schema"
 
 const MAX_ATTEMPTS = 50
 
@@ -22,7 +18,8 @@ async function listTemplatesForQuestion(
 			source: templates.source,
 			createdGitCommitSha: templates.createdGitCommitSha,
 			createdAt: templates.createdAt,
-			typescriptRanAt: templates.typescriptRanAt
+			typescriptPassedWithZeroDiagnosticsAt:
+				templates.typescriptPassedWithZeroDiagnosticsAt
 		})
 		.from(templates)
 		.where(eq(templates.exemplarQuestionId, exemplarQuestionId))
@@ -33,19 +30,14 @@ async function hasSuccessfulTypeScriptRun(
 	templateId: string
 ): Promise<boolean> {
 	const templateRow = await db
-		.select({ ranAt: templates.typescriptRanAt })
+		.select({
+			validatedAt: templates.typescriptPassedWithZeroDiagnosticsAt
+		})
 		.from(templates)
 		.where(eq(templates.id, templateId))
 		.limit(1)
 		.then((rows) => rows[0])
-	if (!templateRow?.ranAt) return false
-	const diagnostic = await db
-		.select({ id: typescriptDiagnostics.id })
-		.from(typescriptDiagnostics)
-		.where(eq(typescriptDiagnostics.templateId, templateId))
-		.limit(1)
-		.then((rows) => rows[0])
-	return !diagnostic
+	return Boolean(templateRow?.validatedAt)
 }
 
 async function findLatestValidatedAttempt(

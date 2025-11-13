@@ -43,7 +43,8 @@ async function fetchTemplateByOrdinal(
 			exemplarQuestionId: templates.exemplarQuestionId,
 			source: templates.source,
 			createdGitCommitSha: templates.createdGitCommitSha,
-			typescriptRanAt: templates.typescriptRanAt
+			typescriptPassedWithZeroDiagnosticsAt:
+				templates.typescriptPassedWithZeroDiagnosticsAt
 		})
 		.from(templates)
 		.where(eq(templates.exemplarQuestionId, exemplarQuestionId))
@@ -155,19 +156,6 @@ async function recordTypeScriptRun({
 }): Promise<void> {
 	const result = await errors.try(
 		db.transaction(async (tx) => {
-			const updateResult = await tx
-				.update(templates)
-				.set({ typescriptRanAt: sql`now()` })
-				.where(eq(templates.id, templateId))
-				.returning({ id: templates.id })
-
-			if (!updateResult[0]) {
-				logger.error("typescript run update affected no templates", {
-					templateId
-				})
-				throw errors.new("failed to record typescript run")
-			}
-
 			await tx
 				.delete(typescriptDiagnostics)
 				.where(eq(typescriptDiagnostics.templateId, templateId))
@@ -182,6 +170,22 @@ async function recordTypeScriptRun({
 						tsCode: diagnostic.tsCode
 					}))
 				)
+			}
+
+			const updateResult = await tx
+				.update(templates)
+				.set({
+					typescriptPassedWithZeroDiagnosticsAt:
+						diagnostics.length === 0 ? sql`now()` : null
+				})
+				.where(eq(templates.id, templateId))
+				.returning({ id: templates.id })
+
+			if (!updateResult[0]) {
+				logger.error("typescript validation update affected no templates", {
+					templateId
+				})
+				throw errors.new("failed to record typescript validation result")
 			}
 		})
 	)
@@ -220,7 +224,11 @@ async function performTemplateValidation({
 		throw errors.wrap(evaluationResult.error, "template validation")
 	}
 
-	const { diagnostics, templateId } = evaluationResult.data
+	const {
+		diagnostics,
+		templateId,
+		exemplarQuestionId: validationQuestionId
+	} = evaluationResult.data
 
 	const recordResult = await errors.try(
 		recordTypeScriptRun({ logger, templateId, diagnostics })
@@ -236,7 +244,7 @@ async function performTemplateValidation({
 
 	if (diagnostics.length === 0) {
 		logger.info("template validation succeeded", {
-			exemplarQuestionId,
+			exemplarQuestionId: validationQuestionId,
 			templateId
 		})
 
@@ -244,7 +252,7 @@ async function performTemplateValidation({
 	}
 
 	logger.warn("template validation failed", {
-		exemplarQuestionId,
+		exemplarQuestionId: validationQuestionId,
 		templateId,
 		diagnosticsCount: diagnostics.length
 	})

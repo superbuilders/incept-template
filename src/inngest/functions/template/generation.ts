@@ -45,7 +45,8 @@ async function fetchTemplateByOrdinal(
 			source: templates.source,
 			createdGitCommitSha: templates.createdGitCommitSha,
 			createdAt: templates.createdAt,
-			typescriptRanAt: templates.typescriptRanAt
+			typescriptPassedWithZeroDiagnosticsAt:
+				templates.typescriptPassedWithZeroDiagnosticsAt
 		})
 		.from(templates)
 		.where(eq(templates.exemplarQuestionId, exemplarQuestionId))
@@ -74,19 +75,14 @@ async function hasSuccessfulTypeScriptRun(
 	templateId: string
 ): Promise<boolean> {
 	const templateRow = await db
-		.select({ ranAt: templates.typescriptRanAt })
+		.select({
+			validatedAt: templates.typescriptPassedWithZeroDiagnosticsAt
+		})
 		.from(templates)
 		.where(eq(templates.id, templateId))
 		.limit(1)
 		.then((rows) => rows[0])
-	if (!templateRow?.ranAt) return false
-	const diagnostic = await db
-		.select({ id: typescriptDiagnostics.id })
-		.from(typescriptDiagnostics)
-		.where(eq(typescriptDiagnostics.templateId, templateId))
-		.limit(1)
-		.then((rows) => rows[0])
-	return !diagnostic
+	return Boolean(templateRow?.validatedAt)
 }
 
 async function performTemplateGenerationAttempt({
