@@ -19,18 +19,18 @@ import {
 	validateTemplateWidgets
 } from "@/templates/widget-validation"
 
-type CandidateEvaluation = {
+type TemplateEvaluation = {
 	templateId: string
-	questionId: string
+	exemplarQuestionId: string
 	diagnostics: TypeScriptDiagnostic[]
 }
 
-type CandidateValidationOutcome =
+type TemplateValidationOutcome =
 	| { status: "valid"; templateId: string }
 	| { status: "invalid"; templateId: string; diagnosticsCount: number }
 
 async function fetchTemplateByOrdinal(
-	questionId: string,
+	exemplarQuestionId: string,
 	ordinal: number
 ): Promise<{
 	template: TemplateRecord | null
@@ -46,7 +46,7 @@ async function fetchTemplateByOrdinal(
 			typescriptRanAt: templates.typescriptRanAt
 		})
 		.from(templates)
-		.where(eq(templates.exemplarQuestionId, questionId))
+		.where(eq(templates.exemplarQuestionId, exemplarQuestionId))
 		.orderBy(asc(templates.createdAt))
 		.offset(ordinal)
 		.limit(1)
@@ -69,36 +69,36 @@ async function fetchTemplateByOrdinal(
 	}
 }
 
-async function performCandidateEvaluation({
+async function performTemplateEvaluation({
 	logger,
-	questionId,
+	exemplarQuestionId,
 	attempt
 }: {
 	logger: Logger
-	questionId: string
+	exemplarQuestionId: string
 	attempt: number
-}): Promise<CandidateEvaluation> {
+}): Promise<TemplateEvaluation> {
 	const { template, allowedWidgets } = await fetchTemplateByOrdinal(
-		questionId,
+		exemplarQuestionId,
 		attempt
 	)
 
 	if (!template) {
-		logger.error("candidate not found during validation", {
-			questionId,
+		logger.error("template not found during validation", {
+			exemplarQuestionId,
 			attempt
 		})
 		throw errors.new(
-			`template candidate not found: question=${questionId} attempt=${attempt}`
+			`template not found: exemplarQuestion=${exemplarQuestionId} attempt=${attempt}`
 		)
 	}
 
 	if (!template.source || template.source.length === 0) {
-		logger.error("candidate has no source to validate", {
-			questionId,
+		logger.error("template has no source to validate", {
+			exemplarQuestionId,
 			templateId: template.id
 		})
-		throw errors.new(`candidate template=${template.id} has empty source`)
+		throw errors.new(`template ${template.id} has empty source`)
 	}
 
 	const diagnostics = await collectDiagnostics(
@@ -109,7 +109,7 @@ async function performCandidateEvaluation({
 
 	return {
 		templateId: template.id,
-		questionId,
+		exemplarQuestionId,
 		diagnostics
 	}
 }
@@ -195,29 +195,29 @@ async function recordTypeScriptRun({
 	}
 }
 
-async function performTemplateCandidateValidation({
+async function performTemplateValidation({
 	logger,
-	questionId,
+	exemplarQuestionId,
 	attempt
 }: {
 	logger: Logger
-	questionId: string
+	exemplarQuestionId: string
 	attempt: number
-}): Promise<CandidateValidationOutcome> {
+}): Promise<TemplateValidationOutcome> {
 	const evaluationResult = await errors.try(
-		performCandidateEvaluation({
+		performTemplateEvaluation({
 			logger,
-			questionId,
+			exemplarQuestionId,
 			attempt
 		})
 	)
 	if (evaluationResult.error) {
-		logger.error("template candidate validation encountered error", {
-			questionId,
+		logger.error("template validation encountered error", {
+			exemplarQuestionId,
 			attempt,
 			error: evaluationResult.error
 		})
-		throw errors.wrap(evaluationResult.error, "candidate validation")
+		throw errors.wrap(evaluationResult.error, "template validation")
 	}
 
 	const { diagnostics, templateId } = evaluationResult.data
@@ -227,7 +227,7 @@ async function performTemplateCandidateValidation({
 	)
 	if (recordResult.error) {
 		logger.error("failed to persist typescript validation result", {
-			questionId,
+			exemplarQuestionId,
 			templateId,
 			error: recordResult.error
 		})
@@ -235,16 +235,16 @@ async function performTemplateCandidateValidation({
 	}
 
 	if (diagnostics.length === 0) {
-		logger.info("candidate validation succeeded", {
-			questionId,
+		logger.info("template validation succeeded", {
+			exemplarQuestionId,
 			templateId
 		})
 
 		return { status: "valid", templateId }
 	}
 
-	logger.warn("candidate validation failed", {
-		questionId,
+	logger.warn("template validation failed", {
+		exemplarQuestionId,
 		templateId,
 		diagnosticsCount: diagnostics.length
 	})
@@ -256,38 +256,37 @@ async function performTemplateCandidateValidation({
 	}
 }
 
-export const validateTemplateCandidate = inngest.createFunction(
+export const validateTemplate = inngest.createFunction(
 	{
-		id: "template-candidate-validation",
-		name: "Template Generation - Step 3: Validate Candidate",
+		id: "template-validation",
+		name: "Template Generation - Step 3: Validate Template",
 		idempotency: "event",
-		concurrency: [{ scope: "fn", key: "event.data.templateId", limit: 1 }]
+		concurrency: [
+			{ scope: "fn", key: "event.data.exemplarQuestionId", limit: 1 }
+		]
 	},
-	{ event: "template/candidate.validation.requested" },
+	{ event: "template/template.validate.requested" },
 	async ({ event, step, logger }) => {
-		const { templateId: questionId, attempt } = event.data
+		const { exemplarQuestionId, attempt } = event.data
 		const baseEventId = event.id
-		logger.info("validating template candidate", {
-			questionId,
-			attempt
-		})
+		logger.info("validating template", { exemplarQuestionId, attempt })
 
 		const validationResult = await errors.try(
-			step.run("perform-template-candidate-validation", () =>
-				performTemplateCandidateValidation({
+			step.run("perform-template-validation", () =>
+				performTemplateValidation({
 					logger,
-					questionId,
+					exemplarQuestionId,
 					attempt
 				})
 			)
 		)
 		if (validationResult.error) {
-			logger.error("template candidate validation encountered error", {
-				questionId,
+			logger.error("template validation encountered error", {
+				exemplarQuestionId,
 				attempt,
 				error: validationResult.error
 			})
-			throw errors.wrap(validationResult.error, "candidate validation")
+			throw errors.wrap(validationResult.error, "template validation")
 		}
 
 		const outcome = validationResult.data
@@ -298,11 +297,11 @@ export const validateTemplateCandidate = inngest.createFunction(
 		const diagnosticsCount =
 			outcome.status === "valid" ? 0 : outcome.diagnosticsCount
 
-		await step.sendEvent("candidate-validation-completed", {
-			id: `${baseEventId}-candidate-validation-${eventIdOutcome}-${questionId}-${attempt}`,
-			name: "template/candidate.validation.completed",
+		await step.sendEvent("template-validation-completed", {
+			id: `${baseEventId}-template-validation-${eventIdOutcome}-${exemplarQuestionId}-${attempt}`,
+			name: "template/template.validate.completed",
 			data: {
-				templateId: questionId,
+				exemplarQuestionId,
 				attempt,
 				diagnosticsCount
 			}

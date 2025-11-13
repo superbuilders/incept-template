@@ -167,12 +167,12 @@ async function main(): Promise<void> {
 		}
 
 		const metadata = buildMetadata(assessmentItem, scriptInfo)
-		const templateId = randomUUID()
+		const exemplarQuestionId = randomUUID()
 
 		const eventPayload = {
-			name: "template/template.generate.full" as const,
+			name: "template/exemplar-question.template.generate.full" as const,
 			data: {
-				templateId,
+				exemplarQuestionId,
 				exampleAssessmentItemBody: assessmentItem,
 				metadata
 			}
@@ -180,7 +180,7 @@ async function main(): Promise<void> {
 
 		if (dryRun) {
 			console.log(
-				`dry-run: would dispatch event for template "${templateId}" from "${relativeFilePath}":`
+				`dry-run: would dispatch event for template "${exemplarQuestionId}" from "${relativeFilePath}":`
 			)
 			console.log(JSON.stringify(eventPayload, null, 2))
 			dispatchedCount += 1
@@ -191,7 +191,7 @@ async function main(): Promise<void> {
 		if (dispatchResult.error) {
 			const message = dispatchResult.error.toString()
 			logger.error("failed to dispatch template full generation event", {
-				templateId,
+				exemplarQuestionId,
 				sourceFile: relativeFilePath,
 				error: message
 			})
@@ -203,7 +203,7 @@ async function main(): Promise<void> {
 		}
 
 		console.log(
-			`info: dispatched event for template "${templateId}" from "${relativeFilePath}"`
+			`info: dispatched event for template "${exemplarQuestionId}" from "${relativeFilePath}"`
 		)
 		dispatchedCount += 1
 	}

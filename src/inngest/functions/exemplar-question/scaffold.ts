@@ -20,21 +20,21 @@ function normalizeAllowedWidgets(
 
 function validateAllowedWidgets({
 	logger,
-	templateId,
+	exemplarQuestionId,
 	allowedWidgets
 }: {
 	logger: Logger
-	templateId: string
+	exemplarQuestionId: string
 	allowedWidgets: readonly string[]
 }): void {
 	const unknownWidgets = allowedWidgets.filter(
 		(widget) => !KNOWN_WIDGET_NAMES.has(widget)
 	)
 	if (unknownWidgets.length > 0) {
-		const message = `template ${templateId} references unknown widgets: ${unknownWidgets.join(", ")}`
+		const message = `template ${exemplarQuestionId} references unknown widgets: ${unknownWidgets.join(", ")}`
 		const nonRetriableError = new NonRetriableError(message)
 		logger.error("template scaffold rejected unknown widgets", {
-			templateId,
+			exemplarQuestionId,
 			unknownWidgets,
 			error: nonRetriableError
 		})
@@ -42,14 +42,14 @@ function validateAllowedWidgets({
 	}
 }
 
-async function performTemplateScaffold({
+async function performExemplarQuestionScaffold({
 	logger,
-	templateId,
+	exemplarQuestionId,
 	exampleAssessmentItemBody,
 	metadata
 }: {
 	logger: Logger
-	templateId: string
+	exemplarQuestionId: string
 	exampleAssessmentItemBody: unknown
 	metadata: unknown
 }): Promise<ScaffoldResult> {
@@ -59,12 +59,12 @@ async function performTemplateScaffold({
 			allowedWidgets: exemplarQuestions.allowedWidgets
 		})
 		.from(exemplarQuestions)
-		.where(eq(exemplarQuestions.id, templateId))
+		.where(eq(exemplarQuestions.id, exemplarQuestionId))
 		.limit(1)
 
 	if (existingTemplate.length > 0) {
 		logger.error("template scaffold attempted on existing template", {
-			templateId
+			exemplarQuestionId
 		})
 		throw new NonRetriableError("template already scaffolded")
 	}
@@ -75,20 +75,20 @@ async function performTemplateScaffold({
 
 	validateAllowedWidgets({
 		logger,
-		templateId,
+		exemplarQuestionId,
 		allowedWidgets: normalizedWidgets
 	})
 
 	const hash = createHash("sha256").update(stringifiedBody).digest("hex")
 
 	logger.debug("creating template scaffold", {
-		templateId,
+		exemplarQuestionId,
 		hash,
 		allowedWidgetsCount: normalizedWidgets.length
 	})
 
 	await db.insert(exemplarQuestions).values({
-		id: templateId,
+		id: exemplarQuestionId,
 		allowedWidgets: Array.from(normalizedWidgets),
 		exampleAssessmentItemBody,
 		exampleAssessmentItemHash: hash,
@@ -98,27 +98,30 @@ async function performTemplateScaffold({
 	return { hash, allowedWidgets: normalizedWidgets }
 }
 
-export const scaffoldTemplateFunction = inngest.createFunction(
+export const scaffoldExemplarQuestion = inngest.createFunction(
 	{
-		id: "template-scaffold-requested",
-		name: "Template Scaffold Requested",
+		id: "exemplar-question-scaffold-requested",
+		name: "Exemplar Question Scaffold Requested",
 		idempotency: "event",
-		concurrency: [{ scope: "fn", key: "event.data.templateId", limit: 1 }]
+		concurrency: [
+			{ scope: "fn", key: "event.data.exemplarQuestionId", limit: 1 }
+		]
 	},
-	{ event: "template/template.scaffold.requested" },
+	{ event: "template/exemplar-question.scaffold.requested" },
 	async ({ event, step, logger }) => {
-		const { templateId, exampleAssessmentItemBody, metadata } = event.data
+		const { exemplarQuestionId, exampleAssessmentItemBody, metadata } =
+			event.data
 		const baseEventId = event.id
 		logger.info("starting template scaffold", {
-			templateId,
+			exemplarQuestionId,
 			payloadType: typeof exampleAssessmentItemBody
 		})
 
 		const scaffoldResult = await errors.try(
 			step.run("perform-template-scaffold", () =>
-				performTemplateScaffold({
+				performExemplarQuestionScaffold({
 					logger,
-					templateId,
+					exemplarQuestionId,
 					exampleAssessmentItemBody,
 					metadata
 				})
@@ -127,7 +130,7 @@ export const scaffoldTemplateFunction = inngest.createFunction(
 		if (scaffoldResult.error) {
 			const reason = scaffoldResult.error.toString()
 			logger.error("template scaffold failed", {
-				templateId,
+				exemplarQuestionId,
 				reason,
 				error: scaffoldResult.error
 			})
@@ -135,17 +138,17 @@ export const scaffoldTemplateFunction = inngest.createFunction(
 			const failureEventResult = await errors.try(
 				step.sendEvent("send-template-scaffold-failed", {
 					id: `${baseEventId}-scaffold-failed`,
-					name: "template/template.scaffold.failed",
-					data: { templateId, reason }
+					name: "template/exemplar-question.scaffold.failed",
+					data: { exemplarQuestionId, reason }
 				})
 			)
 			if (failureEventResult.error) {
 				const wrappedFailureEventError = errors.wrap(
 					failureEventResult.error,
-					`template scaffold failure event ${templateId}`
+					`template scaffold failure event ${exemplarQuestionId}`
 				)
 				logger.error("template scaffold failure event emission failed", {
-					templateId,
+					exemplarQuestionId,
 					reason,
 					error: wrappedFailureEventError
 				})
@@ -155,11 +158,11 @@ export const scaffoldTemplateFunction = inngest.createFunction(
 			const nonRetriable = errors.as(scaffoldResult.error, NonRetriableError)
 			if (nonRetriable) {
 				const wrappedNonRetriable = new NonRetriableError(
-					`scaffolding template ${templateId}: ${nonRetriable.message}`,
+					`scaffolding template ${exemplarQuestionId}: ${nonRetriable.message}`,
 					{ cause: nonRetriable }
 				)
 				logger.error("template scaffold aborting after failure event", {
-					templateId,
+					exemplarQuestionId,
 					reason,
 					error: wrappedNonRetriable
 				})
@@ -168,10 +171,10 @@ export const scaffoldTemplateFunction = inngest.createFunction(
 
 			const wrappedError = errors.wrap(
 				scaffoldResult.error,
-				`scaffolding template ${templateId}`
+				`scaffolding template ${exemplarQuestionId}`
 			)
 			logger.error("template scaffold aborting after failure event", {
-				templateId,
+				exemplarQuestionId,
 				reason,
 				error: wrappedError
 			})
@@ -181,28 +184,28 @@ export const scaffoldTemplateFunction = inngest.createFunction(
 		const completionEventResult = await errors.try(
 			step.sendEvent("send-template-scaffold-completed", {
 				id: `${baseEventId}-scaffold-completed`,
-				name: "template/template.scaffold.completed",
-				data: { templateId }
+				name: "template/exemplar-question.scaffold.completed",
+				data: { exemplarQuestionId }
 			})
 		)
 		if (completionEventResult.error) {
 			logger.error("template scaffold completion event emission failed", {
-				templateId,
+				exemplarQuestionId,
 				error: completionEventResult.error
 			})
 			throw errors.wrap(
 				completionEventResult.error,
-				`template scaffold completion event ${templateId}`
+				`template scaffold completion event ${exemplarQuestionId}`
 			)
 		}
 
 		logger.info("template scaffold completed", {
-			templateId,
+			exemplarQuestionId,
 			allowedWidgetsCount: scaffoldResult.data.allowedWidgets.length
 		})
 
 		return {
-			templateId,
+			exemplarQuestionId,
 			hash: scaffoldResult.data.hash,
 			status: "completed" as const
 		}

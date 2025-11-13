@@ -1,15 +1,15 @@
-import { generateTemplateCandidate } from "@/inngest/functions/candidate/generation"
-import { validateTemplateCandidate } from "@/inngest/functions/candidate/validation"
+import { generateTemplateForExemplarQuestion } from "@/inngest/functions/exemplar-question/full"
+import { startExemplarQuestionTemplateGeneration } from "@/inngest/functions/exemplar-question/generation"
+import { scaffoldExemplarQuestion } from "@/inngest/functions/exemplar-question/scaffold"
 import { helloWorldFunction } from "@/inngest/functions/hello-world"
-import { generateTemplateFully } from "@/inngest/functions/template/full"
-import { startTemplateGeneration } from "@/inngest/functions/template/generation"
-import { scaffoldTemplateFunction } from "@/inngest/functions/template/scaffold"
+import { generateTemplate } from "@/inngest/functions/template/generation"
+import { validateTemplate } from "@/inngest/functions/template/validation"
 
 export const functions = [
-	scaffoldTemplateFunction,
-	generateTemplateFully,
+	scaffoldExemplarQuestion,
+	generateTemplateForExemplarQuestion,
 	helloWorldFunction,
-	startTemplateGeneration,
-	generateTemplateCandidate,
-	validateTemplateCandidate
+	startExemplarQuestionTemplateGeneration,
+	generateTemplate,
+	validateTemplate
 ]
