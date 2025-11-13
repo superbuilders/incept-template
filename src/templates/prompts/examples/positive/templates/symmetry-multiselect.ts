@@ -466,13 +466,10 @@ export default function generateTemplate(
 					)
 				]
 			: [
-					text(
-						`You selected ${joinWithAnd(selectedNames)}. ${entryExplanations.join(
-							" "
-						)} Choose ${joinWithAnd(
-							correctShapeNames.map(cap)
-						)} to match the true symmetry lines.`
-					)
+					text(`You selected ${joinWithAnd(selectedNames)}.`),
+					text(" "),
+					text(entryExplanations.join(" ")),
+					text(" These dashed lines do not match the shape’s true symmetry set.")
 				]
 
 		return {

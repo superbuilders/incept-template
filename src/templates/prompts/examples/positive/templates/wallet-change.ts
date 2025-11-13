@@ -470,13 +470,13 @@ export default function generateTemplate(
 				summary: [
 					text("You selected "),
 					chosenAmount,
-					text(", which subtracts only the bills "),
+					text(". You subtracted only the bills "),
 					mathMoneyExpr(billsCents, priceCents),
-					text(" and ignores the coins worth "),
+					text(" and left out the coins worth "),
 					mathDollar(coinsCents),
-					text(". Include both the bills and the "),
-					mathDollar(coinsCents),
-					text(" in the starting total before subtracting.")
+					text(", so the starting total never included all of "),
+					text(chosenName),
+					text("'s money.")
 				]
 			}
 		}
@@ -486,7 +486,7 @@ export default function generateTemplate(
 				summary: [
 					text("You selected "),
 					chosenAmount,
-					text(", which keeps the cents subtraction as "),
+					text(". You kept the cents subtraction as "),
 					mathRaw(`<mn>${totalCentPart}</mn>`),
 					text(" − "),
 					mathRaw(`<mn>${priceCentPart}</mn>`),
@@ -494,7 +494,7 @@ export default function generateTemplate(
 					mathRaw(`<mn>${totalCentPart}</mn>`),
 					text(" is less than "),
 					mathRaw(`<mn>${priceCentPart}</mn>`),
-					text(", you must borrow 1 dollar (100 cents) before subtracting the cents.")
+					text(", the regrouping step that trades a dollar for 100 cents was skipped.")
 				]
 			}
 		}
@@ -504,11 +504,11 @@ export default function generateTemplate(
 				summary: [
 					text("You selected "),
 					chosenAmount,
-					text(", which takes the absolute difference of the cents "),
+					text(". You took the absolute difference of the cents "),
 					mathRaw(
 						`<mo>|</mo><mn>${totalCentPart}</mn><mo>−</mo><mn>${priceCentPart}</mn><mo>|</mo><mo>=</mo><mn>${centDifference}</mn><mtext> cents</mtext>`
 					),
-					text(", instead of borrowing 1 dollar to make the top cents larger before subtracting.")
+					text(", so the borrow step that makes the top cents larger never happened.")
 				]
 			}
 		}
@@ -518,11 +518,11 @@ export default function generateTemplate(
 				summary: [
 					text("You selected "),
 					chosenAmount,
-					text(", which treats each dime as "),
+					text(". You treated each dime as "),
 					mathRaw(`<mn>0.01</mn>`),
 					text(" and each penny as "),
 					mathRaw(`<mn>0.10</mn>`),
-					text(", inflating the starting total instead of using dime = 0.10 and penny = 0.01.")
+					text(", so the coin values were swapped.")
 				]
 			}
 		}
@@ -538,9 +538,7 @@ export default function generateTemplate(
 				mathDollar(diffAbs),
 				text(` ${moreOrLess} than the result of `),
 				mathMoneyExpr(totalCents, priceCents),
-				text(
-					". Recheck the regrouping so the cents subtraction matches the dot-plot subtraction."
-				)
+				text(". That difference signals a regrouping or counting slip in your subtraction.")
 			]
 		}
 	}

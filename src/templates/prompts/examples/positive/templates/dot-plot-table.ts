@@ -460,7 +460,7 @@ export default function generateTemplate(
 			mathNum(triple[2].count),
 			text(" for label "),
 			mathNum(triple[2].value),
-			text(" — exactly matching the dot counts in the plot.")
+			text(". You read each highlighted column and matched the dot stack in every case.")
 		]
 	})
 
@@ -470,15 +470,13 @@ export default function generateTemplate(
 		return {
 			correctness: "incorrect" as const,
 			summary: [
-				text("The entry you provided at label "),
+				text("You left the dropdown at label "),
 				mathNum(v),
-				text(" needs to be "),
-				mathNum(c),
-				text(", because that column shows "),
+				text(" at a value that does not match the column. That stack shows "),
 				mathNum(c),
 				text(" "),
 				text(c === 1 ? "dot" : "dots"),
-				text(".")
+				text(", so the mismatch comes from misreading that column.")
 			]
 		}
 	}
@@ -491,15 +489,19 @@ export default function generateTemplate(
 		return {
 			correctness: "incorrect" as const,
 			summary: [
-				text("Two of your dropdowns need to be corrected: label "),
+				text("Two dropdowns stay off because their columns were misread: label "),
 				mathNum(v1),
-				text(" should be "),
+				text(" shows "),
 				mathNum(c1),
+				text(" "),
+				text(c1 === 1 ? "dot" : "dots"),
 				text(", and label "),
 				mathNum(v2),
-				text(" should be "),
+				text(" shows "),
 				mathNum(c2),
-				text(". Recount those columns and enter those dot counts.")
+				text(" "),
+				text(c2 === 1 ? "dot" : "dots"),
+				text(". Both dropdowns need to reflect those column counts.")
 			]
 		}
 	}
@@ -507,19 +509,25 @@ export default function generateTemplate(
 	const tripleIncorrect = () => ({
 		correctness: "incorrect" as const,
 		summary: [
-			text("Recount all three highlighted labels: "),
+			text("Each highlighted label is still set to a number that differs from the column: "),
 			mathNum(triple[0].value),
-			text(" needs "),
+			text(" has "),
 			mathNum(triple[0].count),
+			text(" "),
+			text(triple[0].count === 1 ? "dot" : "dots"),
 			text(", "),
 			mathNum(triple[1].value),
-			text(" needs "),
+			text(" has "),
 			mathNum(triple[1].count),
+			text(" "),
+			text(triple[1].count === 1 ? "dot" : "dots"),
 			text(", "),
 			mathNum(triple[2].value),
-			text(" needs "),
+			text(" has "),
 			mathNum(triple[2].count),
-			text(", matching the dots in each column.")
+			text(" "),
+			text(triple[2].count === 1 ? "dot" : "dots"),
+			text(", so each dropdown reflects a misread column.")
 		]
 	})
 
