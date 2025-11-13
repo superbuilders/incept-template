@@ -41,14 +41,14 @@ async function fetchTemplateByOrdinal(
 	return db
 		.select({
 			id: templates.id,
-			questionId: templates.questionId,
+			exemplarQuestionId: templates.exemplarQuestionId,
 			source: templates.source,
-			gitCommitSha: templates.gitCommitSha,
+			createdGitCommitSha: templates.createdGitCommitSha,
 			createdAt: templates.createdAt,
 			typescriptRanAt: templates.typescriptRanAt
 		})
 		.from(templates)
-		.where(eq(templates.questionId, questionId))
+		.where(eq(templates.exemplarQuestionId, questionId))
 		.orderBy(asc(templates.createdAt))
 		.offset(ordinal)
 		.limit(1)
@@ -173,15 +173,15 @@ async function performCandidateGeneration({
 		userPrompt: prompt.userPrompt
 	})
 
-	const gitCommitSha = env.VERCEL_GIT_COMMIT_SHA
+	const createdGitCommitSha = env.VERCEL_GIT_COMMIT_SHA
 
 	const insertResult = await errors.try(
 		db
 			.insert(templates)
 			.values({
-				questionId: templateId,
+				exemplarQuestionId: templateId,
 				source: generatedCode,
-				gitCommitSha
+				createdGitCommitSha
 			})
 			.returning({ id: templates.id })
 	)

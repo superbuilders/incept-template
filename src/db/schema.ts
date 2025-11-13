@@ -7,6 +7,7 @@ import {
 	integer,
 	jsonb,
 	pgSchema,
+	primaryKey,
 	text,
 	timestamp,
 	uniqueIndex,
@@ -45,9 +46,9 @@ export const templates = generatorSchema.table(
 	"templates",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
-		questionId: uuid("question_id").notNull(),
+		exemplarQuestionId: uuid("exemplar_question_id").notNull(),
 		source: text("source").notNull(),
-		gitCommitSha: text("git_commit_sha"), // when in prod make this not null
+		createdGitCommitSha: text("created_git_commit_sha"), // when in prod make this not null
 		createdAt: timestamp("created_at", { withTimezone: true })
 			.notNull()
 			.defaultNow(),
@@ -55,12 +56,12 @@ export const templates = generatorSchema.table(
 	},
 	(table) => [
 		index("templates_exemplar_question_created_idx").on(
-			table.questionId,
+			table.exemplarQuestionId,
 			table.createdAt
 		),
 		foreignKey({
 			name: "templates_exemplar_question_fk",
-			columns: [table.questionId],
+			columns: [table.exemplarQuestionId],
 			foreignColumns: [exemplarQuestions.id]
 		})
 	]
@@ -106,21 +107,23 @@ const bigintText = customType<{ data: bigint; driverData: string }>({
 export const templateExecutions = generatorSchema.table(
 	"template_executions",
 	{
-		id: uuid("id").primaryKey().defaultRandom(),
 		templateId: uuid("template_id").notNull(),
 		seed: bigintText("seed").notNull(),
 		body: jsonb("body").notNull(),
-		gitCommitSha: text("git_commit_sha"), // when in prod make this not null
+		createdGitCommitSha: text("created_git_commit_sha"), // when in prod make this not null
+		xml: text("xml"),
+		xmlGeneratedAt: timestamp("xml_generated_at", { withTimezone: true }),
+		xmlGeneratedGitCommitSha: text("xml_generated_git_commit_sha"), // when in prod make this not null
 		createdAt: timestamp("created_at", { withTimezone: true })
 			.notNull()
 			.defaultNow()
 	},
 	(table) => [
+		primaryKey({
+			name: "template_executions_pkey",
+			columns: [table.templateId, table.seed]
+		}),
 		index("template_executions_template_idx").on(table.templateId),
-		uniqueIndex("template_executions_seed_idx").on(
-			table.templateId,
-			table.seed
-		),
 		foreignKey({
 			name: "template_executions_template_fk",
 			columns: [table.templateId],

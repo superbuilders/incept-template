@@ -40,13 +40,13 @@ async function fetchTemplateByOrdinal(
 		.select({
 			id: templates.id,
 			createdAt: templates.createdAt,
-			questionId: templates.questionId,
+			exemplarQuestionId: templates.exemplarQuestionId,
 			source: templates.source,
-			gitCommitSha: templates.gitCommitSha,
+			createdGitCommitSha: templates.createdGitCommitSha,
 			typescriptRanAt: templates.typescriptRanAt
 		})
 		.from(templates)
-		.where(eq(templates.questionId, questionId))
+		.where(eq(templates.exemplarQuestionId, questionId))
 		.orderBy(asc(templates.createdAt))
 		.offset(ordinal)
 		.limit(1)
@@ -59,7 +59,7 @@ async function fetchTemplateByOrdinal(
 	const questionRow = await db
 		.select({ allowedWidgets: exemplarQuestions.allowedWidgets })
 		.from(exemplarQuestions)
-		.where(eq(exemplarQuestions.id, templateRow.questionId))
+		.where(eq(exemplarQuestions.id, templateRow.exemplarQuestionId))
 		.limit(1)
 		.then((rows) => rows[0])
 

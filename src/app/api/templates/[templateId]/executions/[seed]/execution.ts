@@ -16,7 +16,7 @@ import { env } from "@/env"
 import { ErrTemplateExecutionFailed, ErrTemplateNotValidated } from "@/errors"
 
 type TemplateExecutionOutcome =
-	| { status: "succeeded"; executionId: string }
+	| { status: "succeeded"; templateId: string; seed: bigint }
 	| {
 			status: "failed"
 			reason: string
@@ -62,7 +62,7 @@ async function fetchTemplateRecord(templateId: string) {
 	const row = await db
 		.select({
 			id: templates.id,
-			questionId: templates.questionId,
+			exemplarQuestionId: templates.exemplarQuestionId,
 			source: templates.source
 		})
 		.from(templates)
@@ -97,7 +97,7 @@ async function persistExecution(
 	seed: bigint,
 	body: unknown
 ) {
-	const gitCommitSha = env.VERCEL_GIT_COMMIT_SHA
+	const createdGitCommitSha = env.VERCEL_GIT_COMMIT_SHA
 
 	return db
 		.insert(templateExecutions)
@@ -105,16 +105,22 @@ async function persistExecution(
 			templateId,
 			seed,
 			body,
-			gitCommitSha
+			createdGitCommitSha
 		})
 		.onConflictDoUpdate({
 			target: [templateExecutions.templateId, templateExecutions.seed],
 			set: {
 				body,
-				gitCommitSha
+				createdGitCommitSha,
+				xml: null,
+				xmlGeneratedAt: null,
+				xmlGeneratedGitCommitSha: null
 			}
 		})
-		.returning({ id: templateExecutions.id })
+		.returning({
+			templateId: templateExecutions.templateId,
+			seed: templateExecutions.seed
+		})
 }
 
 function disposeStack(
@@ -260,7 +266,7 @@ export async function performTemplateExecution({
 	const validated = await hasSuccessfulTypeScriptRun(templateId)
 	logger.debug("fetched template record", {
 		templateId,
-		questionId: templateRecord.questionId,
+		exemplarQuestionId: templateRecord.exemplarQuestionId,
 		sourceLength: templateRecord.source.length,
 		validated
 	})
@@ -270,7 +276,7 @@ export async function performTemplateExecution({
 	}
 
 	const existingExecution = await db
-		.select({ id: templateExecutions.id })
+		.select({ seed: templateExecutions.seed })
 		.from(templateExecutions)
 		.where(
 			and(
@@ -282,7 +288,7 @@ export async function performTemplateExecution({
 
 	if (existingExecution.length > 0) {
 		return fail("template execution already exists", {
-			existingExecutionId: existingExecution[0].id
+			existingExecutionSeed: existingExecution[0].seed.toString()
 		})
 	}
 
@@ -290,7 +296,10 @@ export async function performTemplateExecution({
 	cleanupStack.defer(() => rmSync(tempDir, { recursive: true, force: true }))
 
 	const requiredTypeModulesResult = errors.trySync(() =>
-		ensureRequiredTypeModulesAvailable(logger, templateRecord.questionId)
+		ensureRequiredTypeModulesAvailable(
+			logger,
+			templateRecord.exemplarQuestionId
+		)
 	)
 	if (requiredTypeModulesResult.error) {
 		return fail("required type module missing", {
@@ -300,7 +309,7 @@ export async function performTemplateExecution({
 
 	const rewrittenSource = rewriteAliasImports(
 		logger,
-		templateRecord.questionId,
+		templateRecord.exemplarQuestionId,
 		templateRecord.source
 	)
 	const sourcePath = path.join(tempDir, "template.ts")
@@ -359,10 +368,14 @@ export async function performTemplateExecution({
 	logger.info("template execution completed", {
 		templateId,
 		seed,
-		executionId: executionRecord.id
+		executionSeed: executionRecord.seed.toString()
 	})
 
-	return { status: "succeeded", executionId: executionRecord.id }
+	return {
+		status: "succeeded" as const,
+		templateId: executionRecord.templateId,
+		seed: executionRecord.seed
+	}
 }
 
 export async function ensureExecutionForSeed({
@@ -394,11 +407,13 @@ export async function ensureExecutionForSeed({
 
 	const cachedExecution = await db
 		.select({
-			id: templateExecutions.id,
 			templateId: templateExecutions.templateId,
-			questionId: templates.questionId,
+			exemplarQuestionId: templates.exemplarQuestionId,
 			seed: templateExecutions.seed,
 			body: templateExecutions.body,
+			xml: templateExecutions.xml,
+			xmlGeneratedAt: templateExecutions.xmlGeneratedAt,
+			xmlGeneratedGitCommitSha: templateExecutions.xmlGeneratedGitCommitSha,
 			createdAt: templateExecutions.createdAt
 		})
 		.from(templateExecutions)
@@ -412,12 +427,13 @@ export async function ensureExecutionForSeed({
 		.limit(1)
 
 	if (cachedExecution.length > 0) {
+		const cached = cachedExecution[0]
 		logger.debug("template seed execution cache hit", {
 			templateId,
 			seed: normalizedSeed.toString(),
-			executionId: cachedExecution[0].id
+			createdAt: cached.createdAt.toISOString()
 		})
-		return cachedExecution[0]
+		return cached
 	}
 
 	const executionResult = await performTemplateExecution({
@@ -436,18 +452,27 @@ export async function ensureExecutionForSeed({
 		throw errors.wrap(ErrTemplateExecutionFailed, executionResult.reason)
 	}
 
+	const executionSeed = executionResult.seed
+
 	const record = await db
 		.select({
-			id: templateExecutions.id,
 			templateId: templateExecutions.templateId,
-			questionId: templates.questionId,
+			exemplarQuestionId: templates.exemplarQuestionId,
 			seed: templateExecutions.seed,
 			body: templateExecutions.body,
+			xml: templateExecutions.xml,
+			xmlGeneratedAt: templateExecutions.xmlGeneratedAt,
+			xmlGeneratedGitCommitSha: templateExecutions.xmlGeneratedGitCommitSha,
 			createdAt: templateExecutions.createdAt
 		})
 		.from(templateExecutions)
 		.innerJoin(templates, eq(templates.id, templateExecutions.templateId))
-		.where(eq(templateExecutions.id, executionResult.executionId))
+		.where(
+			and(
+				eq(templateExecutions.templateId, executionResult.templateId),
+				eq(templateExecutions.seed, executionSeed)
+			)
+		)
 		.limit(1)
 		.then((rows) => rows[0] ?? null)
 
@@ -455,7 +480,7 @@ export async function ensureExecutionForSeed({
 		logger.error("template execution record missing after creation", {
 			templateId,
 			seed,
-			executionId: executionResult.executionId
+			executionSeed: executionSeed.toString()
 		})
 		throw errors.new("execution record missing after creation")
 	}

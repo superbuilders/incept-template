@@ -18,14 +18,14 @@ async function listTemplatesForQuestion(
 	return db
 		.select({
 			id: templates.id,
-			questionId: templates.questionId,
+			exemplarQuestionId: templates.exemplarQuestionId,
 			source: templates.source,
-			gitCommitSha: templates.gitCommitSha,
+			createdGitCommitSha: templates.createdGitCommitSha,
 			createdAt: templates.createdAt,
 			typescriptRanAt: templates.typescriptRanAt
 		})
 		.from(templates)
-		.where(eq(templates.questionId, templateId))
+		.where(eq(templates.exemplarQuestionId, templateId))
 		.orderBy(asc(templates.createdAt))
 }
 

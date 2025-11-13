@@ -1,11 +1,15 @@
 import * as errors from "@superbuilders/errors"
 import * as logger from "@superbuilders/slog"
+import { and, eq, sql } from "drizzle-orm"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { ensureExecutionForSeed } from "@/app/api/templates/[templateId]/executions/[seed]/execution"
 import { compile } from "@/compiler/compiler"
 import type { FeedbackPlanAny } from "@/core/feedback/plan"
 import type { AssessmentItemInput } from "@/core/item"
+import { db } from "@/db"
+import { templateExecutions } from "@/db/schema"
+import { env } from "@/env"
 import { ErrTemplateExecutionFailed, ErrTemplateNotValidated } from "@/errors"
 import { widgetCollections } from "@/widgets/collections"
 import type { WidgetTypeTupleFrom } from "@/widgets/collections/types"
@@ -88,6 +92,22 @@ export async function GET(
 	}
 
 	const record = executionResult.data
+	const executionReference = `${record.templateId}-${record.seed.toString()}`
+
+	if (record.xml) {
+		logger.debug("template execution qti served from cache", {
+			templateId,
+			seed,
+			execution: executionReference
+		})
+		return new NextResponse(record.xml, {
+			status: 200,
+			headers: {
+				"Content-Type": "application/xml; charset=utf-8",
+				"Content-Disposition": `attachment; filename="${executionReference}.xml"`
+			}
+		})
+	}
 
 	// @ts-expect-error: record.body originates from validated template execution
 	const body: AssessmentItemInput<
@@ -100,7 +120,7 @@ export async function GET(
 		logger.error("template execution qti compilation failed", {
 			templateId,
 			seed,
-			executionId: record.id,
+			execution: executionReference,
 			error: xmlResult.error
 		})
 		return NextResponse.json(
@@ -109,11 +129,42 @@ export async function GET(
 		)
 	}
 
-	return new NextResponse(xmlResult.data, {
+	const xml = xmlResult.data
+
+	const persistXmlResult = await errors.try(
+		db
+			.update(templateExecutions)
+			.set({
+				xml,
+				xmlGeneratedAt: sql`now()`,
+				xmlGeneratedGitCommitSha: env.VERCEL_GIT_COMMIT_SHA ?? null
+			})
+			.where(
+				and(
+					eq(templateExecutions.templateId, record.templateId),
+					eq(templateExecutions.seed, record.seed)
+				)
+			)
+	)
+
+	if (persistXmlResult.error) {
+		logger.error("template execution xml persistence failed", {
+			templateId,
+			seed,
+			execution: executionReference,
+			error: persistXmlResult.error
+		})
+		return NextResponse.json(
+			{ error: "failed to persist execution xml" },
+			{ status: 500 }
+		)
+	}
+
+	return new NextResponse(xml, {
 		status: 200,
 		headers: {
 			"Content-Type": "application/xml; charset=utf-8",
-			"Content-Disposition": `attachment; filename="${record.id}.xml"`
+			"Content-Disposition": `attachment; filename="${executionReference}.xml"`
 		}
 	})
 }
