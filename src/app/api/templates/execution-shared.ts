@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm"
 import { z } from "zod"
 import { db } from "@/db"
-import { templateCandidateExecutions, templates } from "@/db/schema"
+import { templateExecutions, templates } from "@/db/schema"
 import { widgetCollections } from "@/widgets/collections"
 
 export const ExecutionIdSchema = z.uuid()
@@ -22,19 +22,16 @@ export async function fetchExecutionRecord(
 ): Promise<ExecutionRecord | null> {
 	const rows = await db
 		.select({
-			id: templateCandidateExecutions.id,
-			templateId: templateCandidateExecutions.templateId,
+			id: templateExecutions.id,
+			templateId: templateExecutions.templateId,
 			questionId: templates.questionId,
-			seed: templateCandidateExecutions.seed,
-			body: templateCandidateExecutions.body,
-			createdAt: templateCandidateExecutions.createdAt
+			seed: templateExecutions.seed,
+			body: templateExecutions.body,
+			createdAt: templateExecutions.createdAt
 		})
-		.from(templateCandidateExecutions)
-		.innerJoin(
-			templates,
-			eq(templates.id, templateCandidateExecutions.templateId)
-		)
-		.where(eq(templateCandidateExecutions.id, executionId))
+		.from(templateExecutions)
+		.innerJoin(templates, eq(templates.id, templateExecutions.templateId))
+		.where(eq(templateExecutions.id, executionId))
 		.limit(1)
 
 	if (rows.length === 0) {

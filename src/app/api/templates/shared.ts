@@ -2,19 +2,23 @@ import * as logger from "@superbuilders/slog"
 import { asc, eq } from "drizzle-orm"
 import { z } from "zod"
 import { db } from "@/db"
-import { templates, typescriptDiagnostics, typescriptRuns } from "@/db/schema"
+import {
+	type TemplateRecord,
+	templates,
+	typescriptDiagnostics,
+	typescriptRuns
+} from "@/db/schema"
 
 export const TemplateIdSchema = z.uuid()
+export const QuestionIdSchema = z.uuid()
 
 export const SeedSchema = z
 	.string()
 	.regex(/^[0-9]+$/, "seed must be a non-negative integer string")
 
-export const AttemptSchema = z.coerce.number().int().min(0)
-
 export class TemplateNotValidatedError extends Error {
 	constructor(templateId: string) {
-		super(`template ${templateId} has no validated attempts`)
+		super(`template ${templateId} has no validated executions`)
 	}
 }
 
@@ -42,24 +46,30 @@ async function hasSuccessfulTypeScriptRun(
 	return !diagnostic
 }
 
-export async function fetchLatestValidatedAttempt(
-	templateId: string
-): Promise<number | null> {
-	const templateRows = await db
-		.select({ id: templates.id })
+export async function fetchLatestValidatedTemplate(
+	questionId: string
+): Promise<TemplateRecord | null> {
+	const templatesForQuestion = await db
+		.select({
+			id: templates.id,
+			questionId: templates.questionId,
+			source: templates.source,
+			gitCommitSha: templates.gitCommitSha,
+			createdAt: templates.createdAt
+		})
 		.from(templates)
-		.where(eq(templates.questionId, templateId))
+		.where(eq(templates.questionId, questionId))
 		.orderBy(asc(templates.createdAt))
 
-	for (let ordinal = templateRows.length - 1; ordinal >= 0; ordinal -= 1) {
-		const template = templateRows[ordinal]
+	for (let index = templatesForQuestion.length - 1; index >= 0; index -= 1) {
+		const template = templatesForQuestion[index]
 		if (await hasSuccessfulTypeScriptRun(template.id)) {
-			return ordinal
+			return template
 		}
 	}
 
-	if (templateRows.length > 0) {
-		logger.warn("no validated template candidates", { templateId })
+	if (templatesForQuestion.length > 0) {
+		logger.warn("no validated templates found for question", { questionId })
 	}
 
 	return null

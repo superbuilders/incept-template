@@ -22,8 +22,8 @@ import {
  */
 export const generatorSchema = pgSchema("template")
 
-export const questions = generatorSchema.table(
-	"questions",
+export const exemplarQuestions = generatorSchema.table(
+	"exemplar_questions",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
 		allowedWidgets: text("allowed_widgets").array().notNull(),
@@ -47,19 +47,20 @@ export const templates = generatorSchema.table(
 		id: uuid("id").primaryKey().defaultRandom(),
 		questionId: uuid("question_id").notNull(),
 		source: text("source").notNull(),
+		gitCommitSha: text("git_commit_sha"), // when in prod make this not null
 		createdAt: timestamp("created_at", { withTimezone: true })
 			.notNull()
 			.defaultNow()
 	},
 	(table) => [
-		index("templates_question_created_idx").on(
+		index("templates_exemplar_question_created_idx").on(
 			table.questionId,
 			table.createdAt
 		),
 		foreignKey({
-			name: "templates_question_fk",
+			name: "templates_exemplar_question_fk",
 			columns: [table.questionId],
-			foreignColumns: [questions.id]
+			foreignColumns: [exemplarQuestions.id]
 		})
 	]
 )
@@ -124,32 +125,30 @@ const bigintText = customType<{ data: bigint; driverData: string }>({
 	}
 })
 
-export const templateCandidateExecutions = generatorSchema.table(
-	"template_candidate_executions",
+export const templateExecutions = generatorSchema.table(
+	"template_executions",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
 		templateId: uuid("template_id").notNull(),
 		seed: bigintText("seed").notNull(),
 		body: jsonb("body").notNull(),
+		gitCommitSha: text("git_commit_sha"), // when in prod make this not null
 		createdAt: timestamp("created_at", { withTimezone: true })
 			.notNull()
 			.defaultNow()
 	},
 	(table) => [
-		index("template_candidate_executions_template_idx").on(table.templateId),
-		uniqueIndex("template_candidate_executions_seed_idx").on(
+		index("template_executions_template_idx").on(table.templateId),
+		uniqueIndex("template_executions_seed_idx").on(
 			table.templateId,
 			table.seed
 		),
 		foreignKey({
-			name: "template_candidate_executions_candidate_fk",
+			name: "template_executions_template_fk",
 			columns: [table.templateId],
 			foreignColumns: [templates.id]
 		}).onDelete("cascade"),
-		check(
-			"template_candidate_executions_seed_digits",
-			sql`${table.seed} ~ '^[0-9]+$'`
-		)
+		check("template_executions_seed_digits", sql`${table.seed} ~ '^[0-9]+$'`)
 	]
 )
 
@@ -182,9 +181,8 @@ export const typescriptDiagnostics = generatorSchema.table(
 	]
 )
 
-export type TemplateExecutionRecord =
-	typeof templateCandidateExecutions.$inferSelect
-export type QuestionRecord = typeof questions.$inferSelect
+export type TemplateExecutionRecord = typeof templateExecutions.$inferSelect
+export type ExemplarQuestionRecord = typeof exemplarQuestions.$inferSelect
 export type TemplateRecord = typeof templates.$inferSelect
 export type TypeScriptRunRecord = typeof typescriptRuns.$inferSelect
 export type TypeScriptDiagnosticRecord =

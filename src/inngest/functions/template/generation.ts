@@ -3,13 +3,13 @@ import { asc, eq } from "drizzle-orm"
 import { db } from "@/db"
 import type { TemplateRecord } from "@/db/schema"
 import {
-	questions,
+	exemplarQuestions,
 	templates,
 	typescriptDiagnostics,
 	typescriptRuns
 } from "@/db/schema"
 
-const MAX_ATTEMPTS = 10
+const MAX_ATTEMPTS = 50
 
 import { inngest } from "@/inngest/client"
 
@@ -21,6 +21,7 @@ async function listTemplatesForQuestion(
 			id: templates.id,
 			questionId: templates.questionId,
 			source: templates.source,
+			gitCommitSha: templates.gitCommitSha,
 			createdAt: templates.createdAt
 		})
 		.from(templates)
@@ -78,9 +79,9 @@ export const startTemplateGeneration = inngest.createFunction(
 		logger.info("starting template generation workflow", { templateId })
 
 		const templateResult = await db
-			.select({ id: questions.id })
-			.from(questions)
-			.where(eq(questions.id, templateId))
+			.select({ id: exemplarQuestions.id })
+			.from(exemplarQuestions)
+			.where(eq(exemplarQuestions.id, templateId))
 			.limit(1)
 
 		if (!templateResult[0]) {

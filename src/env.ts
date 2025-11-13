@@ -27,6 +27,7 @@ export const env = createEnv({
 		INNGEST_EVENT_KEY: z.string().optional(),
 		INNGEST_SIGNING_KEY: z.string().optional(),
 		OPENAI_API_KEY: z.string(),
+		VERCEL_GIT_COMMIT_SHA: z.string().optional(),
 		NODE_ENV: z
 			.enum(["development", "test", "production"])
 			.default("development")
@@ -53,6 +54,7 @@ export const env = createEnv({
 		AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
 		INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY,
 		INNGEST_SIGNING_KEY: process.env.INNGEST_SIGNING_KEY,
+		VERCEL_GIT_COMMIT_SHA: process.env.VERCEL_GIT_COMMIT_SHA,
 		NODE_ENV: process.env.NODE_ENV,
 		OPENAI_API_KEY: process.env.OPENAI_API_KEY
 	},

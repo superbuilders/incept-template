@@ -4,7 +4,7 @@ import type { Logger } from "inngest"
 import { db } from "@/db"
 import type { TemplateRecord } from "@/db/schema"
 import {
-	questions,
+	exemplarQuestions,
 	templates,
 	typescriptDiagnostics,
 	typescriptRuns
@@ -44,6 +44,7 @@ async function fetchTemplateByOrdinal(
 			id: templates.id,
 			questionId: templates.questionId,
 			source: templates.source,
+			gitCommitSha: templates.gitCommitSha,
 			createdAt: templates.createdAt
 		})
 		.from(templates)
@@ -102,11 +103,11 @@ async function performCandidateGeneration({
 }): Promise<CandidateGenerationResult> {
 	const question = await db
 		.select({
-			allowedWidgets: questions.allowedWidgets,
-			exampleAssessmentItemBody: questions.exampleAssessmentItemBody
+			allowedWidgets: exemplarQuestions.allowedWidgets,
+			exampleAssessmentItemBody: exemplarQuestions.exampleAssessmentItemBody
 		})
-		.from(questions)
-		.where(eq(questions.id, templateId))
+		.from(exemplarQuestions)
+		.where(eq(exemplarQuestions.id, templateId))
 		.limit(1)
 		.then((rows) => rows[0])
 
@@ -175,12 +176,15 @@ async function performCandidateGeneration({
 		userPrompt: prompt.userPrompt
 	})
 
+	const gitCommitSha = env.VERCEL_GIT_COMMIT_SHA
+
 	const insertResult = await errors.try(
 		db
 			.insert(templates)
 			.values({
 				questionId: templateId,
-				source: generatedCode
+				source: generatedCode,
+				gitCommitSha
 			})
 			.returning({ id: templates.id })
 	)

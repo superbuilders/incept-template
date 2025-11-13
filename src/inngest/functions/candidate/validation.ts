@@ -5,7 +5,7 @@ import type { Logger } from "inngest"
 import { db } from "@/db"
 import type { TemplateRecord } from "@/db/schema"
 import {
-	questions,
+	exemplarQuestions,
 	templates,
 	typescriptDiagnostics,
 	typescriptRuns
@@ -42,7 +42,8 @@ async function fetchTemplateByOrdinal(
 			id: templates.id,
 			createdAt: templates.createdAt,
 			questionId: templates.questionId,
-			source: templates.source
+			source: templates.source,
+			gitCommitSha: templates.gitCommitSha
 		})
 		.from(templates)
 		.where(eq(templates.questionId, questionId))
@@ -56,9 +57,9 @@ async function fetchTemplateByOrdinal(
 	}
 
 	const questionRow = await db
-		.select({ allowedWidgets: questions.allowedWidgets })
-		.from(questions)
-		.where(eq(questions.id, templateRow.questionId))
+		.select({ allowedWidgets: exemplarQuestions.allowedWidgets })
+		.from(exemplarQuestions)
+		.where(eq(exemplarQuestions.id, templateRow.questionId))
 		.limit(1)
 		.then((rows) => rows[0])
 
