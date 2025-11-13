@@ -319,11 +319,6 @@ export default function generateTemplate(
 				title: [text("Apply the fold test for symmetry")],
 				content: [
 					{
-						type: "widgetRef" as const,
-						widgetId: firstWidgetId,
-						widgetType: "symmetryDiagram" as const
-					},
-					{
 						type: "paragraph" as const,
 						content: [
 							text("A symmetry line splits a figure into "),
