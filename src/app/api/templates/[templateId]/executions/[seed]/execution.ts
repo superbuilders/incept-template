@@ -6,9 +6,6 @@ import { pathToFileURL } from "node:url"
 import * as errors from "@superbuilders/errors"
 import type { Logger } from "@superbuilders/slog"
 import { and, eq } from "drizzle-orm"
-import type { ExecutionRecord } from "@/app/api/templates/execution-shared"
-import { fetchExecutionRecord } from "@/app/api/templates/execution-shared"
-import { TemplateNotValidatedError } from "@/app/api/templates/shared"
 import { db } from "@/db"
 import {
 	templateExecutions,
@@ -17,12 +14,7 @@ import {
 	typescriptRuns
 } from "@/db/schema"
 import { env } from "@/env"
-
-type TemplateRecord = {
-	id: string
-	questionId: string
-	source: string
-}
+import { ErrTemplateExecutionFailed, ErrTemplateNotValidated } from "@/errors"
 
 type TemplateExecutionOutcome =
 	| { status: "succeeded"; executionId: string }
@@ -33,7 +25,6 @@ type TemplateExecutionOutcome =
 	  }
 
 type ModuleWithDefault = { default: unknown }
-
 const ALIAS_EXTENSIONS = [
 	"",
 	".ts",
@@ -68,9 +59,7 @@ function hasDefaultExport(value: unknown): value is ModuleWithDefault {
 	return typeof value === "object" && value !== null && "default" in value
 }
 
-async function fetchTemplateRecord(
-	templateId: string
-): Promise<TemplateRecord | undefined> {
+async function fetchTemplateRecord(templateId: string) {
 	const row = await db
 		.select({
 			id: templates.id,
@@ -82,13 +71,7 @@ async function fetchTemplateRecord(
 		.limit(1)
 		.then((rows) => rows[0])
 
-	if (!row) return undefined
-
-	return {
-		id: row.id,
-		questionId: row.questionId,
-		source: row.source
-	}
+	return row ?? undefined
 }
 
 async function getTypeScriptRunId(templateId: string): Promise<string | null> {
@@ -238,15 +221,6 @@ function ensureRequiredTypeModulesAvailable(
 			})
 			throw resolutionResult.error
 		}
-	}
-}
-
-export class TemplateExecutionFailedError extends Error {
-	constructor(
-		public readonly reason: string,
-		public readonly extra: Record<string, unknown> | undefined
-	) {
-		super(reason)
 	}
 }
 
@@ -405,13 +379,13 @@ export async function ensureExecutionForSeed({
 	logger: Logger
 	templateId: string
 	seed: string
-}): Promise<ExecutionRecord> {
+}) {
 	const templateRecord = await fetchTemplateRecord(templateId)
 	if (!templateRecord) {
 		logger.error("template not found", {
 			templateId
 		})
-		throw new TemplateNotValidatedError(templateId)
+		throw errors.wrap(ErrTemplateNotValidated, "template missing")
 	}
 
 	const validated = await hasSuccessfulTypeScriptRun(templateId)
@@ -419,7 +393,7 @@ export async function ensureExecutionForSeed({
 		logger.error("template not validated", {
 			templateId
 		})
-		throw new TemplateNotValidatedError(templateId)
+		throw errors.wrap(ErrTemplateNotValidated, "template not validated")
 	}
 
 	const normalizedSeed = BigInt(seed)
@@ -465,13 +439,24 @@ export async function ensureExecutionForSeed({
 			reason: executionResult.reason,
 			extra: executionResult.extra
 		})
-		throw new TemplateExecutionFailedError(
-			executionResult.reason,
-			executionResult.extra
-		)
+		throw errors.wrap(ErrTemplateExecutionFailed, executionResult.reason)
 	}
 
-	const record = await fetchExecutionRecord(executionResult.executionId)
+	const record = await db
+		.select({
+			id: templateExecutions.id,
+			templateId: templateExecutions.templateId,
+			questionId: templates.questionId,
+			seed: templateExecutions.seed,
+			body: templateExecutions.body,
+			createdAt: templateExecutions.createdAt
+		})
+		.from(templateExecutions)
+		.innerJoin(templates, eq(templates.id, templateExecutions.templateId))
+		.where(eq(templateExecutions.id, executionResult.executionId))
+		.limit(1)
+		.then((rows) => rows[0] ?? null)
+
 	if (!record) {
 		logger.error("template execution record missing after creation", {
 			templateId,

@@ -1,25 +1,25 @@
 import * as errors from "@superbuilders/errors"
 import * as logger from "@superbuilders/slog"
 import { NextResponse } from "next/server"
-import { widgetCollection } from "@/app/api/templates/execution-shared"
-import {
-	SeedSchema,
-	TemplateIdSchema,
-	TemplateNotValidatedError
-} from "@/app/api/templates/shared"
+import { z } from "zod"
+import { ensureExecutionForSeed } from "@/app/api/templates/[templateId]/executions/[seed]/execution"
 import { compile } from "@/compiler/compiler"
 import type { FeedbackPlanAny } from "@/core/feedback/plan"
 import type { AssessmentItemInput } from "@/core/item"
+import { ErrTemplateExecutionFailed, ErrTemplateNotValidated } from "@/errors"
+import { widgetCollections } from "@/widgets/collections"
 import type { WidgetTypeTupleFrom } from "@/widgets/collections/types"
-import {
-	ensureExecutionForSeed,
-	TemplateExecutionFailedError
-} from "../execution"
 
 type RouteParams = {
 	templateId: string
 	seed: string
 }
+
+const TemplateIdSchema = z.uuid()
+const SeedSchema = z
+	.string()
+	.regex(/^[0-9]+$/, "seed must be a non-negative integer string")
+const widgetCollection = widgetCollections.all
 
 export async function GET(
 	_request: Request,
@@ -59,21 +59,20 @@ export async function GET(
 
 	if (executionResult.error) {
 		const failure = executionResult.error
-		if (failure instanceof TemplateNotValidatedError) {
+		if (errors.is(failure, ErrTemplateNotValidated)) {
 			return NextResponse.json(
 				{ error: "template not validated" },
 				{ status: 404 }
 			)
 		}
-		if (failure instanceof TemplateExecutionFailedError) {
+		if (errors.is(failure, ErrTemplateExecutionFailed)) {
 			logger.error("template execution qti failed", {
 				templateId,
 				seed,
-				reason: failure.reason,
-				extra: failure.extra
+				reason: failure.message
 			})
 			return NextResponse.json(
-				{ status: "failed", reason: failure.reason, extra: failure.extra },
+				{ status: "failed", reason: failure.message },
 				{ status: 500 }
 			)
 		}

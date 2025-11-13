@@ -1,20 +1,19 @@
 import * as errors from "@superbuilders/errors"
 import * as logger from "@superbuilders/slog"
 import { NextResponse } from "next/server"
-import {
-	SeedSchema,
-	TemplateIdSchema,
-	TemplateNotValidatedError
-} from "@/app/api/templates/shared"
-import {
-	ensureExecutionForSeed,
-	TemplateExecutionFailedError
-} from "./execution"
+import { z } from "zod"
+import { ensureExecutionForSeed } from "@/app/api/templates/[templateId]/executions/[seed]/execution"
+import { ErrTemplateExecutionFailed, ErrTemplateNotValidated } from "@/errors"
 
 type RouteParams = {
 	templateId: string
 	seed: string
 }
+
+const TemplateIdSchema = z.uuid()
+const SeedSchema = z
+	.string()
+	.regex(/^[0-9]+$/, "seed must be a non-negative integer string")
 
 export async function GET(
 	_request: Request,
@@ -54,21 +53,23 @@ export async function GET(
 
 	if (executionResult.error) {
 		const failure = executionResult.error
-		if (failure instanceof TemplateNotValidatedError) {
+		if (errors.is(failure, ErrTemplateNotValidated)) {
 			return NextResponse.json(
 				{ error: "template not validated" },
 				{ status: 404 }
 			)
 		}
-		if (failure instanceof TemplateExecutionFailedError) {
+		if (
+			failure instanceof Error &&
+			errors.is(failure, ErrTemplateExecutionFailed)
+		) {
 			logger.error("template execution failed", {
 				templateId,
 				seed,
-				reason: failure.reason,
-				extra: failure.extra
+				reason: failure.message
 			})
 			return NextResponse.json(
-				{ status: "failed", reason: failure.reason, extra: failure.extra },
+				{ status: "failed", reason: failure.message },
 				{ status: 500 }
 			)
 		}
