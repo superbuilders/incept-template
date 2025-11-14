@@ -9,6 +9,7 @@ type CompletedResult = {
 	exemplarQuestionId: string
 	attempt: number
 	scaffolded: boolean
+	templateId: string
 }
 
 type FailedResult = {
@@ -193,11 +194,12 @@ export const generateTemplateForExemplarQuestion = inngest.createFunction(
 			return { status: "failed", exemplarQuestionId, reason, attempt }
 		}
 
-		const attempt = generationOutcome.evt.data.attempt
+		const { attempt, templateId } = generationOutcome.evt.data
 
 		logger.info("full template generation pipeline completed", {
 			exemplarQuestionId,
 			attempt,
+			templateId,
 			scaffolded
 		})
 
@@ -205,7 +207,8 @@ export const generateTemplateForExemplarQuestion = inngest.createFunction(
 			status: "completed",
 			exemplarQuestionId,
 			attempt,
-			scaffolded
+			scaffolded,
+			templateId
 		}
 	}
 )

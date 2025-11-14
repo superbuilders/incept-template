@@ -115,11 +115,29 @@ export const startExemplarQuestionTemplateGeneration = inngest.createFunction(
 				}
 			)
 
+			const validatedTemplate = templatesForQuestion[latestValidatedAttempt]
+			if (!validatedTemplate) {
+				const reason = "validated template record missing during generation"
+				logger.error(
+					"validated template missing from templates list during generation",
+					{
+						exemplarQuestionId,
+						attempt: latestValidatedAttempt,
+						reason
+					}
+				)
+				throw errors.new(reason)
+			}
+
 			const completionEventResult = await errors.try(
 				step.sendEvent("template-generation-already-completed", {
 					id: `${baseEventId}-generation-already-completed`,
 					name: "template/exemplar-question.template.generate.completed",
-					data: { exemplarQuestionId, attempt: latestValidatedAttempt }
+					data: {
+						exemplarQuestionId,
+						attempt: latestValidatedAttempt,
+						templateId: validatedTemplate.id
+					}
 				})
 			)
 			if (completionEventResult.error) {
@@ -219,17 +237,22 @@ export const startExemplarQuestionTemplateGeneration = inngest.createFunction(
 			}
 
 			if (outcome.kind === "validation-completed") {
-				const diagnosticsCount = outcome.evt.data.diagnosticsCount
+				const { diagnosticsCount, templateId } = outcome.evt.data
 				if (diagnosticsCount === 0) {
 					logger.info("template generation completed", {
 						exemplarQuestionId,
-						attempt: currentAttempt
+						attempt: currentAttempt,
+						templateId
 					})
 					const completionEventResult = await errors.try(
 						step.sendEvent("template-generation-completed", {
 							id: `${baseEventId}-generation-completed-${currentAttempt}`,
 							name: "template/exemplar-question.template.generate.completed",
-							data: { exemplarQuestionId, attempt: currentAttempt }
+							data: {
+								exemplarQuestionId,
+								attempt: currentAttempt,
+								templateId
+							}
 						})
 					)
 					if (completionEventResult.error) {

@@ -45,7 +45,8 @@ const templateValidateRequestedSchema = z.object({
 const templateValidateCompletedSchema = z.object({
 	exemplarQuestionId: z.uuid(),
 	attempt: z.number().int().min(0),
-	diagnosticsCount: z.number().int().min(0)
+	diagnosticsCount: z.number().int().min(0),
+	templateId: z.uuid()
 })
 
 const templateGenerateFailedSchema = z.object({
@@ -56,30 +57,13 @@ const templateGenerateFailedSchema = z.object({
 
 const exemplarQuestionTemplateGenerateCompletedSchema = z.object({
 	exemplarQuestionId: z.uuid(),
-	attempt: z.number().int().min(0)
+	attempt: z.number().int().min(0),
+	templateId: z.uuid()
 })
 
 const exemplarQuestionTemplateGenerateFailedSchema = z.object({
 	exemplarQuestionId: z.uuid(),
 	attempt: z.number().int().min(0),
-	reason: z.string().min(1)
-})
-
-const questionBatchRequestedSchema = z.object({
-	jobId: z.uuid(),
-	exemplarQuestionId: z.uuid(),
-	desiredCount: z.number().int().min(1)
-})
-
-const questionBatchCompletedSchema = z.object({
-	jobId: z.uuid(),
-	exemplarQuestionId: z.uuid(),
-	fulfilledCount: z.number().int().min(0)
-})
-
-const questionBatchFailedSchema = z.object({
-	jobId: z.uuid(),
-	exemplarQuestionId: z.uuid(),
 	reason: z.string().min(1)
 })
 
@@ -102,11 +86,6 @@ const schema = {
 	"template/template.generate.failed": templateGenerateFailedSchema,
 	"template/template.validate.requested": templateValidateRequestedSchema,
 	"template/template.validate.completed": templateValidateCompletedSchema,
-	"template/exemplar-question.question-batch.requested":
-		questionBatchRequestedSchema,
-	"template/exemplar-question.question-batch.completed":
-		questionBatchCompletedSchema,
-	"template/exemplar-question.question-batch.failed": questionBatchFailedSchema,
 	"template/hello": helloWorldSchema
 }
 

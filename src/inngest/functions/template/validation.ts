@@ -311,7 +311,8 @@ export const validateTemplate = inngest.createFunction(
 			data: {
 				exemplarQuestionId,
 				attempt,
-				diagnosticsCount
+				diagnosticsCount,
+				templateId: outcome.templateId
 			}
 		})
 

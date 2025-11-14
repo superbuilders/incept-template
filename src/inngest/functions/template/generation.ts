@@ -293,7 +293,8 @@ export const generateTemplate = inngest.createFunction(
 						data: {
 							exemplarQuestionId,
 							attempt: generationResult.data.attempt,
-							diagnosticsCount: 0
+							diagnosticsCount: 0,
+							templateId: generationResult.data.templateId
 						}
 					})
 				)
