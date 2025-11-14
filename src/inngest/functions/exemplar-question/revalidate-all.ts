@@ -65,7 +65,7 @@ export const revalidateAllValidatedExemplarQuestions = inngest.createFunction(
 			{ scope: "fn", key: "exemplar-question/revalidate-all", limit: 1 }
 		]
 	},
-	{ event: "template/exemplar-question.revalidate.all.requested" },
+	{ event: "template/exemplar-question.revalidate.all.invoked" },
 	async ({ event, step, logger }) => {
 		const { reason } = event.data
 

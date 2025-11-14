@@ -53,7 +53,7 @@ const templateZeroSeedInvokedSchema = z.object({
 	templateId: z.uuid()
 })
 
-const exemplarQuestionRevalidateAllRequestedSchema = z.object({
+const exemplarQuestionRevalidateAllInvokedSchema = z.object({
 	reason: z.string().min(1)
 })
 
@@ -73,8 +73,8 @@ const schema = {
 	"template/template.generate.invoked": templateGenerationInvokedSchema,
 	"template/template.typecheck.invoked": templateTypecheckInvokedSchema,
 	"template/template.zero-seed.invoked": templateZeroSeedInvokedSchema,
-	"template/exemplar-question.revalidate.all.requested":
-		exemplarQuestionRevalidateAllRequestedSchema,
+	"template/exemplar-question.revalidate.all.invoked":
+		exemplarQuestionRevalidateAllInvokedSchema,
 	"template/hello": helloWorldSchema
 }
 
