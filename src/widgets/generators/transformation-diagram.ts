@@ -96,14 +96,14 @@ function createShapeSchema() {
 	return shape.superRefine((data, ctx) => {
 		if (data.vertices.length < 3) {
 			ctx.addIssue({
-				code: z.ZodIssueCode.custom,
+				code: "custom",
 				message: "vertices must have at least 3 points",
 				path: ["vertices"]
 			})
 		}
 		if (data.vertexLabels.length !== data.vertices.length) {
 			ctx.addIssue({
-				code: z.ZodIssueCode.custom,
+				code: "custom",
 				message: "vertexLabels length must match vertices length",
 				path: ["vertexLabels"]
 			})

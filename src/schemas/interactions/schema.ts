@@ -275,7 +275,7 @@ export function createAnyInteractionSchema<const E extends readonly string[]>(
 			// Validate gap count matches
 			if (usedGapIds.length !== declaredGapIds.size) {
 				ctx.addIssue({
-					code: z.ZodIssueCode.custom,
+					code: "custom",
 					message: `gap match validation: gap count mismatch (declared ${declaredGapIds.size}, found ${usedGapIds.length})`,
 					path: ["content"]
 				})
@@ -285,7 +285,7 @@ export function createAnyInteractionSchema<const E extends readonly string[]>(
 			const usedGapIdsSet = new Set(usedGapIds)
 			if (usedGapIdsSet.size !== usedGapIds.length) {
 				ctx.addIssue({
-					code: z.ZodIssueCode.custom,
+					code: "custom",
 					message: "gap match validation: duplicate gapId found in content",
 					path: ["content"]
 				})
@@ -295,7 +295,7 @@ export function createAnyInteractionSchema<const E extends readonly string[]>(
 			for (const usedId of usedGapIdsSet) {
 				if (!declaredGapIds.has(usedId)) {
 					ctx.addIssue({
-						code: z.ZodIssueCode.custom,
+						code: "custom",
 						message: `gap match validation: undeclared gapId '${usedId}' found in content`,
 						path: ["content"]
 					})

@@ -235,7 +235,7 @@ export function createDynamicAssessmentItemSchema<
 	const AllowedWidgetSchema = WidgetSchema.superRefine((val, ctx) => {
 		if (!allowedTypeNames.has(val.type)) {
 			ctx.addIssue({
-				code: z.ZodIssueCode.custom,
+				code: "custom",
 				message: `widget type '${val.type}' is not allowed in this collection`,
 				path: ["type"]
 			})
@@ -319,7 +319,7 @@ export function createDynamicAssessmentItemSchema<
 
 				if (!gapTextIds.has(source)) {
 					ctx.addIssue({
-						code: z.ZodIssueCode.custom,
+						code: "custom",
 						message: `gap match validation: correct pair source '${source}' not in gapTexts`,
 						path: ["interactions", interactionKey, "gapTexts"]
 					})
@@ -327,7 +327,7 @@ export function createDynamicAssessmentItemSchema<
 
 				if (!declaredGapIds.has(target)) {
 					ctx.addIssue({
-						code: z.ZodIssueCode.custom,
+						code: "custom",
 						message: `gap match validation: correct pair target '${target}' not in gaps`,
 						path: ["interactions", interactionKey, "gaps"]
 					})
@@ -341,7 +341,7 @@ export function createDynamicAssessmentItemSchema<
 				const pairKey = `${pair.source}→${pair.target}`
 				if (seenPairs.has(pairKey)) {
 					ctx.addIssue({
-						code: z.ZodIssueCode.custom,
+						code: "custom",
 						message: `gap match validation: duplicate correct pair '${pairKey}'`,
 						path: ["responseDeclarations"]
 					})
@@ -360,7 +360,7 @@ export function createDynamicAssessmentItemSchema<
 				const matchMax = gapText?.matchMax ?? 1
 				if (matchMax !== 0 && usageCount > matchMax) {
 					ctx.addIssue({
-						code: z.ZodIssueCode.custom,
+						code: "custom",
 						message: `gap match validation: source '${source}' used ${usageCount} times, exceeds matchMax ${matchMax}`,
 						path: ["responseDeclarations"]
 					})
@@ -369,7 +369,7 @@ export function createDynamicAssessmentItemSchema<
 
 			if (declaration.cardinality !== "multiple") {
 				ctx.addIssue({
-					code: z.ZodIssueCode.custom,
+					code: "custom",
 					message: `gap match validation: cardinality must be 'multiple', not '${declaration.cardinality}'`,
 					path: ["responseDeclarations"]
 				})
@@ -388,7 +388,7 @@ export function createDynamicAssessmentItemSchema<
 				if (!node) continue
 				if (node.type === "gap") {
 					ctx.addIssue({
-						code: z.ZodIssueCode.custom,
+						code: "custom",
 						message:
 							"gap placeholders are only allowed inside gapMatchInteraction content",
 						path: contextPath
