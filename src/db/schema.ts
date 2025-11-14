@@ -1,13 +1,11 @@
 import { sql } from "drizzle-orm"
 import {
 	check,
-	customType,
 	foreignKey,
 	index,
 	integer,
 	jsonb,
 	pgSchema,
-	primaryKey,
 	text,
 	timestamp,
 	uniqueIndex,
@@ -95,47 +93,6 @@ export const annotatorRuns = generatorSchema.table(
 	]
 )
 
-const bigintText = customType<{ data: bigint; driverData: string }>({
-	dataType() {
-		return "text"
-	},
-	toDriver(value) {
-		return value.toString()
-	},
-	fromDriver(value) {
-		return BigInt(value)
-	}
-})
-
-export const templateExecutions = generatorSchema.table(
-	"template_executions",
-	{
-		templateId: uuid("template_id").notNull(),
-		seed: bigintText("seed").notNull(),
-		body: jsonb("body").notNull(),
-		createdGitCommitSha: text("created_git_commit_sha"), // when in prod make this not null
-		xml: text("xml"),
-		xmlGeneratedAt: timestamp("xml_generated_at", { withTimezone: true }),
-		xmlGeneratedGitCommitSha: text("xml_generated_git_commit_sha"), // when in prod make this not null
-		createdAt: timestamp("created_at", { withTimezone: true })
-			.notNull()
-			.defaultNow()
-	},
-	(table) => [
-		primaryKey({
-			name: "template_executions_pkey",
-			columns: [table.templateId, table.seed]
-		}),
-		index("template_executions_template_idx").on(table.templateId),
-		foreignKey({
-			name: "template_executions_template_fk",
-			columns: [table.templateId],
-			foreignColumns: [templates.id]
-		}).onDelete("cascade"),
-		check("template_executions_seed_digits", sql`${table.seed} ~ '^[0-9]+$'`)
-	]
-)
-
 export const typescriptDiagnostics = generatorSchema.table(
 	"typescript_diagnostics",
 	{
@@ -165,7 +122,6 @@ export const typescriptDiagnostics = generatorSchema.table(
 	]
 )
 
-export type TemplateExecutionRecord = typeof templateExecutions.$inferSelect
 export type ExemplarQuestionRecord = typeof exemplarQuestions.$inferSelect
 export type TemplateRecord = typeof templates.$inferSelect
 export type TypeScriptDiagnosticRecord =

@@ -1,25 +1,27 @@
 import { existsSync, rmSync } from "node:fs"
-import { mkdtemp, writeFile } from "node:fs/promises"
+import { mkdtemp } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import * as path from "node:path"
 import { pathToFileURL } from "node:url"
 import * as errors from "@superbuilders/errors"
 import type { Logger } from "@superbuilders/slog"
-import { and, eq } from "drizzle-orm"
+import { eq } from "drizzle-orm"
+import { compile } from "@/compiler/compiler"
+import type { FeedbackPlanAny } from "@/core/feedback/plan"
+import type { AssessmentItemInput } from "@/core/item"
 import { db } from "@/db"
-import { templateExecutions, templates } from "@/db/schema"
-import { env } from "@/env"
+import type { TemplateRecord } from "@/db/schema"
+import { templates } from "@/db/schema"
 import { ErrTemplateExecutionFailed, ErrTemplateNotValidated } from "@/errors"
-
-type TemplateExecutionOutcome =
-	| { status: "succeeded"; templateId: string; seed: bigint }
-	| {
-			status: "failed"
-			reason: string
-			extra?: Record<string, unknown>
-	  }
+import { widgetCollections } from "@/widgets/collections"
+import type { WidgetTypeTupleFrom } from "@/widgets/collections/types"
 
 type ModuleWithDefault = { default: unknown }
+
+type SeedParseResult =
+	| { success: true; value: bigint }
+	| { success: false; reason: string }
+
 const ALIAS_EXTENSIONS = [
 	"",
 	".ts",
@@ -50,6 +52,21 @@ const REQUIRED_ALIAS_TYPE_SPECIFIERS = [
 	"core/item"
 ] as const
 
+const widgetCollection = widgetCollections.all
+
+type TemplateAssessmentItem = AssessmentItemInput<
+	WidgetTypeTupleFrom<typeof widgetCollection>,
+	FeedbackPlanAny
+>
+
+export type TemplateExecution = {
+	templateId: string
+	exemplarQuestionId: string
+	seed: bigint
+	body: TemplateAssessmentItem
+	createdGitCommitSha: string | null
+}
+
 function hasDefaultExport(value: unknown): value is ModuleWithDefault {
 	return typeof value === "object" && value !== null && "default" in value
 }
@@ -59,7 +76,11 @@ async function fetchTemplateRecord(templateId: string) {
 		.select({
 			id: templates.id,
 			exemplarQuestionId: templates.exemplarQuestionId,
-			source: templates.source
+			source: templates.source,
+			createdGitCommitSha: templates.createdGitCommitSha,
+			createdAt: templates.createdAt,
+			typescriptPassedWithZeroDiagnosticsAt:
+				templates.typescriptPassedWithZeroDiagnosticsAt
 		})
 		.from(templates)
 		.where(eq(templates.id, templateId))
@@ -69,67 +90,48 @@ async function fetchTemplateRecord(templateId: string) {
 	return row ?? undefined
 }
 
-async function hasSuccessfulTypeScriptRun(
-	templateId: string
-): Promise<boolean> {
-	const templateRow = await db
-		.select({
-			validatedAt: templates.typescriptPassedWithZeroDiagnosticsAt
-		})
-		.from(templates)
-		.where(eq(templates.id, templateId))
-		.limit(1)
-		.then((rows) => rows[0])
-	if (!templateRow?.validatedAt) return false
-	return true
+function parseSeed(seed: string): SeedParseResult {
+	const trimmed = seed.trim()
+	const parsedResult = errors.trySync(() => BigInt(trimmed))
+	if (parsedResult.error) {
+		return {
+			success: false,
+			reason: "seed must be a base-10 integer string"
+		}
+	}
+	const parsed = parsedResult.data
+	if (parsed < 0) {
+		return {
+			success: false,
+			reason: "seed must be non-negative"
+		}
+	}
+	return { success: true, value: parsed }
 }
 
-async function persistExecution(
-	templateId: string,
-	seed: bigint,
-	body: unknown
-) {
-	const createdGitCommitSha = env.VERCEL_GIT_COMMIT_SHA
-
-	return db
-		.insert(templateExecutions)
-		.values({
-			templateId,
-			seed,
-			body,
-			createdGitCommitSha
-		})
-		.onConflictDoUpdate({
-			target: [templateExecutions.templateId, templateExecutions.seed],
-			set: {
-				body,
-				createdGitCommitSha,
-				xml: null,
-				xmlGeneratedAt: null,
-				xmlGeneratedGitCommitSha: null
-			}
-		})
-		.returning({
-			templateId: templateExecutions.templateId,
-			seed: templateExecutions.seed
-		})
-}
-
-function disposeStack(
+function rewriteAliasImports(
 	logger: Logger,
 	templateId: string,
-	stack: DisposableStack,
-	context: "failure" | "success"
-) {
-	const disposalResult = errors.trySync(() => stack.dispose())
-	if (disposalResult.error) {
-		logger.error("template execution cleanup failed", {
+	source: string
+): string {
+	let rewriteCount = 0
+	const transformed = source.replace(
+		ALIAS_IMPORT_REGEX,
+		(_match, quote: string, specifier: string) => {
+			rewriteCount += 1
+			const resolved = resolveAliasSpecifier(logger, templateId, specifier)
+			return `${quote}${resolved}${quote}`
+		}
+	)
+
+	if (rewriteCount > 0) {
+		logger.debug("template alias imports rewritten", {
 			templateId,
-			context,
-			error: disposalResult.error
+			rewriteCount
 		})
-		throw errors.wrap(disposalResult.error, "template execution cleanup")
 	}
+
+	return transformed
 }
 
 function resolveAliasSpecifier(
@@ -172,31 +174,6 @@ function resolveAliasSpecifier(
 	throw errors.new(`unable to resolve alias import @/${cleanSpecifier}`)
 }
 
-function rewriteAliasImports(
-	logger: Logger,
-	templateId: string,
-	source: string
-): string {
-	let rewriteCount = 0
-	const transformed = source.replace(
-		ALIAS_IMPORT_REGEX,
-		(_match, quote: string, specifier: string) => {
-			rewriteCount += 1
-			const resolved = resolveAliasSpecifier(logger, templateId, specifier)
-			return `${quote}${resolved}${quote}`
-		}
-	)
-
-	if (rewriteCount > 0) {
-		logger.debug("template alias imports rewritten", {
-			templateId,
-			rewriteCount
-		})
-	}
-
-	return transformed
-}
-
 function ensureRequiredTypeModulesAvailable(
 	logger: Logger,
 	templateId: string
@@ -216,100 +193,68 @@ function ensureRequiredTypeModulesAvailable(
 	}
 }
 
-export async function performTemplateExecution({
-	logger,
-	templateId,
-	seed
-}: {
-	logger: Logger
-	templateId: string
-	seed: string
-}): Promise<TemplateExecutionOutcome> {
+type LoadedTemplateFactory = {
+	execute(seed: bigint): Promise<TemplateAssessmentItem>
+	cleanup(): void
+}
+
+async function loadTemplateFactory(
+	logger: Logger,
+	template: TemplateRecord
+): Promise<LoadedTemplateFactory> {
 	const cleanupStack = new DisposableStack()
 
-	const fail = (
-		reason: string,
-		extra?: Record<string, unknown>
-	): TemplateExecutionOutcome => {
-		logger.error("template execution failed", {
-			templateId,
-			seed,
-			reason,
-			...extra
+	const disposeCleanup = () => {
+		const disposeResult = errors.trySync(() => cleanupStack.dispose())
+		if (disposeResult.error) {
+			logger.error("template execution cleanup failed", {
+				templateId: template.id,
+				error: disposeResult.error
+			})
+		}
+	}
+
+	const fail = (operation: string, error?: Error): never => {
+		disposeCleanup()
+		const baseError = error ?? ErrTemplateExecutionFailed
+		logger.error("template execution setup failed", {
+			templateId: template.id,
+			operation,
+			error: baseError
 		})
-		disposeStack(logger, templateId, cleanupStack, "failure")
-		return { status: "failed" as const, reason, extra }
+		throw errors.wrap(baseError, operation)
 	}
 
-	const parsedSeedResult = errors.trySync(() => BigInt(seed))
-	if (parsedSeedResult.error) {
-		return fail(`seed must be a base-10 integer string, received: ${seed}`)
+	const tempDirResult = await errors.try(
+		mkdtemp(path.join(tmpdir(), `template-execution-${template.id}-`))
+	)
+	if (tempDirResult.error) {
+		fail("template execution workspace", tempDirResult.error)
 	}
-	const normalizedSeed = parsedSeedResult.data
-	if (normalizedSeed < BigInt(0)) {
-		return fail("seed must be non-negative")
-	}
-
-	const templateRecord = await fetchTemplateRecord(templateId)
-	if (!templateRecord) {
-		return fail("template not found")
-	}
-
-	const validated = await hasSuccessfulTypeScriptRun(templateId)
-	logger.debug("fetched template record", {
-		templateId,
-		exemplarQuestionId: templateRecord.exemplarQuestionId,
-		sourceLength: templateRecord.source.length,
-		validated
-	})
-
-	if (!validated) {
-		return fail("template has not been validated")
-	}
-
-	const existingExecution = await db
-		.select({ seed: templateExecutions.seed })
-		.from(templateExecutions)
-		.where(
-			and(
-				eq(templateExecutions.templateId, templateRecord.id),
-				eq(templateExecutions.seed, normalizedSeed)
-			)
-		)
-		.limit(1)
-
-	if (existingExecution.length > 0) {
-		return fail("template execution already exists", {
-			existingExecutionSeed: existingExecution[0].seed.toString()
-		})
-	}
-
-	const tempDir = await mkdtemp(path.join(tmpdir(), "template-execution-"))
+	const tempDir =
+		tempDirResult.data ?? fail("template execution workspace missing")
 	cleanupStack.defer(() => rmSync(tempDir, { recursive: true, force: true }))
 
-	const requiredTypeModulesResult = errors.trySync(() =>
-		ensureRequiredTypeModulesAvailable(
-			logger,
-			templateRecord.exemplarQuestionId
-		)
+	const requiredModulesResult = errors.trySync(() =>
+		ensureRequiredTypeModulesAvailable(logger, template.exemplarQuestionId)
 	)
-	if (requiredTypeModulesResult.error) {
-		return fail("required type module missing", {
-			error: requiredTypeModulesResult.error
-		})
+	if (requiredModulesResult.error) {
+		fail("required type module resolution", requiredModulesResult.error)
 	}
 
-	const rewrittenSource = rewriteAliasImports(
-		logger,
-		templateRecord.exemplarQuestionId,
-		templateRecord.source
+	const rewriteResult = errors.trySync(() =>
+		rewriteAliasImports(logger, template.exemplarQuestionId, template.source)
 	)
+	if (rewriteResult.error) {
+		fail("rewrite template imports", rewriteResult.error)
+	}
+	const rewrittenSource =
+		rewriteResult.data ?? fail("rewrite template imports missing")
+
 	const sourcePath = path.join(tempDir, "template.ts")
-	const writeResult = await errors.try(writeFile(sourcePath, rewrittenSource))
+	const writeResult = await errors.try(Bun.write(sourcePath, rewrittenSource))
 	if (writeResult.error) {
-		return fail("failed to write template source", {
-			error: writeResult.error
-		})
+		fail("write template source", writeResult.error)
 	}
 
 	const moduleUrl = pathToFileURL(sourcePath).href
@@ -317,60 +262,100 @@ export async function performTemplateExecution({
 		import(/* webpackIgnore: true */ moduleUrl)
 	)
 	if (importResult.error) {
-		return fail("failed to import template module", {
-			error: importResult.error.toString()
-		})
+		fail("import template module", importResult.error)
 	}
 	const importedModule = importResult.data
 	if (!hasDefaultExport(importedModule)) {
-		return fail("template module missing default export")
+		fail("template module missing default export")
 	}
-	const templateFactory = importedModule.default
-	if (typeof templateFactory !== "function") {
-		logger.debug("template module default export must be a function")
-		return fail(
-			`template module default export must be a function, received ${typeof templateFactory}`
+	const templateFactoryCandidate = importedModule.default
+	if (typeof templateFactoryCandidate !== "function") {
+		fail("template module default export must be a function")
+	}
+	const templateFactory = templateFactoryCandidate
+
+	const factory: LoadedTemplateFactory = {
+		async execute(seed: bigint): Promise<TemplateAssessmentItem> {
+			const bodyResult = await errors.try(templateFactory(seed))
+			if (bodyResult.error) {
+				logger.error("template execution run failed", {
+					templateId: template.id,
+					seed: seed.toString(),
+					error: bodyResult.error
+				})
+				throw errors.wrap(ErrTemplateExecutionFailed, "template execution run")
+			}
+			const body = bodyResult.data
+			// @ts-expect-error: validated template factories return AssessmentItemInput
+			return body
+		},
+		cleanup: disposeCleanup
+	}
+
+	return factory
+}
+
+async function compileExecutionToXml({
+	logger,
+	templateId,
+	seed,
+	body
+}: {
+	logger: Logger
+	templateId: string
+	seed: bigint
+	body: TemplateAssessmentItem
+}): Promise<string> {
+	const xmlResult = await errors.try(compile(body, widgetCollection))
+	if (xmlResult.error) {
+		logger.error("template execution xml compilation failed", {
+			templateId,
+			seed: seed.toString(),
+			error: xmlResult.error
+		})
+		throw errors.wrap(
+			ErrTemplateExecutionFailed,
+			"failed to compile assessment item"
 		)
 	}
+	return xmlResult.data
+}
 
-	const generatedBodyResult = await errors.try(templateFactory(normalizedSeed))
-	if (generatedBodyResult.error) {
-		return fail("template execution threw", {
-			error: generatedBodyResult.error.toString()
-		})
-	}
-	const generatedBody = generatedBodyResult.data
-
-	const persistResult = await errors.try(
-		persistExecution(templateRecord.id, normalizedSeed, generatedBody)
-	)
-	if (persistResult.error) {
-		return fail(persistResult.error.toString(), {
-			error: persistResult.error.toString()
-		})
+async function ensureTemplateContext(templateId: string, logger: Logger) {
+	const templateRecord = await fetchTemplateRecord(templateId)
+	if (!templateRecord) {
+		logger.error("template not found", { templateId })
+		throw errors.wrap(ErrTemplateNotValidated, "template missing")
 	}
 
-	const executionRecord = persistResult.data[0]
-	if (!executionRecord) {
-		return fail("persisted execution missing result row")
+	const validatedAt = templateRecord.typescriptPassedWithZeroDiagnosticsAt
+	if (!validatedAt) {
+		logger.error("template not validated", { templateId })
+		throw errors.wrap(ErrTemplateNotValidated, "template not validated")
 	}
 
-	disposeStack(logger, templateId, cleanupStack, "success")
+	return templateRecord
+}
 
-	logger.info("template execution completed", {
-		templateId,
-		seed,
-		executionSeed: executionRecord.seed.toString()
-	})
-
+function mapExecution({
+	template,
+	seed,
+	body
+}: {
+	template: TemplateRecord
+	seed: bigint
+	body: TemplateAssessmentItem
+}): TemplateExecution {
 	return {
-		status: "succeeded" as const,
-		templateId: executionRecord.templateId,
-		seed: executionRecord.seed
+		templateId: template.id,
+		exemplarQuestionId: template.exemplarQuestionId,
+		seed,
+		body,
+		createdGitCommitSha: template.createdGitCommitSha ?? null
 	}
 }
 
-export async function ensureExecutionForSeed({
+export async function executeTemplate({
 	logger,
 	templateId,
 	seed
@@ -378,104 +363,185 @@ export async function ensureExecutionForSeed({
 	logger: Logger
 	templateId: string
 	seed: string
-}) {
-	const templateRecord = await fetchTemplateRecord(templateId)
-	if (!templateRecord) {
-		logger.error("template not found", {
-			templateId
+}): Promise<TemplateExecution> {
+	const parsedSeedResult = parseSeed(seed)
+	if (!parsedSeedResult.success) {
+		logger.error("template execution received invalid seed", {
+			templateId,
+			seed,
+			reason: parsedSeedResult.reason
 		})
-		throw errors.wrap(ErrTemplateNotValidated, "template missing")
+		throw errors.wrap(ErrTemplateExecutionFailed, parsedSeedResult.reason)
 	}
+	const normalizedSeed = parsedSeedResult.value
 
-	const validated = await hasSuccessfulTypeScriptRun(templateId)
-	if (!validated) {
-		logger.error("template not validated", {
-			templateId
-		})
-		throw errors.wrap(ErrTemplateNotValidated, "template not validated")
-	}
+	const templateRecord = await ensureTemplateContext(templateId, logger)
 
-	const normalizedSeed = BigInt(seed)
-
-	const cachedExecution = await db
-		.select({
-			templateId: templateExecutions.templateId,
-			exemplarQuestionId: templates.exemplarQuestionId,
-			seed: templateExecutions.seed,
-			body: templateExecutions.body,
-			xml: templateExecutions.xml,
-			xmlGeneratedAt: templateExecutions.xmlGeneratedAt,
-			xmlGeneratedGitCommitSha: templateExecutions.xmlGeneratedGitCommitSha,
-			createdAt: templateExecutions.createdAt
-		})
-		.from(templateExecutions)
-		.innerJoin(templates, eq(templates.id, templateExecutions.templateId))
-		.where(
-			and(
-				eq(templateExecutions.templateId, templateId),
-				eq(templateExecutions.seed, normalizedSeed)
-			)
-		)
-		.limit(1)
-
-	if (cachedExecution.length > 0) {
-		const cached = cachedExecution[0]
-		logger.debug("template seed execution cache hit", {
+	const factoryResult = await errors.try(
+		loadTemplateFactory(logger, templateRecord)
+	)
+	if (factoryResult.error) {
+		logger.error("template execution setup failed", {
 			templateId,
 			seed: normalizedSeed.toString(),
-			createdAt: cached.createdAt.toISOString()
+			error: factoryResult.error
 		})
-		return cached
+		throw errors.wrap(ErrTemplateExecutionFailed, "template execution setup")
+	}
+	const factory = factoryResult.data
+
+	const bodyResult = await errors.try(factory.execute(normalizedSeed))
+	if (bodyResult.error) {
+		factory.cleanup()
+		logger.error("template execution run failed", {
+			templateId,
+			seed: normalizedSeed.toString(),
+			error: bodyResult.error
+		})
+		throw errors.wrap(ErrTemplateExecutionFailed, "template execution run")
 	}
 
-	const executionResult = await performTemplateExecution({
-		logger,
-		templateId,
-		seed
+	const execution = mapExecution({
+		template: templateRecord,
+		seed: normalizedSeed,
+		body: bodyResult.data
 	})
 
-	if (executionResult.status === "failed") {
-		logger.error("template execution failed", {
-			templateId,
-			seed,
-			reason: executionResult.reason,
-			extra: executionResult.extra
-		})
-		throw errors.wrap(ErrTemplateExecutionFailed, executionResult.reason)
+	factory.cleanup()
+
+	return execution
+}
+
+export async function executeTemplateToXml({
+	logger,
+	templateId,
+	seed
+}: {
+	logger: Logger
+	templateId: string
+	seed: string
+}): Promise<{ execution: TemplateExecution; xml: string }> {
+	const execution = await executeTemplate({ logger, templateId, seed })
+	const xml = await compileExecutionToXml({
+		logger,
+		templateId: execution.templateId,
+		seed: execution.seed,
+		body: execution.body
+	})
+	return { execution, xml }
+}
+
+export async function executeTemplatesToXml({
+	logger,
+	templateId,
+	seeds
+}: {
+	logger: Logger
+	templateId: string
+	seeds: readonly string[]
+}): Promise<
+	Array<{ seed: string; execution: TemplateExecution; xml: string }>
+> {
+	if (seeds.length === 0) {
+		return []
 	}
 
-	const executionSeed = executionResult.seed
+	const templateRecord = await ensureTemplateContext(templateId, logger)
 
-	const record = await db
-		.select({
-			templateId: templateExecutions.templateId,
-			exemplarQuestionId: templates.exemplarQuestionId,
-			seed: templateExecutions.seed,
-			body: templateExecutions.body,
-			xml: templateExecutions.xml,
-			xmlGeneratedAt: templateExecutions.xmlGeneratedAt,
-			xmlGeneratedGitCommitSha: templateExecutions.xmlGeneratedGitCommitSha,
-			createdAt: templateExecutions.createdAt
+	const normalizedSeeds = seeds.map((seed) => {
+		const parsed = parseSeed(seed)
+		if (!parsed.success) {
+			logger.error("template execution received invalid seed", {
+				templateId,
+				seed,
+				reason: parsed.reason
+			})
+			throw errors.wrap(ErrTemplateExecutionFailed, parsed.reason)
+		}
+		return { original: seed, normalized: parsed.value }
+	})
+
+	const factoryResult = await errors.try(
+		loadTemplateFactory(logger, templateRecord)
+	)
+	if (factoryResult.error) {
+		logger.error("template execution setup failed", {
+			templateId,
+			error: factoryResult.error
 		})
-		.from(templateExecutions)
-		.innerJoin(templates, eq(templates.id, templateExecutions.templateId))
-		.where(
-			and(
-				eq(templateExecutions.templateId, executionResult.templateId),
-				eq(templateExecutions.seed, executionSeed)
-			)
+		throw errors.wrap(ErrTemplateExecutionFailed, "template execution setup")
+	}
+	const factory = factoryResult.data
+
+	const executionPromises = normalizedSeeds.map(
+		async ({ original, normalized }) => {
+			const body = await factory.execute(normalized)
+			const execution = mapExecution({
+				template: templateRecord,
+				seed: normalized,
+				body
+			})
+			const xml = await compileExecutionToXml({
+				logger,
+				templateId,
+				seed: normalized,
+				body
+			})
+			return { seed: original, execution, xml }
+		}
+	)
+
+	const settledResults = await Promise.allSettled(executionPromises)
+
+	const firstRejected = settledResults.find(
+		(result): result is PromiseRejectedResult => result.status === "rejected"
+	)
+
+	if (firstRejected) {
+		const failure = firstRejected.reason
+		if (errors.is(failure, ErrTemplateNotValidated)) {
+			factory.cleanup()
+			logger.error("template execution range failed", {
+				templateId,
+				rangeSize: seeds.length,
+				error: failure
+			})
+			throw failure
+		}
+		if (errors.is(failure, ErrTemplateExecutionFailed)) {
+			factory.cleanup()
+			logger.error("template execution range failed", {
+				templateId,
+				rangeSize: seeds.length,
+				error: failure
+			})
+			throw failure
+		}
+
+		factory.cleanup()
+		logger.error("template execution range failed", {
+			templateId,
+			rangeSize: seeds.length,
+			error: failure
+		})
+		throw errors.wrap(
+			ErrTemplateExecutionFailed,
+			String(failure ?? "template execution failed")
 		)
-		.limit(1)
-		.then((rows) => rows[0] ?? null)
-
-	if (!record) {
-		logger.error("template execution record missing after creation", {
-			templateId,
-			seed,
-			executionSeed: executionSeed.toString()
-		})
-		throw errors.new("execution record missing after creation")
 	}
 
-	return record
+	const fulfilledResults = settledResults.filter(
+		(
+			result
+		): result is PromiseFulfilledResult<{
+			seed: string
+			execution: TemplateExecution
+			xml: string
+		}> => result.status === "fulfilled"
+	)
+
+	const executions = fulfilledResults.map((result) => result.value)
+	factory.cleanup()
+
+	return executions
 }

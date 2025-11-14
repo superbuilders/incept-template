@@ -2,7 +2,7 @@ import * as errors from "@superbuilders/errors"
 import * as logger from "@superbuilders/slog"
 import { NextResponse } from "next/server"
 import { z } from "zod"
-import { executeTemplateToXml } from "@/app/api/templates/[templateId]/executions/[seed]/execution"
+import { executeTemplate } from "@/app/api/templates/[templateId]/executions/[seed]/execution"
 import { env } from "@/env"
 import { ErrTemplateExecutionFailed, ErrTemplateNotValidated } from "@/errors"
 
@@ -24,16 +24,19 @@ export async function GET(
 
 	const templateIdResult = TemplateIdSchema.safeParse(params.templateId.trim())
 	if (!templateIdResult.success) {
-		logger.error("template execution route received invalid template id", {
-			templateId: params.templateId
-		})
+		logger.error(
+			"template execution debug route received invalid template id",
+			{
+				templateId: params.templateId
+			}
+		)
 		return NextResponse.json({ error: "invalid template id" }, { status: 400 })
 	}
 	const templateId = templateIdResult.data
 
 	const seedResult = SeedSchema.safeParse(params.seed.trim())
 	if (!seedResult.success) {
-		logger.error("template execution route received invalid seed", {
+		logger.error("template execution debug route received invalid seed", {
 			templateId,
 			seed: params.seed
 		})
@@ -45,7 +48,7 @@ export async function GET(
 	const seed = seedResult.data
 
 	const executionResult = await errors.try(
-		executeTemplateToXml({
+		executeTemplate({
 			logger,
 			templateId,
 			seed
@@ -61,7 +64,7 @@ export async function GET(
 			)
 		}
 		if (errors.is(failure, ErrTemplateExecutionFailed)) {
-			logger.error("template execution failed", {
+			logger.error("template execution debug payload failed", {
 				templateId,
 				seed,
 				reason: failure.message
@@ -71,32 +74,38 @@ export async function GET(
 				{ status: 500 }
 			)
 		}
-		logger.error("template execution encountered unexpected error", {
-			templateId,
-			seed,
-			error: failure
-		})
+
+		logger.error(
+			"template execution debug route encountered unexpected error",
+			{
+				templateId,
+				seed,
+				error: failure
+			}
+		)
 		return NextResponse.json(
 			{ error: "unexpected error resolving template execution" },
 			{ status: 500 }
 		)
 	}
 
-	const { execution, xml } = executionResult.data
+	const execution = executionResult.data
 
-	const response = new NextResponse(xml, {
-		status: 200,
-		headers: {
-			"Content-Type": "application/xml; charset=utf-8"
-		}
-	})
-
+	const headers = new Headers()
 	if (execution.createdGitCommitSha) {
-		response.headers.set("X-Template-Commit-SHA", execution.createdGitCommitSha)
+		headers.set("X-Template-Commit-SHA", execution.createdGitCommitSha)
 	}
 	if (env.VERCEL_GIT_COMMIT_SHA) {
-		response.headers.set("X-Execution-Commit-SHA", env.VERCEL_GIT_COMMIT_SHA)
+		headers.set("X-Execution-Commit-SHA", env.VERCEL_GIT_COMMIT_SHA)
 	}
 
-	return response
+	return NextResponse.json(
+		{
+			debug: true,
+			templateId: execution.templateId,
+			seed: execution.seed.toString(),
+			body: execution.body
+		},
+		{ headers }
+	)
 }
