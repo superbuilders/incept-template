@@ -92,14 +92,13 @@ export const generateTemplateForExemplarQuestion = inngest.createFunction(
 		)
 
 		if (generationResult.error) {
-			const reason =
-				generationResult.error.message ?? "template generation failed"
+			const message = generationResult.error.message
 			logger.error("template generation failed during full pipeline", {
 				exemplarQuestionId,
-				reason,
+				reason: message,
 				error: generationResult.error
 			})
-			return { status: "failed", exemplarQuestionId, reason }
+			return { status: "failed", exemplarQuestionId, reason: message }
 		}
 
 		const { templateId } = generationResult.data
