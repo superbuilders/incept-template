@@ -1,12 +1,12 @@
+import { randomUUID } from "node:crypto"
 import * as errors from "@superbuilders/errors"
 import { asc, eq } from "drizzle-orm"
 import { db } from "@/db"
 import type { TemplateRecord } from "@/db/schema"
 import { exemplarQuestions, templates } from "@/db/schema"
-
-const MAX_ATTEMPTS = 100
-
 import { inngest } from "@/inngest/client"
+
+const MAX_GENERATION_CYCLES = 100
 
 async function listTemplatesForQuestion(
 	exemplarQuestionId: string
@@ -38,13 +38,13 @@ function hasCompletedValidation(template: {
 	)
 }
 
-async function findLatestValidatedAttempt(
+async function findLatestValidatedTemplate(
 	templatesForQuestion: TemplateRecord[]
-): Promise<number | null> {
+): Promise<TemplateRecord | null> {
 	for (let index = templatesForQuestion.length - 1; index >= 0; index -= 1) {
 		const template = templatesForQuestion[index]
 		if (hasCompletedValidation(template)) {
-			return index
+			return template
 		}
 	}
 	return null
@@ -61,9 +61,12 @@ export const startExemplarQuestionTemplateGeneration = inngest.createFunction(
 	},
 	{ event: "template/exemplar-question.template.generate.requested" },
 	async ({ event, step, logger }) => {
-		const { exemplarQuestionId } = event.data
+		const { exemplarQuestionId, templateId: initialTemplateId } = event.data
 		const baseEventId = event.id
-		logger.info("starting template generation workflow", { exemplarQuestionId })
+		logger.info("starting template generation workflow", {
+			exemplarQuestionId,
+			templateId: initialTemplateId
+		})
 
 		const templateResult = await db
 			.select({ id: exemplarQuestions.id })
@@ -73,7 +76,8 @@ export const startExemplarQuestionTemplateGeneration = inngest.createFunction(
 
 		if (!templateResult[0]) {
 			logger.error("template not found for generation workflow", {
-				exemplarQuestionId
+				exemplarQuestionId,
+				templateId: initialTemplateId
 			})
 			const reason = `template not found: ${exemplarQuestionId}`
 
@@ -81,12 +85,13 @@ export const startExemplarQuestionTemplateGeneration = inngest.createFunction(
 				step.sendEvent("template-generation-start-failed", {
 					id: `${baseEventId}-generation-start-failed`,
 					name: "template/exemplar-question.template.generate.failed",
-					data: { exemplarQuestionId, attempt: 0, reason }
+					data: { exemplarQuestionId, templateId: initialTemplateId, reason }
 				})
 			)
 			if (failureEventResult.error) {
 				logger.error("template generation failure event emission failed", {
 					exemplarQuestionId,
+					templateId: initialTemplateId,
 					reason,
 					error: failureEventResult.error
 				})
@@ -101,31 +106,17 @@ export const startExemplarQuestionTemplateGeneration = inngest.createFunction(
 
 		const templatesForQuestion =
 			await listTemplatesForQuestion(exemplarQuestionId)
-		const latestValidatedAttempt =
-			await findLatestValidatedAttempt(templatesForQuestion)
+		const latestValidatedTemplate =
+			await findLatestValidatedTemplate(templatesForQuestion)
 
-		if (latestValidatedAttempt !== null) {
+		if (latestValidatedTemplate) {
 			logger.info(
 				"template generation already satisfied by validated template",
 				{
 					exemplarQuestionId,
-					attempt: latestValidatedAttempt
+					templateId: latestValidatedTemplate.id
 				}
 			)
-
-			const validatedTemplate = templatesForQuestion[latestValidatedAttempt]
-			if (!validatedTemplate) {
-				const reason = "validated template record missing during generation"
-				logger.error(
-					"validated template missing from templates list during generation",
-					{
-						exemplarQuestionId,
-						attempt: latestValidatedAttempt,
-						reason
-					}
-				)
-				throw errors.new(reason)
-			}
 
 			const completionEventResult = await errors.try(
 				step.sendEvent("template-generation-already-completed", {
@@ -133,8 +124,7 @@ export const startExemplarQuestionTemplateGeneration = inngest.createFunction(
 					name: "template/exemplar-question.template.generate.completed",
 					data: {
 						exemplarQuestionId,
-						attempt: latestValidatedAttempt,
-						templateId: validatedTemplate.id
+						templateId: latestValidatedTemplate.id
 					}
 				})
 			)
@@ -143,7 +133,7 @@ export const startExemplarQuestionTemplateGeneration = inngest.createFunction(
 					"template generation completion event emission failed for validated template",
 					{
 						exemplarQuestionId,
-						attempt: latestValidatedAttempt,
+						templateId: latestValidatedTemplate.id,
 						error: completionEventResult.error
 					}
 				)
@@ -155,29 +145,31 @@ export const startExemplarQuestionTemplateGeneration = inngest.createFunction(
 
 			return {
 				status: "already-completed" as const,
-				attempt: latestValidatedAttempt
+				templateId: latestValidatedTemplate.id
 			}
 		}
 
-		let currentAttempt = templatesForQuestion.length
+		let iteration = 0
+		let currentTemplateId = initialTemplateId
 
-		while (true) {
-			logger.info("dispatching template generation attempt", {
+		while (iteration < MAX_GENERATION_CYCLES) {
+			logger.info("dispatching template generation run", {
 				exemplarQuestionId,
-				attempt: currentAttempt
+				templateId: currentTemplateId,
+				iteration
 			})
 
 			const requestGenerationEventResult = await errors.try(
-				step.sendEvent(`request-template-generation-${currentAttempt}`, {
-					id: `${baseEventId}-template-generation-${currentAttempt}`,
+				step.sendEvent(`request-template-generation-${currentTemplateId}`, {
+					id: `${baseEventId}-template-generation-${currentTemplateId}`,
 					name: "template/template.generate.requested",
-					data: { exemplarQuestionId, attempt: currentAttempt }
+					data: { exemplarQuestionId, templateId: currentTemplateId }
 				})
 			)
 			if (requestGenerationEventResult.error) {
 				logger.error("template generation request event emission failed", {
 					exemplarQuestionId,
-					attempt: currentAttempt,
+					templateId: currentTemplateId,
 					error: requestGenerationEventResult.error
 				})
 				throw errors.wrap(
@@ -187,18 +179,21 @@ export const startExemplarQuestionTemplateGeneration = inngest.createFunction(
 			}
 
 			const waitValidationCompleted = step
-				.waitForEvent(`wait-template-validation-completed-${currentAttempt}`, {
-					event: "template/template.validate.completed",
-					timeout: "30m",
-					if: `async.data.exemplarQuestionId == "${exemplarQuestionId}" && async.data.attempt == ${currentAttempt}`
-				})
+				.waitForEvent(
+					`wait-template-validation-completed-${currentTemplateId}`,
+					{
+						event: "template/template.validate.completed",
+						timeout: "30m",
+						if: `async.data.exemplarQuestionId == "${exemplarQuestionId}" && async.data.templateId == "${currentTemplateId}"`
+					}
+				)
 				.then((evt) => ({ kind: "validation-completed" as const, evt }))
 
 			const waitGenerationFailed = step
-				.waitForEvent(`wait-template-generation-failed-${currentAttempt}`, {
+				.waitForEvent(`wait-template-generation-failed-${currentTemplateId}`, {
 					event: "template/template.generate.failed",
 					timeout: "30m",
-					if: `async.data.exemplarQuestionId == "${exemplarQuestionId}" && async.data.attempt == ${currentAttempt}`
+					if: `async.data.exemplarQuestionId == "${exemplarQuestionId}" && async.data.templateId == "${currentTemplateId}"`
 				})
 				.then((evt) => ({ kind: "generation-failed" as const, evt }))
 
@@ -208,22 +203,22 @@ export const startExemplarQuestionTemplateGeneration = inngest.createFunction(
 			])
 
 			if (!outcome.evt) {
-				const reason = `template generation attempt ${currentAttempt} timed out`
-				logger.error("template generation attempt timed out", {
+				const reason = `template generation timed out for template ${currentTemplateId}`
+				logger.error("template generation run timed out", {
 					exemplarQuestionId,
-					attempt: currentAttempt
+					templateId: currentTemplateId
 				})
 				const failureEventResult = await errors.try(
 					step.sendEvent("template-generation-timed-out", {
-						id: `${baseEventId}-generation-timeout-${currentAttempt}`,
+						id: `${baseEventId}-generation-timeout-${currentTemplateId}`,
 						name: "template/exemplar-question.template.generate.failed",
-						data: { exemplarQuestionId, reason, attempt: currentAttempt }
+						data: { exemplarQuestionId, templateId: currentTemplateId, reason }
 					})
 				)
 				if (failureEventResult.error) {
 					logger.error("failed to emit template generation timeout", {
 						exemplarQuestionId,
-						attempt: currentAttempt,
+						templateId: currentTemplateId,
 						error: failureEventResult.error
 					})
 					throw errors.wrap(
@@ -235,23 +230,29 @@ export const startExemplarQuestionTemplateGeneration = inngest.createFunction(
 			}
 
 			if (outcome.kind === "validation-completed") {
-				const { diagnosticsCount, templateId } = outcome.evt.data
+				const { diagnosticsCount, templateId: validatedTemplateId } =
+					outcome.evt.data
 
 				if (diagnosticsCount > 0) {
 					logger.warn("template validation produced diagnostics", {
 						exemplarQuestionId,
-						attempt: currentAttempt,
-						diagnosticsCount
+						templateId: validatedTemplateId,
+						diagnosticsCount,
+						iteration
 					})
 
-					const nextAttempt = currentAttempt + 1
-					if (nextAttempt >= MAX_ATTEMPTS) {
-						const reason = `template validation failed after ${MAX_ATTEMPTS} attempts`
+					iteration += 1
+					if (iteration >= MAX_GENERATION_CYCLES) {
+						const reason = `template validation failed after ${MAX_GENERATION_CYCLES} iterations`
 						const failureEventResult = await errors.try(
 							step.sendEvent("template-generation-failed-validation", {
-								id: `${baseEventId}-generation-validation-failed-${currentAttempt}`,
+								id: `${baseEventId}-generation-validation-failed-${validatedTemplateId}`,
 								name: "template/exemplar-question.template.generate.failed",
-								data: { exemplarQuestionId, attempt: currentAttempt, reason }
+								data: {
+									exemplarQuestionId,
+									templateId: validatedTemplateId,
+									reason
+								}
 							})
 						)
 						if (failureEventResult.error) {
@@ -259,7 +260,7 @@ export const startExemplarQuestionTemplateGeneration = inngest.createFunction(
 								"template generation failure event emission failed",
 								{
 									exemplarQuestionId,
-									attempt: currentAttempt,
+									templateId: validatedTemplateId,
 									reason,
 									error: failureEventResult.error
 								}
@@ -272,11 +273,7 @@ export const startExemplarQuestionTemplateGeneration = inngest.createFunction(
 						return { status: "failed" as const, reason }
 					}
 
-					logger.info("retrying template generation after diagnostics", {
-						exemplarQuestionId,
-						attempt: nextAttempt
-					})
-					currentAttempt = nextAttempt
+					currentTemplateId = randomUUID()
 					continue
 				}
 
@@ -289,7 +286,7 @@ export const startExemplarQuestionTemplateGeneration = inngest.createFunction(
 							templates.typescriptPassedWithZeroDiagnosticsAt
 					})
 					.from(templates)
-					.where(eq(templates.id, templateId))
+					.where(eq(templates.id, validatedTemplateId))
 					.limit(1)
 					.then((rows) => rows[0])
 
@@ -300,15 +297,18 @@ export const startExemplarQuestionTemplateGeneration = inngest.createFunction(
 						"validated template missing after typescript validation",
 						{
 							exemplarQuestionId,
-							attempt: currentAttempt,
-							templateId
+							templateId: validatedTemplateId
 						}
 					)
 					const failureEventResult = await errors.try(
 						step.sendEvent("template-generation-missing-template", {
-							id: `${baseEventId}-missing-template-${currentAttempt}`,
+							id: `${baseEventId}-missing-template-${validatedTemplateId}`,
 							name: "template/exemplar-question.template.generate.failed",
-							data: { exemplarQuestionId, attempt: currentAttempt, reason }
+							data: {
+								exemplarQuestionId,
+								templateId: validatedTemplateId,
+								reason
+							}
 						})
 					)
 					if (failureEventResult.error) {
@@ -316,7 +316,7 @@ export const startExemplarQuestionTemplateGeneration = inngest.createFunction(
 							"failed to emit template generation failure after missing template",
 							{
 								exemplarQuestionId,
-								attempt: currentAttempt,
+								templateId: validatedTemplateId,
 								error: failureEventResult.error
 							}
 						)
@@ -332,14 +332,17 @@ export const startExemplarQuestionTemplateGeneration = inngest.createFunction(
 					const reason = "template missing TypeScript validation timestamp"
 					logger.error("template missing TypeScript validation timestamp", {
 						exemplarQuestionId,
-						attempt: currentAttempt,
-						templateId
+						templateId: validatedTemplateId
 					})
 					const failureEventResult = await errors.try(
 						step.sendEvent("template-generation-missing-ts-timestamp", {
-							id: `${baseEventId}-missing-ts-timestamp-${currentAttempt}`,
+							id: `${baseEventId}-missing-ts-timestamp-${validatedTemplateId}`,
 							name: "template/exemplar-question.template.generate.failed",
-							data: { exemplarQuestionId, attempt: currentAttempt, reason }
+							data: {
+								exemplarQuestionId,
+								templateId: validatedTemplateId,
+								reason
+							}
 						})
 					)
 					if (failureEventResult.error) {
@@ -347,7 +350,7 @@ export const startExemplarQuestionTemplateGeneration = inngest.createFunction(
 							"failed to emit template generation failure after missing ts timestamp",
 							{
 								exemplarQuestionId,
-								attempt: currentAttempt,
+								templateId: validatedTemplateId,
 								error: failureEventResult.error
 							}
 						)
@@ -364,18 +367,16 @@ export const startExemplarQuestionTemplateGeneration = inngest.createFunction(
 						"template generation completed (already zero-seed validated)",
 						{
 							exemplarQuestionId,
-							attempt: currentAttempt,
-							templateId
+							templateId: validatedTemplateId
 						}
 					)
 					const completionEventResult = await errors.try(
 						step.sendEvent("template-generation-completed", {
-							id: `${baseEventId}-generation-completed-${currentAttempt}`,
+							id: `${baseEventId}-generation-completed-${validatedTemplateId}`,
 							name: "template/exemplar-question.template.generate.completed",
 							data: {
 								exemplarQuestionId,
-								attempt: currentAttempt,
-								templateId
+								templateId: validatedTemplateId
 							}
 						})
 					)
@@ -384,7 +385,7 @@ export const startExemplarQuestionTemplateGeneration = inngest.createFunction(
 							"template generation completion event emission failed after zero-seed validation check",
 							{
 								exemplarQuestionId,
-								attempt: currentAttempt,
+								templateId: validatedTemplateId,
 								error: completionEventResult.error
 							}
 						)
@@ -395,7 +396,7 @@ export const startExemplarQuestionTemplateGeneration = inngest.createFunction(
 					}
 					return {
 						status: "completed" as const,
-						attempt: currentAttempt
+						templateId: validatedTemplateId
 					}
 				}
 
@@ -403,26 +404,26 @@ export const startExemplarQuestionTemplateGeneration = inngest.createFunction(
 					"typescript validation succeeded; requesting zero-seed validation",
 					{
 						exemplarQuestionId,
-						attempt: currentAttempt,
-						templateId
+						templateId: validatedTemplateId
 					}
 				)
 				const zeroSeedRequestResult = await errors.try(
-					step.sendEvent("template-zero-seed-validation-requested", {
-						id: `${baseEventId}-zero-seed-request-${currentAttempt}`,
-						name: "template/template.zero-seed.requested",
-						data: {
-							exemplarQuestionId,
-							attempt: currentAttempt,
-							templateId
+					step.sendEvent(
+						`template-zero-seed-validation-requested-${validatedTemplateId}`,
+						{
+							id: `${baseEventId}-zero-seed-request-${validatedTemplateId}`,
+							name: "template/template.zero-seed.requested",
+							data: {
+								exemplarQuestionId,
+								templateId: validatedTemplateId
+							}
 						}
-					})
+					)
 				)
 				if (zeroSeedRequestResult.error) {
 					logger.error("failed to dispatch zero-seed validation request", {
 						exemplarQuestionId,
-						attempt: currentAttempt,
-						templateId,
+						templateId: validatedTemplateId,
 						error: zeroSeedRequestResult.error
 					})
 					throw errors.wrap(
@@ -432,19 +433,25 @@ export const startExemplarQuestionTemplateGeneration = inngest.createFunction(
 				}
 
 				const waitZeroSeedCompleted = step
-					.waitForEvent(`wait-template-zero-seed-completed-${currentAttempt}`, {
-						event: "template/template.zero-seed.completed",
-						timeout: "30m",
-						if: `async.data.exemplarQuestionId == "${exemplarQuestionId}" && async.data.attempt == ${currentAttempt}`
-					})
+					.waitForEvent(
+						`wait-template-zero-seed-completed-${validatedTemplateId}`,
+						{
+							event: "template/template.zero-seed.completed",
+							timeout: "30m",
+							if: `async.data.exemplarQuestionId == "${exemplarQuestionId}" && async.data.templateId == "${validatedTemplateId}"`
+						}
+					)
 					.then((evt) => ({ kind: "zero-seed-completed" as const, evt }))
 
 				const waitZeroSeedFailed = step
-					.waitForEvent(`wait-template-zero-seed-failed-${currentAttempt}`, {
-						event: "template/template.zero-seed.failed",
-						timeout: "30m",
-						if: `async.data.exemplarQuestionId == "${exemplarQuestionId}" && async.data.attempt == ${currentAttempt}`
-					})
+					.waitForEvent(
+						`wait-template-zero-seed-failed-${validatedTemplateId}`,
+						{
+							event: "template/template.zero-seed.failed",
+							timeout: "30m",
+							if: `async.data.exemplarQuestionId == "${exemplarQuestionId}" && async.data.templateId == "${validatedTemplateId}"`
+						}
+					)
 					.then((evt) => ({ kind: "zero-seed-failed" as const, evt }))
 
 				const zeroSeedOutcome = await Promise.race([
@@ -453,17 +460,20 @@ export const startExemplarQuestionTemplateGeneration = inngest.createFunction(
 				])
 
 				if (!zeroSeedOutcome.evt) {
-					const reason = "zero-seed validation timed out"
+					const reason = `zero-seed validation timed out for template ${validatedTemplateId}`
 					logger.error("zero-seed validation timed out", {
 						exemplarQuestionId,
-						attempt: currentAttempt,
-						templateId
+						templateId: validatedTemplateId
 					})
 					const failureEventResult = await errors.try(
 						step.sendEvent("template-generation-zero-seed-timeout", {
-							id: `${baseEventId}-zero-seed-timeout-${currentAttempt}`,
+							id: `${baseEventId}-zero-seed-timeout-${validatedTemplateId}`,
 							name: "template/exemplar-question.template.generate.failed",
-							data: { exemplarQuestionId, attempt: currentAttempt, reason }
+							data: {
+								exemplarQuestionId,
+								templateId: validatedTemplateId,
+								reason
+							}
 						})
 					)
 					if (failureEventResult.error) {
@@ -471,7 +481,7 @@ export const startExemplarQuestionTemplateGeneration = inngest.createFunction(
 							"failed to emit template generation failure after zero-seed timeout",
 							{
 								exemplarQuestionId,
-								attempt: currentAttempt,
+								templateId: validatedTemplateId,
 								error: failureEventResult.error
 							}
 						)
@@ -488,18 +498,16 @@ export const startExemplarQuestionTemplateGeneration = inngest.createFunction(
 						"template generation completed after zero-seed validation",
 						{
 							exemplarQuestionId,
-							attempt: currentAttempt,
-							templateId
+							templateId: validatedTemplateId
 						}
 					)
 					const completionEventResult = await errors.try(
 						step.sendEvent("template-generation-completed", {
-							id: `${baseEventId}-generation-completed-${currentAttempt}`,
+							id: `${baseEventId}-generation-completed-${validatedTemplateId}`,
 							name: "template/exemplar-question.template.generate.completed",
 							data: {
 								exemplarQuestionId,
-								attempt: currentAttempt,
-								templateId
+								templateId: validatedTemplateId
 							}
 						})
 					)
@@ -508,7 +516,7 @@ export const startExemplarQuestionTemplateGeneration = inngest.createFunction(
 							"template generation completion event emission failed after zero-seed validation",
 							{
 								exemplarQuestionId,
-								attempt: currentAttempt,
+								templateId: validatedTemplateId,
 								error: completionEventResult.error
 							}
 						)
@@ -519,7 +527,7 @@ export const startExemplarQuestionTemplateGeneration = inngest.createFunction(
 					}
 					return {
 						status: "completed" as const,
-						attempt: currentAttempt
+						templateId: validatedTemplateId
 					}
 				}
 
@@ -530,15 +538,18 @@ export const startExemplarQuestionTemplateGeneration = inngest.createFunction(
 				}
 				logger.error("zero-seed validation reported failure", {
 					exemplarQuestionId,
-					attempt: currentAttempt,
-					templateId,
+					templateId: validatedTemplateId,
 					reason
 				})
 				const failureEventResult = await errors.try(
 					step.sendEvent("template-generation-zero-seed-failed", {
-						id: `${baseEventId}-zero-seed-failed-${currentAttempt}`,
+						id: `${baseEventId}-zero-seed-failed-${validatedTemplateId}`,
 						name: "template/exemplar-question.template.generate.failed",
-						data: { exemplarQuestionId, attempt: currentAttempt, reason }
+						data: {
+							exemplarQuestionId,
+							templateId: validatedTemplateId,
+							reason
+						}
 					})
 				)
 				if (failureEventResult.error) {
@@ -546,7 +557,7 @@ export const startExemplarQuestionTemplateGeneration = inngest.createFunction(
 						"failed to emit template generation failure after zero-seed failure",
 						{
 							exemplarQuestionId,
-							attempt: currentAttempt,
+							templateId: validatedTemplateId,
 							error: failureEventResult.error
 						}
 					)
@@ -566,25 +577,25 @@ export const startExemplarQuestionTemplateGeneration = inngest.createFunction(
 				} else {
 					logger.warn("template generation failure reason missing", {
 						exemplarQuestionId,
-						attempt: currentAttempt
+						templateId: currentTemplateId
 					})
 				}
 				logger.error("template generation reported failure", {
 					exemplarQuestionId,
-					attempt: currentAttempt,
+					templateId: currentTemplateId,
 					reason
 				})
 				const failureEventResult = await errors.try(
 					step.sendEvent("template-generation-failed-generation", {
-						id: `${baseEventId}-generation-template-failed-${currentAttempt}`,
+						id: `${baseEventId}-generation-template-failed-${currentTemplateId}`,
 						name: "template/exemplar-question.template.generate.failed",
-						data: { exemplarQuestionId, reason, attempt: currentAttempt }
+						data: { exemplarQuestionId, templateId: currentTemplateId, reason }
 					})
 				)
 				if (failureEventResult.error) {
 					logger.error("template generation failure event emission failed", {
 						exemplarQuestionId,
-						attempt: currentAttempt,
+						templateId: currentTemplateId,
 						reason,
 						error: failureEventResult.error
 					})
@@ -596,5 +607,34 @@ export const startExemplarQuestionTemplateGeneration = inngest.createFunction(
 				return { status: "failed" as const, reason }
 			}
 		}
+
+		const reason = `template generation exhausted ${MAX_GENERATION_CYCLES} iterations`
+		logger.error("template generation exhausted iteration limit", {
+			exemplarQuestionId,
+			templateId: currentTemplateId
+		})
+		const failureEventResult = await errors.try(
+			step.sendEvent("template-generation-iteration-limit", {
+				id: `${baseEventId}-generation-iteration-limit-${currentTemplateId}`,
+				name: "template/exemplar-question.template.generate.failed",
+				data: { exemplarQuestionId, templateId: currentTemplateId, reason }
+			})
+		)
+		if (failureEventResult.error) {
+			logger.error(
+				"template generation failure event emission failed after iteration limit",
+				{
+					exemplarQuestionId,
+					templateId: currentTemplateId,
+					reason,
+					error: failureEventResult.error
+				}
+			)
+			throw errors.wrap(
+				failureEventResult.error,
+				`template generation failure event ${exemplarQuestionId}`
+			)
+		}
+		return { status: "failed" as const, reason }
 	}
 )

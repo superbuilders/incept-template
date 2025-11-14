@@ -76,13 +76,12 @@ export const validateZeroSeed = inngest.createFunction(
 	},
 	{ event: "template/template.zero-seed.requested" },
 	async ({ event, step, logger }) => {
-		const { exemplarQuestionId, attempt, templateId } = event.data
+		const { exemplarQuestionId, templateId } = event.data
 		const baseEventId = event.id
 
 		logger.info("starting zero-seed validation", {
 			exemplarQuestionId,
-			templateId,
-			attempt
+			templateId
 		})
 
 		const validationResult = await errors.try(
@@ -106,7 +105,6 @@ export const validateZeroSeed = inngest.createFunction(
 			logger.error("zero-seed validation failed", {
 				exemplarQuestionId,
 				templateId,
-				attempt,
 				error: failure,
 				reason
 			})
@@ -115,7 +113,7 @@ export const validateZeroSeed = inngest.createFunction(
 				step.sendEvent("zero-seed-validation-failed", {
 					id: `${baseEventId}-zero-seed-failed`,
 					name: "template/template.zero-seed.failed",
-					data: { exemplarQuestionId, attempt, templateId, reason }
+					data: { exemplarQuestionId, templateId, reason }
 				})
 			)
 
@@ -123,7 +121,6 @@ export const validateZeroSeed = inngest.createFunction(
 				logger.error("failed to emit zero-seed validation failure event", {
 					exemplarQuestionId,
 					templateId,
-					attempt,
 					error: failureEventResult.error
 				})
 				throw errors.wrap(
@@ -137,15 +134,14 @@ export const validateZeroSeed = inngest.createFunction(
 
 		logger.info("zero-seed validation succeeded", {
 			exemplarQuestionId,
-			templateId,
-			attempt
+			templateId
 		})
 
 		const completionEventResult = await errors.try(
 			step.sendEvent("zero-seed-validation-completed", {
 				id: `${baseEventId}-zero-seed-completed`,
 				name: "template/template.zero-seed.completed",
-				data: { exemplarQuestionId, attempt, templateId }
+				data: { exemplarQuestionId, templateId }
 			})
 		)
 
@@ -153,7 +149,6 @@ export const validateZeroSeed = inngest.createFunction(
 			logger.error("failed to emit zero-seed validation completion event", {
 				exemplarQuestionId,
 				templateId,
-				attempt,
 				error: completionEventResult.error
 			})
 			throw errors.wrap(

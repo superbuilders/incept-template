@@ -1,5 +1,5 @@
 import * as errors from "@superbuilders/errors"
-import { asc, eq } from "drizzle-orm"
+import { desc, eq } from "drizzle-orm"
 import type { Logger } from "inngest"
 import { db } from "@/db"
 import type { TemplateRecord } from "@/db/schema"
@@ -17,27 +17,15 @@ import { composeRetryPrompt } from "@/templates/prompts/retry"
 import type { TypeScriptDiagnostic } from "@/templates/types"
 import { createAi, TEMPLATE_GENERATION_MODEL } from "@/utils/ai"
 
-type GeneratedResult = {
+type TemplateGenerationResult = {
 	status: "generated"
-	attempt: number
 	templateId: string
 	diagnosticsUsed: number
 }
 
-type ExistingResult = {
-	status: "already-exists"
-	attempt: number
-	templateId: string
-	validated: boolean
-}
-
-type TemplateGenerationAttemptResult = GeneratedResult | ExistingResult
-
-async function fetchTemplateByOrdinal(
-	exemplarQuestionId: string,
-	ordinal: number
+async function fetchLatestTemplate(
+	exemplarQuestionId: string
 ): Promise<TemplateRecord | null> {
-	if (ordinal < 0) return null
 	return db
 		.select({
 			id: templates.id,
@@ -52,8 +40,7 @@ async function fetchTemplateByOrdinal(
 		})
 		.from(templates)
 		.where(eq(templates.exemplarQuestionId, exemplarQuestionId))
-		.orderBy(asc(templates.createdAt))
-		.offset(ordinal)
+		.orderBy(desc(templates.createdAt))
 		.limit(1)
 		.then((rows) => rows[0] ?? null)
 }
@@ -73,30 +60,15 @@ async function getTypeScriptDiagnostics(
 		.orderBy(typescriptDiagnostics.createdAt)
 }
 
-async function hasCompletedValidation(templateId: string): Promise<boolean> {
-	const templateRow = await db
-		.select({
-			typeScriptValidatedAt: templates.typescriptPassedWithZeroDiagnosticsAt,
-			zeroSeedValidatedAt: templates.zeroSeedSuccessfullyGeneratedAt
-		})
-		.from(templates)
-		.where(eq(templates.id, templateId))
-		.limit(1)
-		.then((rows) => rows[0])
-	return Boolean(
-		templateRow?.typeScriptValidatedAt && templateRow?.zeroSeedValidatedAt
-	)
-}
-
-async function performTemplateGenerationAttempt({
+async function performTemplateGeneration({
 	logger,
 	exemplarQuestionId,
-	attempt
+	templateId
 }: {
 	logger: Logger
 	exemplarQuestionId: string
-	attempt: number
-}): Promise<TemplateGenerationAttemptResult> {
+	templateId: string
+}): Promise<TemplateGenerationResult> {
 	const question = await db
 		.select({
 			allowedWidgets: exemplarQuestions.allowedWidgets,
@@ -114,36 +86,28 @@ async function performTemplateGenerationAttempt({
 		throw errors.new(`question not found: ${exemplarQuestionId}`)
 	}
 
-	const existingTemplate = await fetchTemplateByOrdinal(
-		exemplarQuestionId,
-		attempt
-	)
-	if (existingTemplate) {
-		const validated = await hasCompletedValidation(existingTemplate.id)
-		return {
-			status: "already-exists",
-			attempt,
-			templateId: existingTemplate.id,
-			validated
-		}
+	const existingTemplateWithId = await db
+		.select({ id: templates.id })
+		.from(templates)
+		.where(eq(templates.id, templateId))
+		.limit(1)
+
+	if (existingTemplateWithId[0]) {
+		logger.error("template generation received duplicate templateId", {
+			exemplarQuestionId,
+			templateId
+		})
+		throw errors.new(
+			`template ${templateId} already exists for exemplarQuestion=${exemplarQuestionId}`
+		)
 	}
 
+	const previousTemplate = await fetchLatestTemplate(exemplarQuestionId)
 	let previousDiagnostics: TypeScriptDiagnostic[] = []
 	let previousSource = ""
-	if (attempt > 0) {
-		const previousTemplate = await fetchTemplateByOrdinal(
-			exemplarQuestionId,
-			attempt - 1
-		)
-		if (!previousTemplate) {
-			logger.warn("previous attempt missing; proceeding without diagnostics", {
-				exemplarQuestionId,
-				attempt
-			})
-		} else {
-			previousSource = previousTemplate.source
-			previousDiagnostics = await getTypeScriptDiagnostics(previousTemplate.id)
-		}
+	if (previousTemplate) {
+		previousSource = previousTemplate.source
+		previousDiagnostics = await getTypeScriptDiagnostics(previousTemplate.id)
 	}
 
 	const structuredInput = parseStructuredInput(
@@ -154,7 +118,7 @@ async function performTemplateGenerationAttempt({
 	const sourceContext = structuredInput.sourceContext
 
 	const ai = createAi(logger, env.OPENAI_API_KEY)
-	const isRetry = attempt > 0 && previousDiagnostics.length > 0
+	const isRetry = previousDiagnostics.length > 0
 	const lastSource = previousSource
 
 	const prompt = isRetry
@@ -181,6 +145,7 @@ async function performTemplateGenerationAttempt({
 		db
 			.insert(templates)
 			.values({
+				id: templateId,
 				exemplarQuestionId,
 				source: generatedCode,
 				createdGitCommitSha
@@ -205,7 +170,6 @@ async function performTemplateGenerationAttempt({
 
 	return {
 		status: "generated",
-		attempt,
 		templateId: inserted.id,
 		diagnosticsUsed: previousDiagnostics.length
 	}
@@ -213,7 +177,7 @@ async function performTemplateGenerationAttempt({
 
 export const generateTemplate = inngest.createFunction(
 	{
-		id: "template-generation-attempt",
+		id: "template-generation",
 		name: "Template Generation - Step 2: Generate Template",
 		idempotency: "event",
 		concurrency: [
@@ -223,42 +187,43 @@ export const generateTemplate = inngest.createFunction(
 	},
 	{ event: "template/template.generate.requested" },
 	async ({ event, step, logger }) => {
-		const { exemplarQuestionId, attempt } = event.data
+		const { exemplarQuestionId, templateId } = event.data
 		const baseEventId = event.id
 		logger.info("generating template", {
 			exemplarQuestionId,
-			attempt
+			templateId
 		})
 
 		const generationResult = await errors.try(
-			step.run("perform-template-generation-attempt", () =>
-				performTemplateGenerationAttempt({
+			step.run("perform-template-generation", () =>
+				performTemplateGeneration({
 					logger,
 					exemplarQuestionId,
-					attempt
+					templateId
 				})
 			)
 		)
 
 		if (generationResult.error) {
 			const reason = generationResult.error.toString()
-			logger.error("template generation attempt failed", {
+			logger.error("template generation failed", {
 				exemplarQuestionId,
+				templateId,
 				reason,
 				error: generationResult.error
 			})
 
 			const failureEventResult = await errors.try(
-				step.sendEvent("template-generation-attempt-failed", {
-					id: `${baseEventId}-template-generation-failed-attempt-${attempt}`,
+				step.sendEvent("template-generation-failed", {
+					id: `${baseEventId}-template-generation-failed-${templateId}`,
 					name: "template/template.generate.failed",
-					data: { exemplarQuestionId, attempt, reason }
+					data: { exemplarQuestionId, templateId, reason }
 				})
 			)
 			if (failureEventResult.error) {
 				logger.error("template generation failure event emission failed", {
 					exemplarQuestionId,
-					attempt,
+					templateId,
 					reason,
 					error: failureEventResult.error
 				})
@@ -271,74 +236,21 @@ export const generateTemplate = inngest.createFunction(
 			return { status: "failed" as const, reason }
 		}
 
-		if (generationResult.data.status === "already-exists") {
-			logger.info("template already exists for attempt", {
-				exemplarQuestionId,
-				attempt,
-				validated: generationResult.data.validated,
-				generatedTemplateId: generationResult.data.templateId
-			})
-
-			if (!generationResult.data.validated) {
-				await step.sendEvent("request-existing-template-validation", {
-					id: `${baseEventId}-template-validation-request-${generationResult.data.attempt}`,
-					name: "template/template.validate.requested",
-					data: {
-						exemplarQuestionId,
-						attempt: generationResult.data.attempt
-					}
-				})
-			} else {
-				const completionEventResult = await errors.try(
-					step.sendEvent("existing-template-validation-completed", {
-						id: `${baseEventId}-template-validation-already-${generationResult.data.attempt}`,
-						name: "template/template.validate.completed",
-						data: {
-							exemplarQuestionId,
-							attempt: generationResult.data.attempt,
-							diagnosticsCount: 0,
-							templateId: generationResult.data.templateId
-						}
-					})
-				)
-				if (completionEventResult.error) {
-					logger.error(
-						"template validation completion event emission failed for existing template",
-						{
-							exemplarQuestionId,
-							attempt: generationResult.data.attempt,
-							error: completionEventResult.error
-						}
-					)
-					throw errors.wrap(
-						completionEventResult.error,
-						"template validation completion event"
-					)
-				}
-			}
-
-			return {
-				status: "already-exists" as const,
-				attempt: generationResult.data.attempt
-			}
-		}
-
-		logger.info("template generation attempt completed", {
+		logger.info("template generation completed", {
 			exemplarQuestionId,
-			attempt: generationResult.data.attempt,
-			diagnosticsUsed: generationResult.data.diagnosticsUsed,
-			generatedTemplateId: generationResult.data.templateId
+			templateId: generationResult.data.templateId,
+			diagnosticsUsed: generationResult.data.diagnosticsUsed
 		})
 
 		await step.sendEvent("request-template-validation", {
-			id: `${baseEventId}-template-validation-request-${generationResult.data.attempt}`,
+			id: `${baseEventId}-template-validation-request-${templateId}`,
 			name: "template/template.validate.requested",
-			data: { exemplarQuestionId, attempt: generationResult.data.attempt }
+			data: { exemplarQuestionId, templateId }
 		})
 
 		return {
 			status: "generation-complete" as const,
-			attempt: generationResult.data.attempt
+			templateId: generationResult.data.templateId
 		}
 	}
 )

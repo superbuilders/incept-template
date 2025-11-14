@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto"
 import * as errors from "@superbuilders/errors"
 import { eq } from "drizzle-orm"
 import { db } from "@/db"
@@ -7,7 +8,6 @@ import { inngest } from "@/inngest/client"
 type CompletedResult = {
 	status: "completed"
 	exemplarQuestionId: string
-	attempt: number
 	scaffolded: boolean
 	templateId: string
 }
@@ -16,7 +16,7 @@ type FailedResult = {
 	status: "failed"
 	exemplarQuestionId: string
 	reason: string
-	attempt?: number
+	templateId?: string
 }
 
 type FullPipelineResult = CompletedResult | FailedResult
@@ -142,11 +142,13 @@ export const generateTemplateForExemplarQuestion = inngest.createFunction(
 			})
 			.then((evt) => ({ kind: "failed" as const, evt }))
 
+		const initialTemplateId = randomUUID()
+
 		const dispatchGenerationEvent = await errors.try(
 			step.sendEvent("dispatch-template-generation", {
 				id: `${baseEventId}-generation-request`,
 				name: "template/exemplar-question.template.generate.requested",
-				data: { exemplarQuestionId }
+				data: { exemplarQuestionId, templateId: initialTemplateId }
 			})
 		)
 
@@ -180,25 +182,29 @@ export const generateTemplateForExemplarQuestion = inngest.createFunction(
 				typeof failureData.reason === "string"
 					? failureData.reason
 					: "template generation failed"
-			const attempt =
-				typeof failureData.attempt === "number"
-					? failureData.attempt
+			const failedTemplateId =
+				typeof failureData.templateId === "string"
+					? failureData.templateId
 					: undefined
 
 			logger.error("template generation failed during full pipeline", {
 				exemplarQuestionId,
-				attempt,
+				templateId: failedTemplateId,
 				reason
 			})
 
-			return { status: "failed", exemplarQuestionId, reason, attempt }
+			return {
+				status: "failed",
+				exemplarQuestionId,
+				reason,
+				templateId: failedTemplateId
+			}
 		}
 
-		const { attempt, templateId } = generationOutcome.evt.data
+		const { templateId } = generationOutcome.evt.data
 
 		logger.info("full template generation pipeline completed", {
 			exemplarQuestionId,
-			attempt,
 			templateId,
 			scaffolded
 		})
@@ -206,7 +212,6 @@ export const generateTemplateForExemplarQuestion = inngest.createFunction(
 		return {
 			status: "completed",
 			exemplarQuestionId,
-			attempt,
 			scaffolded,
 			templateId
 		}

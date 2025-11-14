@@ -23,123 +23,111 @@ const PREAMBLE_EXAMPLES: readonly PreambleExample[] = [
 		id: "proofy-benchmark",
 		bad: "You chose Less than 1/2. Compare the decimals: 0.47 < 0.50, so the model is smaller.",
 		good: "You chose Less than 1/2. You converted <mfrac><mn>47</mn><mn>100</mn></mfrac> to 0.47 and compared it to 0.50 to justify the benchmark, which matches the statement.",
-		reason: "Bad version re-proves the inequality instead of naming the learner’s benchmark method."
+		reason:
+			"Bad version re-proves the inequality instead of naming the learner’s benchmark method."
 	},
 	{
 		id: "proofy-cross-multiply",
 		bad: "You chose 3/8. Cross-multiply: 3×12 = 36 and 5×8 = 40, so 3/8 is smaller.",
 		good: "You chose <mfrac><mn>3</mn><mn>8</mn></mfrac>. You cross-multiplied 3×12 and 5×8 to compare, which matches the rule for testing smaller fractions.",
-		reason: "Bad version lists cross-products to prove the final inequality. Good version names the cross-multiplication step the learner used."
+		reason:
+			"Bad version lists cross-products to prove the final inequality. Good version names the cross-multiplication step the learner used."
 	},
 	{
 		id: "proofy-equality",
 		bad: "You chose 4/6. Simplify to 2/3, and 2/3 = 8/12, so it equals the model.",
 		good: "You chose <mfrac><mn>4</mn><mn>6</mn></mfrac>. You simplified it straight to <mfrac><mn>2</mn><mn>3</mn></mfrac>, so your step treats it as equal to the model.",
-		reason: "Bad version replays the simplification as a proof; good version highlights the learner’s simplification move."
+		reason:
+			"Bad version replays the simplification as a proof; good version highlights the learner’s simplification move."
 	},
 	{
 		id: "pizza-proofy",
 		bad: "You selected 221, and 664 ÷ 3 gives 221 because 664 = 3 × 221 + 1 — only whole groups of 3 slices count as servings.",
 		good: "You chose 221 servings. You divided the 83 × 8 total slices into groups of 3 and kept only the whole-number quotient, so you counted just full servings.",
-		reason: "Bad version proves the division result; good version states the learner’s division step and rule."
+		reason:
+			"Bad version proves the division result; good version states the learner’s division step and rule."
 	},
 	{
 		id: "parents-proofy",
 		bad: "You selected p = 191 + 12 + 219 and p = 219 − (191 + 12). The subtraction form evaluates to p = 219 − (191 + 12) = 219 − 203 = 16, but the other adds the known groups to the total: p = 191 + 12 + 219 becomes 191 + 12 + 219 = 422, which double-counts people. Parents are the rest, so subtract the students and teachers from the total.",
 		good: "You chose p = 191 + 12 + 219 with p = 219 − (191 + 12). You added the known groups to the total in the first expression, so that method double-counts people before isolating parents.",
-		reason: "Bad version redoes the arithmetic and gives instructions; good version names the double-counting misconception."
+		reason:
+			"Bad version redoes the arithmetic and gives instructions; good version names the double-counting misconception."
 	},
 	{
 		id: "baseline-fixed-expense",
 		bad: "One category is fixed. Look again.",
-		good:
-			"You chose **Internet** with **Groceries**. You treated Internet as fixed because it stays <mo>$</mo><mn>120</mn> each month, so that reasoning matches the fixed-expense rule.",
+		good: "You chose **Internet** with **Groceries**. You treated Internet as fixed because it stays <mo>$</mo><mn>120</mn> each month, so that reasoning matches the fixed-expense rule.",
 		reason:
 			"Bad version names nothing. Good version states the selections, cites the repeated <mo>$</mo><mn>120</mn>, and ties it to the fixed-expense rule."
 	},
 	{
 		id: "correct-coins",
 		bad: "You selected <mo>$</mo><mn>31.47</mn>. Check the subtraction again.",
-		good:
-			"You selected <mo>$</mo><mn>31.47</mn>. You subtracted <mo>$</mo><mn>56.82</mn> − <mo>$</mo><mn>25.35</mn> to confirm <mo>$</mo><mn>31.47</mn>, so your regrouping aligns with the item.",
+		good: "You selected <mo>$</mo><mn>31.47</mn>. You subtracted <mo>$</mo><mn>56.82</mn> − <mo>$</mo><mn>25.35</mn> to confirm <mo>$</mo><mn>31.47</mn>, so your regrouping aligns with the item.",
 		reason:
 			"Bad version dismisses the answer without evidence. Good version quotes the computation that confirms the learner’s choice."
 	},
 	{
 		id: "incorrect-coins",
 		bad: "Your answer is off because you forgot to borrow.",
-		good:
-			"You selected <mo>$</mo><mn>52.11</mn>. You subtracted <mn>43</mn> − <mn>58</mn> without borrowing 1 dollar, so the regrouping step was skipped.",
+		good: "You selected <mo>$</mo><mn>52.11</mn>. You subtracted <mn>43</mn> − <mn>58</mn> without borrowing 1 dollar, so the regrouping step was skipped.",
 		reason:
 			"Bad version is vague. Good version names the selection, the faulty subtraction, and the regrouping rule that fixes it."
 	},
 	{
 		id: "fraction-between-quarter-third",
-		bad:
-			"You selected Between 1/4 and 1/3 of the cookies are left. The amounts given are 5/12 and 2/4, which in 12ths are 5/12 and 6/12. Total given: 11/12; remainder: 1/12. In the same units, 1/4 is 3/12 and 1/3 is 4/12. But 1/12 is not above 3/12, so it is not between 1/4 and 1/3.",
-		good:
-			"You chose \"Between 1/4 and 1/3 of the cookies are left.\" You tried to set <mfrac><mn>1</mn><mn>12</mn></mfrac> between those benchmarks even though your comparison kept it below <mfrac><mn>1</mn><mn>4</mn></mfrac>.",
+		bad: "You selected Between 1/4 and 1/3 of the cookies are left. The amounts given are 5/12 and 2/4, which in 12ths are 5/12 and 6/12. Total given: 11/12; remainder: 1/12. In the same units, 1/4 is 3/12 and 1/3 is 4/12. But 1/12 is not above 3/12, so it is not between 1/4 and 1/3.",
+		good: 'You chose "Between 1/4 and 1/3 of the cookies are left." You tried to set <mfrac><mn>1</mn><mn>12</mn></mfrac> between those benchmarks even though your comparison kept it below <mfrac><mn>1</mn><mn>4</mn></mfrac>.',
 		reason:
 			"Bad version replays every conversion. Good version cites the precise comparison that overturns the claim."
 	},
 	{
 		id: "fraction-between-third-threequarters",
-		bad:
-			"You selected Between 1/3 and 3/4 of the cookies are left. The amounts given are 5/12 and 2/4, which in 12ths are 5/12 and 6/12. Total given: 11/12; remainder: 1/12. Convert the benchmarks: 1/3 is 4/12. 3/4 is 9/12. The value 1/12 is not greater than 4/12, so it does not fall between 1/3 and 3/4.",
-		good:
-			"You chose \"Between 1/3 and 3/4 of the cookies are left.\" You compared <mfrac><mn>1</mn><mn>12</mn></mfrac> to both benchmarks but never raised it above <mfrac><mn>1</mn><mn>3</mn></mfrac>, so the interval check cannot succeed.",
+		bad: "You selected Between 1/3 and 3/4 of the cookies are left. The amounts given are 5/12 and 2/4, which in 12ths are 5/12 and 6/12. Total given: 11/12; remainder: 1/12. Convert the benchmarks: 1/3 is 4/12. 3/4 is 9/12. The value 1/12 is not greater than 4/12, so it does not fall between 1/3 and 3/4.",
+		good: 'You chose "Between 1/3 and 3/4 of the cookies are left." You compared <mfrac><mn>1</mn><mn>12</mn></mfrac> to both benchmarks but never raised it above <mfrac><mn>1</mn><mn>3</mn></mfrac>, so the interval check cannot succeed.',
 		reason:
 			"Bad version floods the learner with conversions. Good version pinpoints the benchmark mismatch."
 	},
 	{
 		id: "fraction-less-than-quarter",
-		bad:
-			"You selected Less than 1/4 of the cookies are left. The amounts given are 5/12 and 2/4, which in 12ths are 5/12 and 6/12. Total given: 11/12; remainder: 1/12. In the same units, 1/4 is 3/12 and Here 1/12 < 3/12, so the remainder is less than 1/4.",
-		good:
-			"You chose \"Less than 1/4 of the cookies are left.\" You compared the remainder <mfrac><mn>1</mn><mn>12</mn></mfrac> to <mfrac><mn>1</mn><mn>4</mn></mfrac> and noted it was smaller, so that benchmark check supports the statement.",
+		bad: "You selected Less than 1/4 of the cookies are left. The amounts given are 5/12 and 2/4, which in 12ths are 5/12 and 6/12. Total given: 11/12; remainder: 1/12. In the same units, 1/4 is 3/12 and Here 1/12 < 3/12, so the remainder is less than 1/4.",
+		good: 'You chose "Less than 1/4 of the cookies are left." You compared the remainder <mfrac><mn>1</mn><mn>12</mn></mfrac> to <mfrac><mn>1</mn><mn>4</mn></mfrac> and noted it was smaller, so that benchmark check supports the statement.',
 		reason:
 			"Bad version relitigates the entire solution even though the learner was correct. Good version validates with the key inequality."
 	},
 	{
 		id: "fraction-more-than-threequarters",
-		bad:
-			"You selected More than 3/4 of the cookies are left. The amounts given are 5/12 and 2/4, which in 12ths are 5/12 and 6/12. Total given: 11/12; remainder: 1/12. 3/4 is 9/12. But 1/12 is not greater than 9/12, so it is not above 3/4.",
-		good:
-			"You chose \"More than 3/4 of the cookies are left.\" You compared <mfrac><mn>1</mn><mn>12</mn></mfrac> to the <mfrac><mn>3</mn><mn>4</mn></mfrac> benchmark but treated the smaller remainder as larger, so the benchmark reasoning breaks.",
+		bad: "You selected More than 3/4 of the cookies are left. The amounts given are 5/12 and 2/4, which in 12ths are 5/12 and 6/12. Total given: 11/12; remainder: 1/12. 3/4 is 9/12. But 1/12 is not greater than 9/12, so it is not above 3/4.",
+		good: 'You chose "More than 3/4 of the cookies are left." You compared <mfrac><mn>1</mn><mn>12</mn></mfrac> to the <mfrac><mn>3</mn><mn>4</mn></mfrac> benchmark but treated the smaller remainder as larger, so the benchmark reasoning breaks.',
 		reason:
 			"Bad version narrates every arithmetic step. Good version contrasts the selection with the decisive benchmark."
 	},
 	{
 		id: "fraction-model-equal",
 		bad: "You chose <mfrac><mn>10</mn><mn>24</mn></mfrac>, and the products match: <mn>10</mn><mo>×</mo><mn>12</mn><mo>=</mo><mn>120</mn> and <mn>5</mn><mo>×</mo><mn>24</mn><mo>=</mo><mn>120</mn>. That makes it equal to the model <mfrac><mn>5</mn><mn>12</mn></mfrac>, not smaller.",
-		good:
-			"You chose <mfrac><mn>10</mn><mn>24</mn></mfrac>. You simplified it straight to <mfrac><mn>5</mn><mn>12</mn></mfrac>, so your method equated the model instead of staying smaller.",
-		reason: "Bad version drags the learner through both cross-products; good version names the choice, states the simplification, and explains why it fails in a single line."
+		good: "You chose <mfrac><mn>10</mn><mn>24</mn></mfrac>. You simplified it straight to <mfrac><mn>5</mn><mn>12</mn></mfrac>, so your method equated the model instead of staying smaller.",
+		reason:
+			"Bad version drags the learner through both cross-products; good version names the choice, states the simplification, and explains why it fails in a single line."
 	},
 	{
 		id: "parents-double-count-parentheses",
-		bad:
-			"You selected p = 191 + 12 + 219 and p = 219 − (191 + 12). The subtraction form evaluates to p = 219 − (191 + 12) = 219 − 203 = 16, but the other adds the known groups to the total: p = 191 + 12 + 219 becomes 191 + 12 + 219 = 422, which double-counts people. Parents are the rest, so subtract the students and teachers from the total.",
-		good:
-			"You chose p = 191 + 12 + 219 with p = 219 − (191 + 12). You added the known groups to the total, so that setup double-counts people before isolating parents.",
+		bad: "You selected p = 191 + 12 + 219 and p = 219 − (191 + 12). The subtraction form evaluates to p = 219 − (191 + 12) = 219 − 203 = 16, but the other adds the known groups to the total: p = 191 + 12 + 219 becomes 191 + 12 + 219 = 422, which double-counts people. Parents are the rest, so subtract the students and teachers from the total.",
+		good: "You chose p = 191 + 12 + 219 with p = 219 − (191 + 12). You added the known groups to the total, so that setup double-counts people before isolating parents.",
 		reason:
 			"Bad version solves the problem inside the preamble. Good version names the chosen equations and pinpoints the overcount."
 	},
 	{
 		id: "parents-double-count-linear",
-		bad:
-			"You selected p = 191 + 12 + 219 and p = 219 − 191 − 12. The subtraction form evaluates to p = 219 − 191 − 12 = 16, but the other adds the known groups to the total: p = 191 + 12 + 219 becomes 191 + 12 + 219 = 422, which double-counts people. Parents are the rest, so subtract the students and teachers from the total.",
-		good:
-			'You chose "p = 191 + 12 + 219" with "p = 219 − 191 − 12". You repeated the addition of known groups to the total, so that structure double-counts people instead of leaving parents.',
+		bad: "You selected p = 191 + 12 + 219 and p = 219 − 191 − 12. The subtraction form evaluates to p = 219 − 191 − 12 = 16, but the other adds the known groups to the total: p = 191 + 12 + 219 becomes 191 + 12 + 219 = 422, which double-counts people. Parents are the rest, so subtract the students and teachers from the total.",
+		good: 'You chose "p = 191 + 12 + 219" with "p = 219 − 191 − 12". You repeated the addition of known groups to the total, so that structure double-counts people instead of leaving parents.',
 		reason:
 			"Bad version runs every computation and issues instructions. Good version isolates the structural error in one sentence."
 	},
 	{
 		id: "variable-expenses-placeholder",
-		bad:
-			"One category you selected does not match the changing pattern. Compare with the variable rows: \${var1Label} → \${var1Math} and \${var2Label} → \${var2Math}.",
-		good:
-			"You chose Utilities with Groceries. You paired Utilities—which stays the same each month—with a changing row, so the variable-expense rule is not met.",
+		bad: "One category you selected does not match the changing pattern. Compare with the variable rows: Groceries → 45 + 5w and Transportation → 12 × rides.",
+		good: "You chose Utilities with Groceries. You paired Utilities—which stays the same each month—with a changing row, so the variable-expense rule is not met.",
 		reason:
 			"Bad version hides the learner’s selections behind placeholders and cites no evidence. Good version names the choices and explains the mismatch."
 	}

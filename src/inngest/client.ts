@@ -29,60 +29,60 @@ const helloWorldSchema = z.object({
 })
 
 const exemplarQuestionTemplateGenerateRequestedSchema = z.object({
-	exemplarQuestionId: z.uuid()
+	exemplarQuestionId: z.uuid(),
+	templateId: z.uuid()
 })
 
 const templateGenerateRequestedSchema = z.object({
 	exemplarQuestionId: z.uuid(),
-	attempt: z.number().int().min(0)
+	templateId: z.uuid()
 })
 
 const templateValidateRequestedSchema = z.object({
 	exemplarQuestionId: z.uuid(),
-	attempt: z.number().int().min(0)
+	templateId: z.uuid()
 })
 
 const templateValidateCompletedSchema = z.object({
 	exemplarQuestionId: z.uuid(),
-	attempt: z.number().int().min(0),
 	diagnosticsCount: z.number().int().min(0),
 	templateId: z.uuid()
 })
 
 const templateZeroSeedRequestedSchema = z.object({
 	exemplarQuestionId: z.uuid(),
-	attempt: z.number().int().min(0),
 	templateId: z.uuid()
 })
 
 const templateZeroSeedCompletedSchema = z.object({
 	exemplarQuestionId: z.uuid(),
-	attempt: z.number().int().min(0),
 	templateId: z.uuid()
 })
 
 const templateZeroSeedFailedSchema = z.object({
 	exemplarQuestionId: z.uuid(),
-	attempt: z.number().int().min(0),
 	templateId: z.uuid(),
+	reason: z.string().min(1)
+})
+
+const exemplarQuestionGenerateAllRequestedSchema = z.object({
 	reason: z.string().min(1)
 })
 
 const templateGenerateFailedSchema = z.object({
 	exemplarQuestionId: z.uuid(),
-	attempt: z.number().int().min(0),
+	templateId: z.uuid(),
 	reason: z.string().min(1)
 })
 
 const exemplarQuestionTemplateGenerateCompletedSchema = z.object({
 	exemplarQuestionId: z.uuid(),
-	attempt: z.number().int().min(0),
 	templateId: z.uuid()
 })
 
 const exemplarQuestionTemplateGenerateFailedSchema = z.object({
 	exemplarQuestionId: z.uuid(),
-	attempt: z.number().int().min(0),
+	templateId: z.uuid(),
 	reason: z.string().min(1)
 })
 
@@ -108,6 +108,8 @@ const schema = {
 	"template/template.zero-seed.requested": templateZeroSeedRequestedSchema,
 	"template/template.zero-seed.completed": templateZeroSeedCompletedSchema,
 	"template/template.zero-seed.failed": templateZeroSeedFailedSchema,
+	"template/exemplar-question.generate.all.requested":
+		exemplarQuestionGenerateAllRequestedSchema,
 	"template/hello": helloWorldSchema
 }
 

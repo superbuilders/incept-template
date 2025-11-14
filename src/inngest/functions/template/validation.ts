@@ -1,6 +1,6 @@
 import * as errors from "@superbuilders/errors"
 import type { Logger as SlogLogger } from "@superbuilders/slog"
-import { asc, eq, sql } from "drizzle-orm"
+import { eq, sql } from "drizzle-orm"
 import type { Logger } from "inngest"
 import { db } from "@/db"
 import type { TemplateRecord } from "@/db/schema"
@@ -29,10 +29,7 @@ type TemplateValidationOutcome =
 	| { status: "valid"; templateId: string }
 	| { status: "invalid"; templateId: string; diagnosticsCount: number }
 
-async function fetchTemplateByOrdinal(
-	exemplarQuestionId: string,
-	ordinal: number
-): Promise<{
+async function fetchTemplateWithWidgets(templateId: string): Promise<{
 	template: TemplateRecord | null
 	allowedWidgets: string[]
 }> {
@@ -49,9 +46,7 @@ async function fetchTemplateByOrdinal(
 				templates.typescriptPassedWithZeroDiagnosticsAt
 		})
 		.from(templates)
-		.where(eq(templates.exemplarQuestionId, exemplarQuestionId))
-		.orderBy(asc(templates.createdAt))
-		.offset(ordinal)
+		.where(eq(templates.id, templateId))
 		.limit(1)
 		.then((rows) => rows[0])
 
@@ -74,31 +69,24 @@ async function fetchTemplateByOrdinal(
 
 async function performTemplateEvaluation({
 	logger,
-	exemplarQuestionId,
-	attempt
+	templateId
 }: {
 	logger: Logger
-	exemplarQuestionId: string
-	attempt: number
+	templateId: string
 }): Promise<TemplateEvaluation> {
-	const { template, allowedWidgets } = await fetchTemplateByOrdinal(
-		exemplarQuestionId,
-		attempt
-	)
+	const { template, allowedWidgets } =
+		await fetchTemplateWithWidgets(templateId)
 
 	if (!template) {
 		logger.error("template not found during validation", {
-			exemplarQuestionId,
-			attempt
+			templateId
 		})
-		throw errors.new(
-			`template not found: exemplarQuestion=${exemplarQuestionId} attempt=${attempt}`
-		)
+		throw errors.new(`template not found: templateId=${templateId}`)
 	}
 
 	if (!template.source || template.source.length === 0) {
 		logger.error("template has no source to validate", {
-			exemplarQuestionId,
+			exemplarQuestionId: template.exemplarQuestionId,
 			templateId: template.id
 		})
 		throw errors.new(`template ${template.id} has empty source`)
@@ -112,7 +100,7 @@ async function performTemplateEvaluation({
 
 	return {
 		templateId: template.id,
-		exemplarQuestionId,
+		exemplarQuestionId: template.exemplarQuestionId,
 		diagnostics
 	}
 }
@@ -205,23 +193,22 @@ async function recordTypeScriptRun({
 async function performTemplateValidation({
 	logger,
 	exemplarQuestionId,
-	attempt
+	templateId
 }: {
 	logger: Logger
 	exemplarQuestionId: string
-	attempt: number
+	templateId: string
 }): Promise<TemplateValidationOutcome> {
 	const evaluationResult = await errors.try(
 		performTemplateEvaluation({
 			logger,
-			exemplarQuestionId,
-			attempt
+			templateId
 		})
 	)
 	if (evaluationResult.error) {
 		logger.error("template validation encountered error", {
 			exemplarQuestionId,
-			attempt,
+			templateId,
 			error: evaluationResult.error
 		})
 		throw errors.wrap(evaluationResult.error, "template validation")
@@ -229,17 +216,32 @@ async function performTemplateValidation({
 
 	const {
 		diagnostics,
-		templateId,
+		templateId: evaluatedTemplateId,
 		exemplarQuestionId: validationQuestionId
 	} = evaluationResult.data
 
+	if (validationQuestionId !== exemplarQuestionId) {
+		logger.error("template validation question mismatch", {
+			expectedExemplarQuestionId: exemplarQuestionId,
+			actualExemplarQuestionId: validationQuestionId,
+			templateId
+		})
+		throw errors.new(
+			`template ${templateId} does not belong to exemplarQuestion=${exemplarQuestionId}`
+		)
+	}
+
 	const recordResult = await errors.try(
-		recordTypeScriptRun({ logger, templateId, diagnostics })
+		recordTypeScriptRun({
+			logger,
+			templateId: evaluatedTemplateId,
+			diagnostics
+		})
 	)
 	if (recordResult.error) {
 		logger.error("failed to persist typescript validation result", {
 			exemplarQuestionId,
-			templateId,
+			templateId: evaluatedTemplateId,
 			error: recordResult.error
 		})
 		throw recordResult.error
@@ -248,21 +250,21 @@ async function performTemplateValidation({
 	if (diagnostics.length === 0) {
 		logger.info("template validation succeeded", {
 			exemplarQuestionId: validationQuestionId,
-			templateId
+			templateId: evaluatedTemplateId
 		})
 
-		return { status: "valid", templateId }
+		return { status: "valid", templateId: evaluatedTemplateId }
 	}
 
 	logger.warn("template validation failed", {
 		exemplarQuestionId: validationQuestionId,
-		templateId,
+		templateId: evaluatedTemplateId,
 		diagnosticsCount: diagnostics.length
 	})
 
 	return {
 		status: "invalid",
-		templateId,
+		templateId: evaluatedTemplateId,
 		diagnosticsCount: diagnostics.length
 	}
 }
@@ -278,23 +280,23 @@ export const validateTemplate = inngest.createFunction(
 	},
 	{ event: "template/template.validate.requested" },
 	async ({ event, step, logger }) => {
-		const { exemplarQuestionId, attempt } = event.data
+		const { exemplarQuestionId, templateId } = event.data
 		const baseEventId = event.id
-		logger.info("validating template", { exemplarQuestionId, attempt })
+		logger.info("validating template", { exemplarQuestionId, templateId })
 
 		const validationResult = await errors.try(
 			step.run("perform-template-validation", () =>
 				performTemplateValidation({
 					logger,
 					exemplarQuestionId,
-					attempt
+					templateId
 				})
 			)
 		)
 		if (validationResult.error) {
 			logger.error("template validation encountered error", {
 				exemplarQuestionId,
-				attempt,
+				templateId,
 				error: validationResult.error
 			})
 			throw errors.wrap(validationResult.error, "template validation")
@@ -309,11 +311,10 @@ export const validateTemplate = inngest.createFunction(
 			outcome.status === "valid" ? 0 : outcome.diagnosticsCount
 
 		await step.sendEvent("template-validation-completed", {
-			id: `${baseEventId}-template-validation-${eventIdOutcome}-${exemplarQuestionId}-${attempt}`,
+			id: `${baseEventId}-template-validation-${eventIdOutcome}-${exemplarQuestionId}-${templateId}`,
 			name: "template/template.validate.completed",
 			data: {
 				exemplarQuestionId,
-				attempt,
 				diagnosticsCount,
 				templateId: outcome.templateId
 			}
