@@ -58,8 +58,7 @@ export async function GET(
 	const response = new NextResponse(templateRecord.source, {
 		status: 200,
 		headers: {
-			"Content-Type": "text/plain; charset=utf-8",
-			"Content-Disposition": `attachment; filename="template-${templateId}.ts"`
+			"Content-Type": "text/plain; charset=utf-8"
 		}
 	})
 
