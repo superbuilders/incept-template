@@ -22,7 +22,7 @@
 			"**",
 			"!**/node_modules",
 			"!**/src/components/ui",
-			"!**/src/templates",
+			"!**/src/templates/prompts/examples",
 			"!!**/.next",
 			"!!**/.vercel"
 		],
