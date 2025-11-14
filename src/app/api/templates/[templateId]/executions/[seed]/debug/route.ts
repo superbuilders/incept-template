@@ -1,5 +1,6 @@
 import * as errors from "@superbuilders/errors"
 import * as logger from "@superbuilders/slog"
+import { regex } from "arkregex"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { executeTemplate } from "@/app/api/templates/[templateId]/executions/[seed]/execution"
@@ -12,9 +13,7 @@ type RouteParams = {
 }
 
 const TemplateIdSchema = z.uuid()
-const SeedSchema = z
-	.string()
-	.regex(/^[0-9]+$/, "seed must be a non-negative integer string")
+const SeedPattern = regex("^[0-9]+$")
 
 export async function GET(
 	_request: Request,
@@ -34,8 +33,8 @@ export async function GET(
 	}
 	const templateId = templateIdResult.data
 
-	const seedResult = SeedSchema.safeParse(params.seed.trim())
-	if (!seedResult.success) {
+	const seedValue = params.seed.trim()
+	if (!SeedPattern.test(seedValue)) {
 		logger.error("template execution debug route received invalid seed", {
 			templateId,
 			seed: params.seed
@@ -45,7 +44,7 @@ export async function GET(
 			{ status: 400 }
 		)
 	}
-	const seed = seedResult.data
+	const seed = BigInt(seedValue)
 
 	const executionResult = await errors.try(
 		executeTemplate({

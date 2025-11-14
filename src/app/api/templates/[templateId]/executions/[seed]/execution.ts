@@ -362,18 +362,9 @@ export async function executeTemplate({
 }: {
 	logger: Logger
 	templateId: string
-	seed: string
+	seed: bigint
 }): Promise<TemplateExecution> {
-	const parsedSeedResult = parseSeed(seed)
-	if (!parsedSeedResult.success) {
-		logger.error("template execution received invalid seed", {
-			templateId,
-			seed,
-			reason: parsedSeedResult.reason
-		})
-		throw errors.wrap(ErrTemplateExecutionFailed, parsedSeedResult.reason)
-	}
-	const normalizedSeed = parsedSeedResult.value
+	const normalizedSeed = seed
 
 	const templateRecord = await ensureTemplateContext(templateId, logger)
 
@@ -419,7 +410,7 @@ export async function executeTemplateToXml({
 }: {
 	logger: Logger
 	templateId: string
-	seed: string
+	seed: bigint
 }): Promise<{ execution: TemplateExecution; xml: string }> {
 	const execution = await executeTemplate({ logger, templateId, seed })
 	const xml = await compileExecutionToXml({
