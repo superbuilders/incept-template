@@ -33,45 +33,27 @@ const exemplarQuestionTemplateGenerateRequestedSchema = z.object({
 	templateId: z.uuid()
 })
 
-const templateGenerateRequestedSchema = z.object({
+const exemplarQuestionTemplateRevalidateRequestedSchema = z.object({
 	exemplarQuestionId: z.uuid(),
 	templateId: z.uuid()
 })
 
-const templateValidateRequestedSchema = z.object({
+const templateGenerationInvokedSchema = z.object({
 	exemplarQuestionId: z.uuid(),
 	templateId: z.uuid()
 })
 
-const templateValidateCompletedSchema = z.object({
-	exemplarQuestionId: z.uuid(),
-	diagnosticsCount: z.number().int().min(0),
-	templateId: z.uuid()
-})
-
-const templateZeroSeedRequestedSchema = z.object({
+const templateTypecheckInvokedSchema = z.object({
 	exemplarQuestionId: z.uuid(),
 	templateId: z.uuid()
 })
 
-const templateZeroSeedCompletedSchema = z.object({
+const templateZeroSeedInvokedSchema = z.object({
 	exemplarQuestionId: z.uuid(),
 	templateId: z.uuid()
 })
 
-const templateZeroSeedFailedSchema = z.object({
-	exemplarQuestionId: z.uuid(),
-	templateId: z.uuid(),
-	reason: z.string().min(1)
-})
-
-const exemplarQuestionGenerateAllRequestedSchema = z.object({
-	reason: z.string().min(1)
-})
-
-const templateGenerateFailedSchema = z.object({
-	exemplarQuestionId: z.uuid(),
-	templateId: z.uuid(),
+const exemplarQuestionRevalidateAllRequestedSchema = z.object({
 	reason: z.string().min(1)
 })
 
@@ -97,19 +79,17 @@ const schema = {
 		exemplarQuestionTemplateGenerateFullSchema,
 	"template/exemplar-question.template.generate.requested":
 		exemplarQuestionTemplateGenerateRequestedSchema,
+	"template/exemplar-question.template.revalidate.requested":
+		exemplarQuestionTemplateRevalidateRequestedSchema,
 	"template/exemplar-question.template.generate.completed":
 		exemplarQuestionTemplateGenerateCompletedSchema,
 	"template/exemplar-question.template.generate.failed":
 		exemplarQuestionTemplateGenerateFailedSchema,
-	"template/template.generate.requested": templateGenerateRequestedSchema,
-	"template/template.generate.failed": templateGenerateFailedSchema,
-	"template/template.validate.requested": templateValidateRequestedSchema,
-	"template/template.validate.completed": templateValidateCompletedSchema,
-	"template/template.zero-seed.requested": templateZeroSeedRequestedSchema,
-	"template/template.zero-seed.completed": templateZeroSeedCompletedSchema,
-	"template/template.zero-seed.failed": templateZeroSeedFailedSchema,
-	"template/exemplar-question.generate.all.requested":
-		exemplarQuestionGenerateAllRequestedSchema,
+	"template/template.generate.invoked": templateGenerationInvokedSchema,
+	"template/template.typecheck.invoked": templateTypecheckInvokedSchema,
+	"template/template.zero-seed.invoked": templateZeroSeedInvokedSchema,
+	"template/exemplar-question.revalidate.all.requested":
+		exemplarQuestionRevalidateAllRequestedSchema,
 	"template/hello": helloWorldSchema
 }
 

@@ -1,7 +1,6 @@
 import * as errors from "@superbuilders/errors"
-import type { Logger as SlogLogger } from "@superbuilders/slog"
+import type { Logger } from "@superbuilders/slog"
 import { eq, sql } from "drizzle-orm"
-import type { Logger } from "inngest"
 import { db } from "@/db"
 import type { TemplateRecord } from "@/db/schema"
 import {
@@ -25,7 +24,7 @@ type TemplateEvaluation = {
 	diagnostics: TypeScriptDiagnostic[]
 }
 
-type TemplateValidationOutcome =
+type TemplateTypecheckOutcome =
 	| { status: "valid"; templateId: string }
 	| { status: "invalid"; templateId: string; diagnosticsCount: number }
 
@@ -78,7 +77,7 @@ async function performTemplateEvaluation({
 		await fetchTemplateWithWidgets(templateId)
 
 	if (!template) {
-		logger.error("template not found during validation", {
+		logger.error("template not found during typecheck", {
 			templateId
 		})
 		throw errors.new(`template not found: templateId=${templateId}`)
@@ -106,7 +105,7 @@ async function performTemplateEvaluation({
 }
 
 async function collectDiagnostics(
-	logger: SlogLogger,
+	logger: Logger,
 	source: string,
 	allowedWidgets: readonly string[]
 ): Promise<TypeScriptDiagnostic[]> {
@@ -173,24 +172,24 @@ async function recordTypeScriptRun({
 				.returning({ id: templates.id })
 
 			if (!updateResult[0]) {
-				logger.error("typescript validation update affected no templates", {
+				logger.error("typescript typecheck update affected no templates", {
 					templateId
 				})
-				throw errors.new("failed to record typescript validation result")
+				throw errors.new("failed to record typescript typecheck result")
 			}
 		})
 	)
 
 	if (result.error) {
-		logger.error("failed to record typescript run", {
+		logger.error("failed to record typescript typecheck run", {
 			templateId,
 			error: result.error
 		})
-		throw errors.wrap(result.error, "record typescript run")
+		throw errors.wrap(result.error, "record typescript typecheck run")
 	}
 }
 
-async function performTemplateValidation({
+async function performTemplateTypecheck({
 	logger,
 	exemplarQuestionId,
 	templateId
@@ -198,7 +197,7 @@ async function performTemplateValidation({
 	logger: Logger
 	exemplarQuestionId: string
 	templateId: string
-}): Promise<TemplateValidationOutcome> {
+}): Promise<TemplateTypecheckOutcome> {
 	const evaluationResult = await errors.try(
 		performTemplateEvaluation({
 			logger,
@@ -206,12 +205,12 @@ async function performTemplateValidation({
 		})
 	)
 	if (evaluationResult.error) {
-		logger.error("template validation encountered error", {
+		logger.error("template typecheck encountered error", {
 			exemplarQuestionId,
 			templateId,
 			error: evaluationResult.error
 		})
-		throw errors.wrap(evaluationResult.error, "template validation")
+		throw errors.wrap(evaluationResult.error, "template typecheck")
 	}
 
 	const {
@@ -221,7 +220,7 @@ async function performTemplateValidation({
 	} = evaluationResult.data
 
 	if (validationQuestionId !== exemplarQuestionId) {
-		logger.error("template validation question mismatch", {
+		logger.error("template typecheck question mismatch", {
 			expectedExemplarQuestionId: exemplarQuestionId,
 			actualExemplarQuestionId: validationQuestionId,
 			templateId
@@ -239,7 +238,7 @@ async function performTemplateValidation({
 		})
 	)
 	if (recordResult.error) {
-		logger.error("failed to persist typescript validation result", {
+		logger.error("failed to persist typescript typecheck result", {
 			exemplarQuestionId,
 			templateId: evaluatedTemplateId,
 			error: recordResult.error
@@ -248,7 +247,7 @@ async function performTemplateValidation({
 	}
 
 	if (diagnostics.length === 0) {
-		logger.info("template validation succeeded", {
+		logger.info("template typecheck succeeded", {
 			exemplarQuestionId: validationQuestionId,
 			templateId: evaluatedTemplateId
 		})
@@ -256,7 +255,7 @@ async function performTemplateValidation({
 		return { status: "valid", templateId: evaluatedTemplateId }
 	}
 
-	logger.warn("template validation failed", {
+	logger.warn("template typecheck failed", {
 		exemplarQuestionId: validationQuestionId,
 		templateId: evaluatedTemplateId,
 		diagnosticsCount: diagnostics.length
@@ -269,24 +268,23 @@ async function performTemplateValidation({
 	}
 }
 
-export const validateTemplate = inngest.createFunction(
+export const typecheckTemplate = inngest.createFunction(
 	{
-		id: "template-validation",
-		name: "Template Generation - Step 3: Validate Template",
+		id: "template-typecheck",
+		name: "Template Generation - Step 3: Typecheck Template",
 		idempotency: "event",
 		concurrency: [
 			{ scope: "fn", key: "event.data.exemplarQuestionId", limit: 1 }
 		]
 	},
-	{ event: "template/template.validate.requested" },
+	{ event: "template/template.typecheck.invoked" },
 	async ({ event, step, logger }) => {
 		const { exemplarQuestionId, templateId } = event.data
-		const baseEventId = event.id
-		logger.info("validating template", { exemplarQuestionId, templateId })
+		logger.info("typechecking template", { exemplarQuestionId, templateId })
 
 		const validationResult = await errors.try(
-			step.run("perform-template-validation", () =>
-				performTemplateValidation({
+			step.run("perform-template-typecheck", () =>
+				performTemplateTypecheck({
 					logger,
 					exemplarQuestionId,
 					templateId
@@ -294,32 +292,15 @@ export const validateTemplate = inngest.createFunction(
 			)
 		)
 		if (validationResult.error) {
-			logger.error("template validation encountered error", {
+			logger.error("template typecheck encountered error", {
 				exemplarQuestionId,
 				templateId,
 				error: validationResult.error
 			})
-			throw errors.wrap(validationResult.error, "template validation")
+			throw errors.wrap(validationResult.error, "template typecheck")
 		}
 
 		const outcome = validationResult.data
-
-		const eventIdOutcome =
-			outcome.status === "valid" ? "succeeded" : "diagnostics"
-
-		const diagnosticsCount =
-			outcome.status === "valid" ? 0 : outcome.diagnosticsCount
-
-		await step.sendEvent("template-validation-completed", {
-			id: `${baseEventId}-template-validation-${eventIdOutcome}-${exemplarQuestionId}-${templateId}`,
-			name: "template/template.validate.completed",
-			data: {
-				exemplarQuestionId,
-				diagnosticsCount,
-				templateId: outcome.templateId
-			}
-		})
-
-		return { status: "validation-succeeded" as const }
+		return { status: "typecheck-complete" as const, outcome }
 	}
 )

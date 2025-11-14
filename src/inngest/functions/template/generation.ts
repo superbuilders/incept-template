@@ -185,10 +185,9 @@ export const generateTemplate = inngest.createFunction(
 			{ limit: 5 }
 		]
 	},
-	{ event: "template/template.generate.requested" },
+	{ event: "template/template.generate.invoked" },
 	async ({ event, step, logger }) => {
 		const { exemplarQuestionId, templateId } = event.data
-		const baseEventId = event.id
 		logger.info("generating template", {
 			exemplarQuestionId,
 			templateId
@@ -212,40 +211,13 @@ export const generateTemplate = inngest.createFunction(
 				reason,
 				error: generationResult.error
 			})
-
-			const failureEventResult = await errors.try(
-				step.sendEvent("template-generation-failed", {
-					id: `${baseEventId}-template-generation-failed-${templateId}`,
-					name: "template/template.generate.failed",
-					data: { exemplarQuestionId, templateId, reason }
-				})
-			)
-			if (failureEventResult.error) {
-				logger.error("template generation failure event emission failed", {
-					exemplarQuestionId,
-					templateId,
-					reason,
-					error: failureEventResult.error
-				})
-				throw errors.wrap(
-					failureEventResult.error,
-					`template generation failure event ${exemplarQuestionId}`
-				)
-			}
-
-			return { status: "failed" as const, reason }
+			throw errors.wrap(generationResult.error, "template generation failed")
 		}
 
 		logger.info("template generation completed", {
 			exemplarQuestionId,
 			templateId: generationResult.data.templateId,
 			diagnosticsUsed: generationResult.data.diagnosticsUsed
-		})
-
-		await step.sendEvent("request-template-validation", {
-			id: `${baseEventId}-template-validation-request-${templateId}`,
-			name: "template/template.validate.requested",
-			data: { exemplarQuestionId, templateId }
 		})
 
 		return {

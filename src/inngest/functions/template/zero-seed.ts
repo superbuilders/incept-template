@@ -43,9 +43,8 @@ async function performZeroSeedValidation({
 		)
 	}
 
-	const executionLogger = logger
 	const execution = await executeTemplateForZeroSeedValidation({
-		logger: executionLogger,
+		logger,
 		templateId
 	})
 
@@ -74,10 +73,9 @@ export const validateZeroSeed = inngest.createFunction(
 		idempotency: "event",
 		concurrency: [{ scope: "fn", key: "event.data.templateId", limit: 1 }]
 	},
-	{ event: "template/template.zero-seed.requested" },
+	{ event: "template/template.zero-seed.invoked" },
 	async ({ event, step, logger }) => {
 		const { exemplarQuestionId, templateId } = event.data
-		const baseEventId = event.id
 
 		logger.info("starting zero-seed validation", {
 			exemplarQuestionId,
@@ -109,26 +107,6 @@ export const validateZeroSeed = inngest.createFunction(
 				reason
 			})
 
-			const failureEventResult = await errors.try(
-				step.sendEvent("zero-seed-validation-failed", {
-					id: `${baseEventId}-zero-seed-failed`,
-					name: "template/template.zero-seed.failed",
-					data: { exemplarQuestionId, templateId, reason }
-				})
-			)
-
-			if (failureEventResult.error) {
-				logger.error("failed to emit zero-seed validation failure event", {
-					exemplarQuestionId,
-					templateId,
-					error: failureEventResult.error
-				})
-				throw errors.wrap(
-					failureEventResult.error,
-					`zero-seed validation failure event ${templateId}`
-				)
-			}
-
 			return { status: "failed" as const, reason }
 		}
 
@@ -136,26 +114,6 @@ export const validateZeroSeed = inngest.createFunction(
 			exemplarQuestionId,
 			templateId
 		})
-
-		const completionEventResult = await errors.try(
-			step.sendEvent("zero-seed-validation-completed", {
-				id: `${baseEventId}-zero-seed-completed`,
-				name: "template/template.zero-seed.completed",
-				data: { exemplarQuestionId, templateId }
-			})
-		)
-
-		if (completionEventResult.error) {
-			logger.error("failed to emit zero-seed validation completion event", {
-				exemplarQuestionId,
-				templateId,
-				error: completionEventResult.error
-			})
-			throw errors.wrap(
-				completionEventResult.error,
-				`zero-seed validation completion event ${templateId}`
-			)
-		}
 
 		return { status: "succeeded" as const }
 	}
