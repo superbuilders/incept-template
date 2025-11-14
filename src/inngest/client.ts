@@ -28,12 +28,12 @@ const helloWorldSchema = z.object({
 	message: z.string().min(1)
 })
 
-const exemplarQuestionTemplateGenerateRequestedSchema = z.object({
+const exemplarQuestionTemplateGenerateInvokedSchema = z.object({
 	exemplarQuestionId: z.uuid(),
 	templateId: z.uuid()
 })
 
-const exemplarQuestionTemplateRevalidateRequestedSchema = z.object({
+const exemplarQuestionTemplateRevalidateInvokedSchema = z.object({
 	exemplarQuestionId: z.uuid(),
 	templateId: z.uuid()
 })
@@ -57,17 +57,6 @@ const exemplarQuestionRevalidateAllRequestedSchema = z.object({
 	reason: z.string().min(1)
 })
 
-const exemplarQuestionTemplateGenerateCompletedSchema = z.object({
-	exemplarQuestionId: z.uuid(),
-	templateId: z.uuid()
-})
-
-const exemplarQuestionTemplateGenerateFailedSchema = z.object({
-	exemplarQuestionId: z.uuid(),
-	templateId: z.uuid(),
-	reason: z.string().min(1)
-})
-
 const schema = {
 	"template/exemplar-question.scaffold.requested":
 		exemplarQuestionScaffoldRequestedSchema,
@@ -77,14 +66,10 @@ const schema = {
 		exemplarQuestionScaffoldFailedSchema,
 	"template/exemplar-question.template.generate.full":
 		exemplarQuestionTemplateGenerateFullSchema,
-	"template/exemplar-question.template.generate.requested":
-		exemplarQuestionTemplateGenerateRequestedSchema,
-	"template/exemplar-question.template.revalidate.requested":
-		exemplarQuestionTemplateRevalidateRequestedSchema,
-	"template/exemplar-question.template.generate.completed":
-		exemplarQuestionTemplateGenerateCompletedSchema,
-	"template/exemplar-question.template.generate.failed":
-		exemplarQuestionTemplateGenerateFailedSchema,
+	"template/exemplar-question.template.generate.invoked":
+		exemplarQuestionTemplateGenerateInvokedSchema,
+	"template/exemplar-question.template.revalidate.invoked":
+		exemplarQuestionTemplateRevalidateInvokedSchema,
 	"template/template.generate.invoked": templateGenerationInvokedSchema,
 	"template/template.typecheck.invoked": templateTypecheckInvokedSchema,
 	"template/template.zero-seed.invoked": templateZeroSeedInvokedSchema,

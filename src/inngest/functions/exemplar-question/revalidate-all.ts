@@ -1,8 +1,10 @@
 import { randomUUID } from "node:crypto"
+import * as errors from "@superbuilders/errors"
 import { asc, desc } from "drizzle-orm"
 import { db } from "@/db"
 import { templates } from "@/db/schema"
 import { inngest } from "@/inngest/client"
+import { revalidateLatestExemplarQuestionTemplate } from "@/inngest/functions/exemplar-question/revalidate"
 
 const DISPATCH_BATCH_SIZE = 100
 
@@ -66,7 +68,6 @@ export const revalidateAllValidatedExemplarQuestions = inngest.createFunction(
 	{ event: "template/exemplar-question.revalidate.all.requested" },
 	async ({ event, step, logger }) => {
 		const { reason } = event.data
-		const baseEventId = event.id
 
 		logger.warn("starting exemplar-question revalidate-all", { reason })
 
@@ -85,16 +86,21 @@ export const revalidateAllValidatedExemplarQuestions = inngest.createFunction(
 
 		for (const batch of batches) {
 			await Promise.all(
-				batch.map((exemplarQuestionId) => {
+				batch.map(async (exemplarQuestionId) => {
 					const templateId = randomUUID()
-					return step.sendEvent(
-						`revalidate-all-dispatch-${exemplarQuestionId}`,
-						{
-							id: `${baseEventId}-revalidate-${exemplarQuestionId}`,
-							name: "template/exemplar-question.template.revalidate.requested",
+					const result = await errors.try(
+						step.invoke(`revalidate-${exemplarQuestionId}`, {
+							function: revalidateLatestExemplarQuestionTemplate,
 							data: { exemplarQuestionId, templateId }
-						}
+						})
 					)
+					if (result.error) {
+						logger.error("failed to invoke revalidation", {
+							exemplarQuestionId,
+							templateId,
+							error: result.error
+						})
+					}
 				})
 			)
 			dispatched += batch.length

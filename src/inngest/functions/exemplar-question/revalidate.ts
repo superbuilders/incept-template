@@ -48,10 +48,9 @@ export const revalidateLatestExemplarQuestionTemplate = inngest.createFunction(
 			{ scope: "fn", key: "event.data.exemplarQuestionId", limit: 1 }
 		]
 	},
-	{ event: "template/exemplar-question.template.revalidate.requested" },
+	{ event: "template/exemplar-question.template.revalidate.invoked" },
 	async ({ event, step, logger }) => {
 		const { exemplarQuestionId, templateId } = event.data
-		const baseEventId = event.id
 		logger.info("starting template revalidation workflow", {
 			exemplarQuestionId,
 			templateId
@@ -64,34 +63,11 @@ export const revalidateLatestExemplarQuestionTemplate = inngest.createFunction(
 			.limit(1)
 
 		if (!questionResult[0]) {
-			const reason = `template not found: ${exemplarQuestionId}`
 			logger.error("template not found for revalidation workflow", {
 				exemplarQuestionId,
 				templateId
 			})
-			const failureEventResult = await errors.try(
-				step.sendEvent("template-revalidation-start-failed", {
-					id: `${baseEventId}-revalidation-start-failed`,
-					name: "template/exemplar-question.template.generate.failed",
-					data: { exemplarQuestionId, templateId, reason }
-				})
-			)
-			if (failureEventResult.error) {
-				logger.error(
-					"template revalidation failure event emission failed at start",
-					{
-						exemplarQuestionId,
-						templateId,
-						reason,
-						error: failureEventResult.error
-					}
-				)
-				throw errors.wrap(
-					failureEventResult.error,
-					`template revalidation failure event ${exemplarQuestionId}`
-				)
-			}
-			return { status: "failed" as const, reason }
+			throw errors.new(`template not found: ${exemplarQuestionId}`)
 		}
 
 		const existingTemplateWithId = await db
@@ -101,100 +77,32 @@ export const revalidateLatestExemplarQuestionTemplate = inngest.createFunction(
 			.limit(1)
 
 		if (existingTemplateWithId[0]) {
-			const reason = `template ${templateId} already exists for exemplarQuestion=${exemplarQuestionId}`
 			logger.error("template revalidation received duplicate templateId", {
 				exemplarQuestionId,
 				templateId
 			})
-			const failureEventResult = await errors.try(
-				step.sendEvent("template-revalidation-duplicate-template-id", {
-					id: `${baseEventId}-revalidation-duplicate-template-id`,
-					name: "template/exemplar-question.template.generate.failed",
-					data: { exemplarQuestionId, templateId, reason }
-				})
+			throw errors.new(
+				`template ${templateId} already exists for exemplarQuestion=${exemplarQuestionId}`
 			)
-			if (failureEventResult.error) {
-				logger.error(
-					"template revalidation failure event emission failed for duplicate id",
-					{
-						exemplarQuestionId,
-						templateId,
-						reason,
-						error: failureEventResult.error
-					}
-				)
-				throw errors.wrap(
-					failureEventResult.error,
-					`template revalidation failure event ${exemplarQuestionId}`
-				)
-			}
-			return { status: "failed" as const, reason }
 		}
 
-		const latestTemplate =
-			await findLatestTemplateForQuestion(exemplarQuestionId)
+		const latestTemplate = await findLatestTemplateForQuestion(exemplarQuestionId)
 
 		if (!latestTemplate) {
-			const reason = "no templates available for exemplar question"
 			logger.error("no template found for revalidation workflow", {
 				exemplarQuestionId,
 				templateId
 			})
-			const failureEventResult = await errors.try(
-				step.sendEvent("template-revalidation-missing-template", {
-					id: `${baseEventId}-revalidation-missing-template`,
-					name: "template/exemplar-question.template.generate.failed",
-					data: { exemplarQuestionId, templateId, reason }
-				})
-			)
-			if (failureEventResult.error) {
-				logger.error(
-					"template revalidation failure event emission failed for missing template",
-					{
-						exemplarQuestionId,
-						templateId,
-						reason,
-						error: failureEventResult.error
-					}
-				)
-				throw errors.wrap(
-					failureEventResult.error,
-					`template revalidation failure event ${exemplarQuestionId}`
-				)
-			}
-			return { status: "failed" as const, reason }
+			throw errors.new("no templates available for exemplar question")
 		}
 
 		if (!hasCompletedValidation(latestTemplate)) {
-			const reason = "latest template has not completed validation"
 			logger.error("latest template not fully validated for revalidation", {
 				exemplarQuestionId,
 				requestedTemplateId: templateId,
 				latestTemplateId: latestTemplate.id
 			})
-			const failureEventResult = await errors.try(
-				step.sendEvent("template-revalidation-latest-not-validated", {
-					id: `${baseEventId}-revalidation-latest-not-validated`,
-					name: "template/exemplar-question.template.generate.failed",
-					data: { exemplarQuestionId, templateId, reason }
-				})
-			)
-			if (failureEventResult.error) {
-				logger.error(
-					"template revalidation failure event emission failed for unvalidated latest template",
-					{
-						exemplarQuestionId,
-						templateId,
-						reason,
-						error: failureEventResult.error
-					}
-				)
-				throw errors.wrap(
-					failureEventResult.error,
-					`template revalidation failure event ${exemplarQuestionId}`
-				)
-			}
-			return { status: "failed" as const, reason }
+			throw errors.new("latest template has not completed validation")
 		}
 
 		const insertResult = await errors.try(
@@ -231,54 +139,25 @@ export const revalidateLatestExemplarQuestionTemplate = inngest.createFunction(
 				templateId,
 				error: typecheckResult.error
 			})
-			throw errors.wrap(
-				typecheckResult.error,
-				`template revalidation typecheck ${exemplarQuestionId}`
-			)
+			throw errors.wrap(typecheckResult.error, "template revalidation typecheck")
 		}
 
 		const typecheckOutcome = typecheckResult.data.outcome
-		const diagnosticsCount =
-			typecheckOutcome.status === "valid"
-				? 0
-				: typecheckOutcome.diagnosticsCount
-
-		if (diagnosticsCount > 0) {
-			const reason = `template typecheck failed with ${diagnosticsCount} diagnostics`
+		if (typecheckOutcome.status !== "valid") {
 			logger.error("template revalidation typecheck produced diagnostics", {
 				exemplarQuestionId,
 				templateId,
-				diagnosticsCount
+				diagnosticsCount: typecheckOutcome.diagnosticsCount
 			})
-			const failureEventResult = await errors.try(
-				step.sendEvent("template-revalidation-typecheck-failed", {
-					id: `${baseEventId}-revalidation-typecheck-failed-${templateId}`,
-					name: "template/exemplar-question.template.generate.failed",
-					data: { exemplarQuestionId, templateId, reason }
-				})
+			throw errors.new(
+				`template typecheck failed with ${typecheckOutcome.diagnosticsCount} diagnostics`
 			)
-			if (failureEventResult.error) {
-				logger.error(
-					"failed to emit template revalidation failure after diagnostics",
-					{
-						exemplarQuestionId,
-						templateId,
-						error: failureEventResult.error
-					}
-				)
-				throw errors.wrap(
-					failureEventResult.error,
-					`template revalidation failure event ${exemplarQuestionId}`
-				)
-			}
-			return { status: "failed" as const, reason }
 		}
 
 		const templateState = await db
 			.select({
 				id: templates.id,
-				zeroSeedSuccessfullyGeneratedAt:
-					templates.zeroSeedSuccessfullyGeneratedAt,
+				zeroSeedSuccessfullyGeneratedAt: templates.zeroSeedSuccessfullyGeneratedAt,
 				typescriptPassedWithZeroDiagnosticsAt:
 					templates.typescriptPassedWithZeroDiagnosticsAt
 			})
@@ -288,8 +167,6 @@ export const revalidateLatestExemplarQuestionTemplate = inngest.createFunction(
 			.then((rows) => rows[0])
 
 		if (!templateState) {
-			const reason =
-				"validated template missing after typescript validation during revalidation"
 			logger.error(
 				"validated template missing after typescript validation during revalidation",
 				{
@@ -297,33 +174,12 @@ export const revalidateLatestExemplarQuestionTemplate = inngest.createFunction(
 					templateId
 				}
 			)
-			const failureEventResult = await errors.try(
-				step.sendEvent("template-revalidation-missing-template", {
-					id: `${baseEventId}-revalidation-missing-template-${templateId}`,
-					name: "template/exemplar-question.template.generate.failed",
-					data: { exemplarQuestionId, templateId, reason }
-				})
+			throw errors.new(
+				"validated template missing after typescript validation during revalidation"
 			)
-			if (failureEventResult.error) {
-				logger.error(
-					"failed to emit template revalidation failure after missing template",
-					{
-						exemplarQuestionId,
-						templateId,
-						error: failureEventResult.error
-					}
-				)
-				throw errors.wrap(
-					failureEventResult.error,
-					`template revalidation failure event ${exemplarQuestionId}`
-				)
-			}
-			return { status: "failed" as const, reason }
 		}
 
 		if (!templateState.typescriptPassedWithZeroDiagnosticsAt) {
-			const reason =
-				"template missing TypeScript validation timestamp during revalidation"
 			logger.error(
 				"template missing TypeScript validation timestamp during revalidation",
 				{
@@ -331,34 +187,16 @@ export const revalidateLatestExemplarQuestionTemplate = inngest.createFunction(
 					templateId
 				}
 			)
-			const failureEventResult = await errors.try(
-				step.sendEvent("template-revalidation-missing-ts-timestamp", {
-					id: `${baseEventId}-revalidation-missing-ts-timestamp-${templateId}`,
-					name: "template/exemplar-question.template.generate.failed",
-					data: { exemplarQuestionId, templateId, reason }
-				})
+			throw errors.new(
+				"template missing TypeScript validation timestamp during revalidation"
 			)
-			if (failureEventResult.error) {
-				logger.error(
-					"failed to emit template revalidation failure after missing ts timestamp",
-					{
-						exemplarQuestionId,
-						templateId,
-						error: failureEventResult.error
-					}
-				)
-				throw errors.wrap(
-					failureEventResult.error,
-					`template revalidation failure event ${exemplarQuestionId}`
-				)
-			}
-			return { status: "failed" as const, reason }
 		}
 
 		logger.info("requesting zero-seed validation for revalidated template", {
 			exemplarQuestionId,
 			templateId
 		})
+
 		const zeroSeedResult = await errors.try(
 			step.invoke("template-revalidation-zero-seed", {
 				function: validateZeroSeed,
@@ -381,64 +219,27 @@ export const revalidateLatestExemplarQuestionTemplate = inngest.createFunction(
 		}
 
 		if (zeroSeedResult.data.status !== "succeeded") {
-			let reason = zeroSeedResult.data.reason ?? "zero-seed validation failed"
+			const zeroSeedReason =
+				zeroSeedResult.data.reason ?? "zero-seed validation failed"
 			logger.error(
 				"zero-seed validation reported failure during revalidation",
 				{
 					exemplarQuestionId,
 					templateId,
-					reason
+					reason: zeroSeedReason
 				}
 			)
-			const failureEventResult = await errors.try(
-				step.sendEvent("template-revalidation-zero-seed-failed", {
-					id: `${baseEventId}-revalidation-zero-seed-failed-${templateId}`,
-					name: "template/exemplar-question.template.generate.failed",
-					data: { exemplarQuestionId, templateId, reason }
-				})
-			)
-			if (failureEventResult.error) {
-				logger.error(
-					"failed to emit template revalidation failure after zero-seed failure",
-					{
-						exemplarQuestionId,
-						templateId,
-						error: failureEventResult.error
-					}
-				)
-				throw errors.wrap(
-					failureEventResult.error,
-					`template revalidation failure event ${exemplarQuestionId}`
-				)
-			}
-			return { status: "failed" as const, reason }
+			throw errors.new(zeroSeedReason)
 		}
 
-		logger.info("template revalidation completed after zero-seed validation", {
-			exemplarQuestionId,
-			templateId
-		})
-		const completionEventResult = await errors.try(
-			step.sendEvent("template-revalidation-completed", {
-				id: `${baseEventId}-revalidation-completed-${templateId}`,
-				name: "template/exemplar-question.template.generate.completed",
-				data: { exemplarQuestionId, templateId }
-			})
+		logger.info(
+			"template revalidation completed after zero-seed validation",
+			{
+				exemplarQuestionId,
+				templateId
+			}
 		)
-		if (completionEventResult.error) {
-			logger.error(
-				"template revalidation completion event emission failed after zero-seed",
-				{
-					exemplarQuestionId,
-					templateId,
-					error: completionEventResult.error
-				}
-			)
-			throw errors.wrap(
-				completionEventResult.error,
-				`template revalidation completion event ${exemplarQuestionId}`
-			)
-		}
+
 		return {
 			status: "completed" as const,
 			templateId

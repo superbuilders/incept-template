@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm"
 import { db } from "@/db"
 import { templates } from "@/db/schema"
 import { inngest } from "@/inngest/client"
+import { startExemplarQuestionTemplateGeneration } from "@/inngest/functions/exemplar-question/generation"
 
 type CompletedResult = {
 	status: "completed"
@@ -126,82 +127,27 @@ export const generateTemplateForExemplarQuestion = inngest.createFunction(
 			})
 		}
 
-		const waitForGenerationCompleted = step
-			.waitForEvent("wait-template-generation-completed", {
-				event: "template/exemplar-question.template.generate.completed",
-				timeout: "60m",
-				if: `async.data.exemplarQuestionId == "${exemplarQuestionId}"`
-			})
-			.then((evt) => ({ kind: "completed" as const, evt }))
-
-		const waitForGenerationFailed = step
-			.waitForEvent("wait-template-generation-failed", {
-				event: "template/exemplar-question.template.generate.failed",
-				timeout: "60m",
-				if: `async.data.exemplarQuestionId == "${exemplarQuestionId}"`
-			})
-			.then((evt) => ({ kind: "failed" as const, evt }))
-
 		const initialTemplateId = randomUUID()
 
-		const dispatchGenerationEvent = await errors.try(
-			step.sendEvent("dispatch-template-generation", {
-				id: `${baseEventId}-generation-request`,
-				name: "template/exemplar-question.template.generate.requested",
+		const generationResult = await errors.try(
+			step.invoke("start-exemplar-question-template-generation", {
+				function: startExemplarQuestionTemplateGeneration,
 				data: { exemplarQuestionId, templateId: initialTemplateId }
 			})
 		)
 
-		if (dispatchGenerationEvent.error) {
-			logger.error("failed to dispatch template generation request", {
+		if (generationResult.error) {
+			const reason =
+				generationResult.error.message ?? "template generation failed"
+			logger.error("template generation failed during full pipeline", {
 				exemplarQuestionId,
-				error: dispatchGenerationEvent.error
-			})
-			throw errors.wrap(
-				dispatchGenerationEvent.error,
-				"dispatch template generation request"
-			)
-		}
-
-		const generationOutcome = await Promise.race([
-			waitForGenerationCompleted,
-			waitForGenerationFailed
-		])
-
-		if (!generationOutcome.evt) {
-			const reason = "template generation timed out"
-			logger.error("template generation timed out during full pipeline", {
-				exemplarQuestionId
+				reason,
+				error: generationResult.error
 			})
 			return { status: "failed", exemplarQuestionId, reason }
 		}
 
-		if (generationOutcome.kind === "failed") {
-			const failureData = generationOutcome.evt.data
-			const reason =
-				typeof failureData.reason === "string"
-					? failureData.reason
-					: "template generation failed"
-			const failedTemplateId =
-				typeof failureData.templateId === "string"
-					? failureData.templateId
-					: undefined
-
-			logger.error("template generation failed during full pipeline", {
-				exemplarQuestionId,
-				templateId: failedTemplateId,
-				reason
-			})
-
-			return {
-				status: "failed",
-				exemplarQuestionId,
-				reason,
-				templateId: failedTemplateId
-			}
-		}
-
-		const { templateId } = generationOutcome.evt.data
+		const { templateId } = generationResult.data
 
 		logger.info("full template generation pipeline completed", {
 			exemplarQuestionId,
