@@ -1,6 +1,8 @@
 import * as errors from "@superbuilders/errors"
 import * as logger from "@superbuilders/slog"
-import type { FeedbackPreamble } from "@/core/feedback/content"
+import type {
+	FeedbackPreamble,
+} from "@/core/feedback/content"
 import type {
 	CombinationFeedbackDimension,
 	FeedbackCombination,
@@ -310,7 +312,13 @@ export default function generateTemplate(
 		.filter((e) => e.isFullyCorrect)
 		.map((e) => shapeDisplay(e.shape))
 
-	const firstWidgetId = entries[0] ? entries[0].widgetId : "symdiag_0"
+	const symmetryTableHeader = [
+		[[text("Shape")], [text("True symmetry lines")]]
+	]
+	const symmetryTableRows = entries.map((e) => [
+		[text(cap(shapeDisplay(e.shape)))],
+		[mathNum(trueSymmetryCount(e.shape))]
+	])
 
 	const shared = {
 		steps: [
@@ -333,20 +341,19 @@ export default function generateTemplate(
 			{
 				type: "step" as const,
 				title: [text("List each shape’s symmetry count")],
-				content: entries.map((e) => {
-					const count = trueSymmetryCount(e.shape)
-					return {
+				content: [
+					{
 						type: "paragraph" as const,
 						content: [
-							text(`${cap(shapeDisplay(e.shape))}: `),
-							text("true lines "),
-							text("="),
-							text(" "),
-							mathNum(count),
-							text(".")
+							text("Each diagram’s true symmetry line count is summarized below.")
 						]
+					},
+					{
+						type: "tableRich" as const,
+						header: symmetryTableHeader,
+						rows: symmetryTableRows
 					}
-				})
+				]
 			},
 			{
 				type: "step" as const,
