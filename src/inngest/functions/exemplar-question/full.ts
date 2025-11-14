@@ -5,6 +5,7 @@ import { db } from "@/db"
 import { templates } from "@/db/schema"
 import { inngest } from "@/inngest/client"
 import { startExemplarQuestionTemplateGeneration } from "@/inngest/functions/exemplar-question/generation"
+import { scaffoldExemplarQuestion } from "@/inngest/functions/exemplar-question/scaffold"
 
 type CompletedResult = {
 	status: "completed"
@@ -31,11 +32,10 @@ export const generateTemplateForExemplarQuestion = inngest.createFunction(
 			{ scope: "fn", key: "event.data.exemplarQuestionId", limit: 1 }
 		]
 	},
-	{ event: "template/exemplar-question.template.generate.full" },
+	{ event: "template/exemplar-question.template.generate.full.invoked" },
 	async ({ event, step, logger }): Promise<FullPipelineResult> => {
 		const { exemplarQuestionId, exampleAssessmentItemBody, metadata } =
 			event.data
-		const baseEventId = event.id
 
 		logger.info("starting full template generation pipeline", {
 			exemplarQuestionId
@@ -53,26 +53,9 @@ export const generateTemplateForExemplarQuestion = inngest.createFunction(
 		let scaffolded = false
 
 		if (!templateExists) {
-			const waitForScaffoldCompleted = step
-				.waitForEvent("wait-template-scaffold-completed", {
-					event: "template/exemplar-question.scaffold.completed",
-					timeout: "15m",
-					if: `async.data.exemplarQuestionId == "${exemplarQuestionId}"`
-				})
-				.then((evt) => ({ kind: "completed" as const, evt }))
-
-			const waitForScaffoldFailed = step
-				.waitForEvent("wait-template-scaffold-failed", {
-					event: "template/exemplar-question.scaffold.failed",
-					timeout: "15m",
-					if: `async.data.exemplarQuestionId == "${exemplarQuestionId}"`
-				})
-				.then((evt) => ({ kind: "failed" as const, evt }))
-
-			const dispatchScaffoldEvent = await errors.try(
-				step.sendEvent("dispatch-template-scaffold", {
-					id: `${baseEventId}-scaffold-request`,
-					name: "template/exemplar-question.scaffold.requested",
+			const scaffoldDispatch = await errors.try(
+				step.invoke("scaffold-exemplar-question", {
+					function: scaffoldExemplarQuestion,
 					data: {
 						exemplarQuestionId,
 						exampleAssessmentItemBody,
@@ -81,40 +64,12 @@ export const generateTemplateForExemplarQuestion = inngest.createFunction(
 				})
 			)
 
-			if (dispatchScaffoldEvent.error) {
-				logger.error("failed to dispatch scaffold request", {
-					exemplarQuestionId,
-					error: dispatchScaffoldEvent.error
-				})
-				throw errors.wrap(
-					dispatchScaffoldEvent.error,
-					"dispatch scaffold request"
-				)
-			}
-
-			const scaffoldOutcome = await Promise.race([
-				waitForScaffoldCompleted,
-				waitForScaffoldFailed
-			])
-
-			if (!scaffoldOutcome.evt) {
-				const reason = "template scaffold timed out"
-				logger.error("scaffold stage timed out during full pipeline", {
-					exemplarQuestionId
-				})
-				return { status: "failed", exemplarQuestionId, reason }
-			}
-
-			if (scaffoldOutcome.kind === "failed") {
-				const reason =
-					typeof scaffoldOutcome.evt.data.reason === "string"
-						? scaffoldOutcome.evt.data.reason
-						: "template scaffold failed"
+			if (scaffoldDispatch.error) {
 				logger.error("scaffold stage failed during full pipeline", {
 					exemplarQuestionId,
-					reason
+					error: scaffoldDispatch.error
 				})
-				return { status: "failed", exemplarQuestionId, reason }
+				throw scaffoldDispatch.error
 			}
 
 			scaffolded = true

@@ -3,19 +3,10 @@ import { EventSchemas, Inngest, type Logger } from "inngest"
 import { z } from "zod"
 import { env } from "@/env"
 
-const exemplarQuestionScaffoldRequestedSchema = z.object({
+const exemplarQuestionScaffoldInvokedSchema = z.object({
 	exemplarQuestionId: z.uuid(),
 	exampleAssessmentItemBody: z.json(),
 	metadata: z.json()
-})
-
-const exemplarQuestionScaffoldCompletedSchema = z.object({
-	exemplarQuestionId: z.uuid()
-})
-
-const exemplarQuestionScaffoldFailedSchema = z.object({
-	exemplarQuestionId: z.uuid(),
-	reason: z.string().min(1)
 })
 
 const exemplarQuestionTemplateGenerateFullSchema = z.object({
@@ -58,13 +49,9 @@ const exemplarQuestionRevalidateAllInvokedSchema = z.object({
 })
 
 const schema = {
-	"template/exemplar-question.scaffold.requested":
-		exemplarQuestionScaffoldRequestedSchema,
-	"template/exemplar-question.scaffold.completed":
-		exemplarQuestionScaffoldCompletedSchema,
-	"template/exemplar-question.scaffold.failed":
-		exemplarQuestionScaffoldFailedSchema,
-	"template/exemplar-question.template.generate.full":
+	"template/exemplar-question.scaffold.invoked":
+		exemplarQuestionScaffoldInvokedSchema,
+	"template/exemplar-question.template.generate.full.invoked":
 		exemplarQuestionTemplateGenerateFullSchema,
 	"template/exemplar-question.template.generate.invoked":
 		exemplarQuestionTemplateGenerateInvokedSchema,

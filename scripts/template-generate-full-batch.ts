@@ -170,7 +170,7 @@ async function main(): Promise<void> {
 		const exemplarQuestionId = randomUUID()
 
 		const eventPayload = {
-			name: "template/exemplar-question.template.generate.full" as const,
+			name: "template/exemplar-question.template.generate.full.invoked" as const,
 			data: {
 				exemplarQuestionId,
 				exampleAssessmentItemBody: assessmentItem,

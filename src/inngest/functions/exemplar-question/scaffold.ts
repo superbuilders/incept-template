@@ -107,11 +107,10 @@ export const scaffoldExemplarQuestion = inngest.createFunction(
 			{ scope: "fn", key: "event.data.exemplarQuestionId", limit: 1 }
 		]
 	},
-	{ event: "template/exemplar-question.scaffold.requested" },
+	{ event: "template/exemplar-question.scaffold.invoked" },
 	async ({ event, step, logger }) => {
 		const { exemplarQuestionId, exampleAssessmentItemBody, metadata } =
 			event.data
-		const baseEventId = event.id
 		logger.info("starting template scaffold", {
 			exemplarQuestionId,
 			payloadType: typeof exampleAssessmentItemBody
@@ -128,74 +127,30 @@ export const scaffoldExemplarQuestion = inngest.createFunction(
 			)
 		)
 		if (scaffoldResult.error) {
-			const reason = scaffoldResult.error.toString()
 			logger.error("template scaffold failed", {
 				exemplarQuestionId,
-				reason,
 				error: scaffoldResult.error
 			})
 
-			const failureEventResult = await errors.try(
-				step.sendEvent("send-template-scaffold-failed", {
-					id: `${baseEventId}-scaffold-failed`,
-					name: "template/exemplar-question.scaffold.failed",
-					data: { exemplarQuestionId, reason }
-				})
-			)
-			if (failureEventResult.error) {
-				const wrappedFailureEventError = errors.wrap(
-					failureEventResult.error,
-					`template scaffold failure event ${exemplarQuestionId}`
-				)
-				logger.error("template scaffold failure event emission failed", {
-					exemplarQuestionId,
-					reason,
-					error: wrappedFailureEventError
-				})
-				throw wrappedFailureEventError
-			}
-
 			const nonRetriable = errors.as(scaffoldResult.error, NonRetriableError)
 			if (nonRetriable) {
-				const wrappedNonRetriable = new NonRetriableError(
+				logger.error("template scaffold aborted due to non-retriable error", {
+					exemplarQuestionId,
+					error: nonRetriable
+				})
+				throw new NonRetriableError(
 					`scaffolding template ${exemplarQuestionId}: ${nonRetriable.message}`,
 					{ cause: nonRetriable }
 				)
-				logger.error("template scaffold aborting after failure event", {
-					exemplarQuestionId,
-					reason,
-					error: wrappedNonRetriable
-				})
-				throw wrappedNonRetriable
 			}
 
-			const wrappedError = errors.wrap(
-				scaffoldResult.error,
-				`scaffolding template ${exemplarQuestionId}`
-			)
-			logger.error("template scaffold aborting after failure event", {
+			logger.error("template scaffold aborted due to unexpected error", {
 				exemplarQuestionId,
-				reason,
-				error: wrappedError
-			})
-			throw wrappedError
-		}
-
-		const completionEventResult = await errors.try(
-			step.sendEvent("send-template-scaffold-completed", {
-				id: `${baseEventId}-scaffold-completed`,
-				name: "template/exemplar-question.scaffold.completed",
-				data: { exemplarQuestionId }
-			})
-		)
-		if (completionEventResult.error) {
-			logger.error("template scaffold completion event emission failed", {
-				exemplarQuestionId,
-				error: completionEventResult.error
+				error: scaffoldResult.error
 			})
 			throw errors.wrap(
-				completionEventResult.error,
-				`template scaffold completion event ${exemplarQuestionId}`
+				scaffoldResult.error,
+				`scaffolding template ${exemplarQuestionId}`
 			)
 		}
 
