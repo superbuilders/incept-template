@@ -11,5 +11,5 @@ export default {
 		secretArn: env.AWS_RDS_SECRET_ARN
 	},
 	schemaFilter: ["template"],
-	out: "./db/migrations"
+	out: "./src/db/migrations"
 } satisfies Config
