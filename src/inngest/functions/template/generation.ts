@@ -45,6 +45,8 @@ async function fetchTemplateByOrdinal(
 			source: templates.source,
 			createdGitCommitSha: templates.createdGitCommitSha,
 			createdAt: templates.createdAt,
+			zeroSeedSuccessfullyGeneratedAt:
+				templates.zeroSeedSuccessfullyGeneratedAt,
 			typescriptPassedWithZeroDiagnosticsAt:
 				templates.typescriptPassedWithZeroDiagnosticsAt
 		})
@@ -71,18 +73,19 @@ async function getTypeScriptDiagnostics(
 		.orderBy(typescriptDiagnostics.createdAt)
 }
 
-async function hasSuccessfulTypeScriptRun(
-	templateId: string
-): Promise<boolean> {
+async function hasCompletedValidation(templateId: string): Promise<boolean> {
 	const templateRow = await db
 		.select({
-			validatedAt: templates.typescriptPassedWithZeroDiagnosticsAt
+			typeScriptValidatedAt: templates.typescriptPassedWithZeroDiagnosticsAt,
+			zeroSeedValidatedAt: templates.zeroSeedSuccessfullyGeneratedAt
 		})
 		.from(templates)
 		.where(eq(templates.id, templateId))
 		.limit(1)
 		.then((rows) => rows[0])
-	return Boolean(templateRow?.validatedAt)
+	return Boolean(
+		templateRow?.typeScriptValidatedAt && templateRow?.zeroSeedValidatedAt
+	)
 }
 
 async function performTemplateGenerationAttempt({
@@ -116,7 +119,7 @@ async function performTemplateGenerationAttempt({
 		attempt
 	)
 	if (existingTemplate) {
-		const validated = await hasSuccessfulTypeScriptRun(existingTemplate.id)
+		const validated = await hasCompletedValidation(existingTemplate.id)
 		return {
 			status: "already-exists",
 			attempt,

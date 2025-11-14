@@ -43,6 +43,8 @@ async function fetchTemplateByOrdinal(
 			exemplarQuestionId: templates.exemplarQuestionId,
 			source: templates.source,
 			createdGitCommitSha: templates.createdGitCommitSha,
+			zeroSeedSuccessfullyGeneratedAt:
+				templates.zeroSeedSuccessfullyGeneratedAt,
 			typescriptPassedWithZeroDiagnosticsAt:
 				templates.typescriptPassedWithZeroDiagnosticsAt
 		})
@@ -176,7 +178,8 @@ async function recordTypeScriptRun({
 				.update(templates)
 				.set({
 					typescriptPassedWithZeroDiagnosticsAt:
-						diagnostics.length === 0 ? sql`now()` : null
+						diagnostics.length === 0 ? sql`now()` : null,
+					zeroSeedSuccessfullyGeneratedAt: null
 				})
 				.where(eq(templates.id, templateId))
 				.returning({ id: templates.id })

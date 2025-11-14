@@ -79,6 +79,8 @@ async function fetchTemplateRecord(templateId: string) {
 			source: templates.source,
 			createdGitCommitSha: templates.createdGitCommitSha,
 			createdAt: templates.createdAt,
+			zeroSeedSuccessfullyGeneratedAt:
+				templates.zeroSeedSuccessfullyGeneratedAt,
 			typescriptPassedWithZeroDiagnosticsAt:
 				templates.typescriptPassedWithZeroDiagnosticsAt
 		})
@@ -321,7 +323,37 @@ async function compileExecutionToXml({
 	return xmlResult.data
 }
 
-async function ensureTemplateContext(templateId: string, logger: Logger) {
+async function ensureTemplateReadyForExecution(
+	templateId: string,
+	logger: Logger
+) {
+	const templateRecord = await fetchTemplateRecord(templateId)
+	if (!templateRecord) {
+		logger.error("template not found", { templateId })
+		throw errors.wrap(ErrTemplateNotValidated, "template missing")
+	}
+
+	const validatedAt = templateRecord.typescriptPassedWithZeroDiagnosticsAt
+	if (!validatedAt) {
+		logger.error("template not validated", { templateId })
+		throw errors.wrap(ErrTemplateNotValidated, "template not validated")
+	}
+
+	if (!templateRecord.zeroSeedSuccessfullyGeneratedAt) {
+		logger.error("template zero-seed validation missing", { templateId })
+		throw errors.wrap(
+			ErrTemplateNotValidated,
+			"template zero-seed validation missing"
+		)
+	}
+
+	return templateRecord
+}
+
+async function ensureTemplateReadyForZeroSeedValidation(
+	templateId: string,
+	logger: Logger
+) {
 	const templateRecord = await fetchTemplateRecord(templateId)
 	if (!templateRecord) {
 		logger.error("template not found", { templateId })
@@ -355,6 +387,50 @@ function mapExecution({
 	}
 }
 
+async function performTemplateExecution({
+	logger,
+	templateRecord,
+	seed
+}: {
+	logger: Logger
+	templateRecord: TemplateRecord
+	seed: bigint
+}): Promise<TemplateExecution> {
+	const factoryResult = await errors.try(
+		loadTemplateFactory(logger, templateRecord)
+	)
+	if (factoryResult.error) {
+		logger.error("template execution setup failed", {
+			templateId: templateRecord.id,
+			seed: seed.toString(),
+			error: factoryResult.error
+		})
+		throw errors.wrap(ErrTemplateExecutionFailed, "template execution setup")
+	}
+	const factory = factoryResult.data
+
+	const bodyResult = await errors.try(factory.execute(seed))
+	if (bodyResult.error) {
+		factory.cleanup()
+		logger.error("template execution run failed", {
+			templateId: templateRecord.id,
+			seed: seed.toString(),
+			error: bodyResult.error
+		})
+		throw errors.wrap(ErrTemplateExecutionFailed, "template execution run")
+	}
+
+	const execution = mapExecution({
+		template: templateRecord,
+		seed,
+		body: bodyResult.data
+	})
+
+	factory.cleanup()
+
+	return execution
+}
+
 export async function executeTemplate({
 	logger,
 	templateId,
@@ -364,43 +440,33 @@ export async function executeTemplate({
 	templateId: string
 	seed: bigint
 }): Promise<TemplateExecution> {
-	const normalizedSeed = seed
-
-	const templateRecord = await ensureTemplateContext(templateId, logger)
-
-	const factoryResult = await errors.try(
-		loadTemplateFactory(logger, templateRecord)
+	const templateRecord = await ensureTemplateReadyForExecution(
+		templateId,
+		logger
 	)
-	if (factoryResult.error) {
-		logger.error("template execution setup failed", {
-			templateId,
-			seed: normalizedSeed.toString(),
-			error: factoryResult.error
-		})
-		throw errors.wrap(ErrTemplateExecutionFailed, "template execution setup")
-	}
-	const factory = factoryResult.data
-
-	const bodyResult = await errors.try(factory.execute(normalizedSeed))
-	if (bodyResult.error) {
-		factory.cleanup()
-		logger.error("template execution run failed", {
-			templateId,
-			seed: normalizedSeed.toString(),
-			error: bodyResult.error
-		})
-		throw errors.wrap(ErrTemplateExecutionFailed, "template execution run")
-	}
-
-	const execution = mapExecution({
-		template: templateRecord,
-		seed: normalizedSeed,
-		body: bodyResult.data
+	return performTemplateExecution({
+		logger,
+		templateRecord,
+		seed
 	})
+}
 
-	factory.cleanup()
-
-	return execution
+export async function executeTemplateForZeroSeedValidation({
+	logger,
+	templateId
+}: {
+	logger: Logger
+	templateId: string
+}): Promise<TemplateExecution> {
+	const templateRecord = await ensureTemplateReadyForZeroSeedValidation(
+		templateId,
+		logger
+	)
+	return performTemplateExecution({
+		logger,
+		templateRecord,
+		seed: 0n
+	})
 }
 
 export async function executeTemplateToXml({
@@ -437,7 +503,10 @@ export async function executeTemplatesToXml({
 		return []
 	}
 
-	const templateRecord = await ensureTemplateContext(templateId, logger)
+	const templateRecord = await ensureTemplateReadyForExecution(
+		templateId,
+		logger
+	)
 
 	const normalizedSeeds = seeds.map((seed) => {
 		const parsed = parseSeed(seed)

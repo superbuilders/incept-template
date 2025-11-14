@@ -49,6 +49,25 @@ const templateValidateCompletedSchema = z.object({
 	templateId: z.uuid()
 })
 
+const templateZeroSeedRequestedSchema = z.object({
+	exemplarQuestionId: z.uuid(),
+	attempt: z.number().int().min(0),
+	templateId: z.uuid()
+})
+
+const templateZeroSeedCompletedSchema = z.object({
+	exemplarQuestionId: z.uuid(),
+	attempt: z.number().int().min(0),
+	templateId: z.uuid()
+})
+
+const templateZeroSeedFailedSchema = z.object({
+	exemplarQuestionId: z.uuid(),
+	attempt: z.number().int().min(0),
+	templateId: z.uuid(),
+	reason: z.string().min(1)
+})
+
 const templateGenerateFailedSchema = z.object({
 	exemplarQuestionId: z.uuid(),
 	attempt: z.number().int().min(0),
@@ -86,6 +105,9 @@ const schema = {
 	"template/template.generate.failed": templateGenerateFailedSchema,
 	"template/template.validate.requested": templateValidateRequestedSchema,
 	"template/template.validate.completed": templateValidateCompletedSchema,
+	"template/template.zero-seed.requested": templateZeroSeedRequestedSchema,
+	"template/template.zero-seed.completed": templateZeroSeedCompletedSchema,
+	"template/template.zero-seed.failed": templateZeroSeedFailedSchema,
 	"template/hello": helloWorldSchema
 }
 

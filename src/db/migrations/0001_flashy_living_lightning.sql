@@ -1,0 +1,1 @@
+ALTER TABLE "template"."templates" ADD COLUMN "zero_seed_successfully_generated_at" timestamp with time zone;

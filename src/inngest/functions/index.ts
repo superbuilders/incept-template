@@ -4,6 +4,7 @@ import { scaffoldExemplarQuestion } from "@/inngest/functions/exemplar-question/
 import { helloWorldFunction } from "@/inngest/functions/hello-world"
 import { generateTemplate } from "@/inngest/functions/template/generation"
 import { validateTemplate } from "@/inngest/functions/template/validation"
+import { validateZeroSeed } from "@/inngest/functions/template/zero-seed"
 
 export const functions = [
 	scaffoldExemplarQuestion,
@@ -11,5 +12,6 @@ export const functions = [
 	helloWorldFunction,
 	startExemplarQuestionTemplateGeneration,
 	generateTemplate,
-	validateTemplate
+	validateTemplate,
+	validateZeroSeed
 ]

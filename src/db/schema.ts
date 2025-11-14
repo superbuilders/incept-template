@@ -50,6 +50,10 @@ export const templates = generatorSchema.table(
 		createdAt: timestamp("created_at", { withTimezone: true })
 			.notNull()
 			.defaultNow(),
+		zeroSeedSuccessfullyGeneratedAt: timestamp(
+			"zero_seed_successfully_generated_at",
+			{ withTimezone: true }
+		),
 		typescriptPassedWithZeroDiagnosticsAt: timestamp(
 			"typescript_passed_with_zero_diagnostics_at",
 			{ withTimezone: true }
