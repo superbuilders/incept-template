@@ -23,7 +23,9 @@ import { escapeXmlAttribute } from "@/compiler/utils/xml-utils"
 import type {
 	BlockContent,
 	BlockContentItem,
-	InlineContent
+	InlineContent,
+	InlineContentItem,
+	TableRichRows
 } from "@/core/content"
 import type { FeedbackContent } from "@/core/feedback/content"
 import type { FeedbackPlanAny } from "@/core/feedback/plan"
@@ -462,7 +464,7 @@ function dedupePromptTextFromBody<E extends readonly string[]>(
 				if (sNorm === "") continue
 				const sTokens = tokenizeForFuzzy(sNorm)
 				if (!tokensStrictlySimilar(sTokens, promptTokens, 0.9)) continue
-				const newInline: InlineContent<E> = []
+				const newInline: InlineContentItem<E>[] = []
 				for (let pIdx = 0; pIdx < block.content.length; pIdx++) {
 					const part = block.content[pIdx]
 					if (!part) continue
@@ -664,9 +666,7 @@ function collectRefs<E extends readonly string[]>(
 			if (node.type === "unorderedList" || node.type === "orderedList")
 				node.items.forEach(walkInline)
 			if (node.type === "tableRich") {
-				const walkRows = (
-					rows: Array<Array<InlineContent<E> | null>> | null
-				) => {
+				const walkRows = (rows: TableRichRows<E> | null) => {
 					if (!rows) return
 					for (const row of rows) {
 						for (const cell of row) walkInline(cell)

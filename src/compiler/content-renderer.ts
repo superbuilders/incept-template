@@ -4,7 +4,8 @@ import { sanitizeXmlAttributeValue } from "@/compiler/utils/xml-utils"
 import type {
 	BlockContent,
 	InlineContent,
-	InlineContentItem
+	InlineContentItem,
+	TableRichRow
 } from "@/core/content"
 import type { FeedbackContent, StepBlock } from "@/core/feedback/content"
 
@@ -93,10 +94,7 @@ export function renderBlockContent<E extends readonly string[]>(
 						"border: 1px solid #ddd; padding: 8px 12px; text-align: left; vertical-align: top;"
 					const tdStyle =
 						"border: 1px solid #ddd; padding: 8px 12px; vertical-align: top;"
-					const renderRow = (
-						row: Array<InlineContent<E> | null>,
-						asHeader = false
-					) =>
+					const renderRow = (row: TableRichRow<E>, asHeader = false) =>
 						`<tr>${row
 							.map((cell) => {
 								const tag = asHeader ? "th" : "td"
@@ -107,10 +105,10 @@ export function renderBlockContent<E extends readonly string[]>(
 							.join("")}</tr>`
 
 					const thead = item.header?.length
-						? `<thead>${item.header.map((r: Array<InlineContent<E> | null>) => renderRow(r, true)).join("")}</thead>`
+						? `<thead>${item.header.map((r: TableRichRow<E>) => renderRow(r, true)).join("")}</thead>`
 						: ""
-					let tbodyRows = item.rows
-						.map((r: Array<InlineContent<E> | null>) => renderRow(r))
+					const tbodyRows = item.rows
+						.map((r: TableRichRow<E>) => renderRow(r))
 						.join("")
 					// Footer support removed: do not emit <tfoot>; if footer provided by older data, fold into tbody as a final bold row is no longer supported
 					return `<table style="${tableStyle}">${thead}<tbody>${tbodyRows}</tbody></table>`

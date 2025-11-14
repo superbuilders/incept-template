@@ -1,6 +1,6 @@
 import * as errors from "@superbuilders/errors"
 import * as logger from "@superbuilders/slog"
-import type { BlockContent, InlineContent } from "@/core/content"
+import type { BlockContent, InlineContent, TableRichRows } from "@/core/content"
 import type {
 	FeedbackBundle,
 	FeedbackSharedPedagogy
@@ -62,9 +62,7 @@ function walkBlock<E extends readonly string[]>(
 				}
 				break
 			case "tableRich": {
-				const walkRows = (
-					rows: Array<Array<InlineContent<E> | null>> | null
-				) => {
+				const walkRows = (rows: TableRichRows<E> | null) => {
 					if (!rows) return
 					for (const row of rows) {
 						for (const cell of row) {
